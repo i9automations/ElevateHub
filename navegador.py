@@ -309,13 +309,21 @@ class App:
         if not self.contas:
             self._placeholder("Nenhum perfil ainda.  Clique em "
                               "“+ Criar perfil”.")
-            return
-        if not visiveis:
+        elif not visiveis:
             self._placeholder("Nenhum perfil com esse nome.")
-            return
-        for i, nome in enumerate(self.contas):
-            if nome in visiveis:
-                self._linha(i, nome)
+        else:
+            for i, nome in enumerate(self.contas):
+                if nome in visiveis:
+                    self._linha(i, nome)
+        # mantem a lista no TOPO (corrige o scroll ficar preso embaixo)
+        self.root.after_idle(self._sync_scroll)
+
+    def _sync_scroll(self):
+        try:
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self.canvas.yview_moveto(0)
+        except Exception:
+            pass
 
     def _placeholder(self, txt):
         box = tk.Frame(self.lista, bg=BG)
@@ -440,6 +448,10 @@ def main():
         f = dpi / 96.0
         root.geometry(f"{int(940 * f)}x{int(620 * f)}")
         root.minsize(int(780 * f), int(460 * f))
+    except Exception:
+        pass
+    try:
+        root.state("zoomed")          # abre maximizado (tela cheia)
     except Exception:
         pass
     App(root)
