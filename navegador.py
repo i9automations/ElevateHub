@@ -1,8 +1,7 @@
 """
-CONTAS TIKTOK — gerenciador de perfis (estilo Dolphin), UI caprichada em
-tkinter puro (sem instalar nada): avatares redondos, botoes arredondados, busca.
-Cada conta = um PERFIL DO CHROME proprio. Cria -> Iniciar -> loga 1x -> fica
-logado. SEM proxy/anti-deteccao (veja LEIA-ME.txt).
+CONTAS TIKTOK — gerenciador de perfis no LAYOUT do Dolphin (barra lateral +
+tabela de perfis). tkinter puro (sem instalar nada). Cada conta = um PERFIL do
+Chrome. Criar -> START -> loga 1x -> fica logado. SEM proxy (veja LEIA-ME.txt).
 """
 
 import os
@@ -18,19 +17,20 @@ CHROME_UDD = os.path.join(PASTA, "navegadores")
 REG = os.path.join(PASTA, "contas.json")
 LOGIN_URL = "https://seller-br.tiktok.com/account/login"
 
-# ---- paleta ----
-BG     = "#0e1217"
-HEADER = "#141b24"
-CARD   = "#1a212b"
-CARDH  = "#212a36"
-CHIP   = "#283442"
-INPUT  = "#0b0f14"
-TEAL   = "#16c79a"
-TEALH  = "#1ee0af"
-GREEN  = "#1db877"
-GREENH = "#26d992"
-FG     = "#eaeef4"
-MUTED  = "#828d9c"
+# ---- paleta (estilo Dolphin: navy escuro) ----
+SIDE   = "#0d1219"   # barra lateral
+BG     = "#121821"   # fundo principal
+BAR    = "#0f151d"   # topo / cabecalho tabela
+ROW    = "#19212c"   # linha
+ROWH   = "#202a37"   # linha hover
+LINE   = "#232d3a"   # divisorias
+CHIP   = "#1c2631"   # chip/tag bg
+FG     = "#e9eef5"
+MUTED  = "#7e8a99"
+TEAL   = "#19c39a"   # acento (criar perfil / ativo)
+TEALH  = "#21d8ac"
+GREEN  = "#2ec27e"   # START (contorno)
+BLUE   = "#3b82f6"
 REDX   = "#e5564e"
 FONT   = "Segoe UI"
 
@@ -64,29 +64,42 @@ def _round_rect(cv, x1, y1, x2, y2, r, **kw):
 
 
 class RoundBtn(tk.Canvas):
-    """Botao arredondado desenhado (com hover)."""
+    """Botao arredondado (preenchido ou contornado), com hover."""
 
-    def __init__(self, parent, text, command, w=124, h=38, r=10,
-                 fill=GREEN, hover=GREENH, fg="#06231f", pbg=CARD,
-                 size=12, bold=True):
+    def __init__(self, parent, text, command, w=110, h=34, r=9,
+                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=ROW, size=11,
+                 contorno=None):
         super().__init__(parent, width=w, height=h, bg=pbg,
                          highlightthickness=0, cursor="hand2")
-        self._fill, self._hover, self._cmd = fill, hover, command
-        self._r = _round_rect(self, 1, 1, w - 1, h - 1, r, fill=fill,
-                              outline="")
-        self.create_text(w // 2, h // 2, text=text, fill=fg,
-                         font=(FONT, size, "bold" if bold else "normal"))
+        self._cmd = command
+        if contorno:
+            self._r = _round_rect(self, 2, 2, w - 2, h - 2, r, fill=pbg,
+                                  outline=contorno, width=2)
+            self._t = self.create_text(w // 2, h // 2, text=text,
+                                       fill=contorno,
+                                       font=(FONT, size, "bold"))
+            self.bind("<Enter>", lambda e: (
+                self.itemconfig(self._r, fill=contorno),
+                self.itemconfig(self._t, fill="#06231f")))
+            self.bind("<Leave>", lambda e: (
+                self.itemconfig(self._r, fill=pbg),
+                self.itemconfig(self._t, fill=contorno)))
+        else:
+            self._r = _round_rect(self, 1, 1, w - 1, h - 1, r, fill=fill,
+                                  outline="")
+            self.create_text(w // 2, h // 2, text=text, fill=fg,
+                             font=(FONT, size, "bold"))
+            self.bind("<Enter>", lambda e: self.itemconfig(self._r, fill=hover))
+            self.bind("<Leave>", lambda e: self.itemconfig(self._r, fill=fill))
         self.bind("<Button-1>", lambda e: self._cmd())
-        self.bind("<Enter>", lambda e: self.itemconfig(self._r, fill=hover))
-        self.bind("<Leave>", lambda e: self.itemconfig(self._r, fill=fill))
 
 
-def _avatar(parent, inicial, cor, bg, size=46):
+def _avatar(parent, inicial, cor, bg, size=34):
     c = tk.Canvas(parent, width=size, height=size, bg=bg,
                   highlightthickness=0)
-    c.create_oval(2, 2, size - 2, size - 2, fill=cor, outline="")
+    c.create_oval(1, 1, size - 1, size - 1, fill=cor, outline="")
     c.create_text(size // 2, size // 2, text=inicial, fill="#0c0d11",
-                  font=(FONT, 17, "bold"))
+                  font=(FONT, 13, "bold"))
     return c
 
 
@@ -99,43 +112,74 @@ class App:
         root.title("Contas TikTok")
         root.configure(bg=BG)
 
-        # ===== cabecalho =====
-        top = tk.Frame(root, bg=HEADER, height=74)
-        top.pack(fill="x")
+        # ===================== BARRA LATERAL =====================
+        side = tk.Frame(root, bg=SIDE, width=210)
+        side.pack(side="left", fill="y")
+        side.pack_propagate(False)
+
+        logo = tk.Frame(side, bg=SIDE)
+        logo.pack(fill="x", pady=(20, 24), padx=18)
+        lc = tk.Canvas(logo, width=34, height=34, bg=SIDE, highlightthickness=0)
+        lc.create_oval(2, 2, 32, 32, fill=TEAL, outline="")
+        lc.create_text(17, 17, text="🐬", font=(FONT, 13))
+        lc.pack(side="left")
+        tk.Label(logo, text="Contas", fg=FG, bg=SIDE,
+                 font=(FONT, 14, "bold")).pack(side="left", padx=8)
+
+        # item ativo "Todos os perfis" (com barra teal a esquerda)
+        item = tk.Frame(side, bg=ROW)
+        item.pack(fill="x", padx=10)
+        tk.Frame(item, bg=TEAL, width=3).pack(side="left", fill="y")
+        tk.Label(item, text="  📁  Todos os perfis", fg=FG, bg=ROW,
+                 font=(FONT, 11, "bold"), anchor="w").pack(side="left",
+                                                           fill="x", pady=10)
+        self.var_cont = tk.StringVar()
+        tk.Label(side, textvariable=self.var_cont, fg=MUTED, bg=SIDE,
+                 font=(FONT, 10), anchor="w").pack(fill="x", padx=24,
+                                                   pady=(14, 0))
+
+        # rodape da sidebar
+        tk.Label(side, text="sem proxy · sem anti-deteccao", fg=MUTED, bg=SIDE,
+                 font=(FONT, 8), wraplength=170, justify="left").pack(
+            side="bottom", anchor="w", padx=18, pady=16)
+
+        # ===================== AREA PRINCIPAL =====================
+        main = tk.Frame(root, bg=BG)
+        main.pack(side="left", fill="both", expand=True)
+
+        top = tk.Frame(main, bg=BG, height=70)
+        top.pack(fill="x", padx=22, pady=(18, 8))
         top.pack_propagate(False)
+        tk.Label(top, text="Todos os perfis", fg=FG, bg=BG,
+                 font=(FONT, 18, "bold")).pack(side="left")
 
-        logo = tk.Canvas(top, width=40, height=40, bg=HEADER,
-                         highlightthickness=0)
-        logo.create_oval(3, 3, 37, 37, fill=TEAL, outline="")
-        logo.create_text(20, 20, text="🐬", font=(FONT, 15))
-        logo.pack(side="left", padx=(20, 12))
-        cab = tk.Frame(top, bg=HEADER)
-        cab.pack(side="left")
-        tk.Label(cab, text="Contas TikTok", fg=FG, bg=HEADER,
-                 font=(FONT, 17, "bold")).pack(anchor="w")
-        self.var_info = tk.StringVar()
-        tk.Label(cab, textvariable=self.var_info, fg=MUTED, bg=HEADER,
-                 font=(FONT, 10)).pack(anchor="w")
-
-        RoundBtn(top, "+  Criar perfil", self.nova, w=148, h=42, r=11,
-                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=HEADER,
-                 size=12).pack(side="right", padx=20)
-
+        RoundBtn(top, "+  Criar perfil", self.nova, w=150, h=40, r=10,
+                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=BG,
+                 size=12).pack(side="right")
         # busca
-        cx = tk.Canvas(top, width=210, height=40, bg=HEADER,
-                       highlightthickness=0)
-        _round_rect(cx, 1, 1, 209, 39, 10, fill=INPUT, outline="")
-        cx.pack(side="right", padx=8)
+        cx = tk.Canvas(top, width=200, height=38, bg=BG, highlightthickness=0)
+        _round_rect(cx, 1, 1, 199, 37, 9, fill=BAR, outline=LINE)
+        cx.pack(side="right", padx=10)
         self.var_busca = tk.StringVar()
-        ent = tk.Entry(cx, textvariable=self.var_busca, bg=INPUT, fg=FG,
+        ent = tk.Entry(cx, textvariable=self.var_busca, bg=BAR, fg=FG,
                        insertbackground=FG, relief="flat", font=(FONT, 11))
-        cx.create_window(105, 20, window=ent, width=180, height=24)
-        ent.insert(0, "")
+        cx.create_window(102, 19, window=ent, width=168, height=22)
         self.var_busca.trace_add("write", lambda *a: self._montar_lista())
 
-        # ===== lista rolavel =====
-        cont = tk.Frame(root, bg=BG)
-        cont.pack(fill="both", expand=True, padx=16, pady=14)
+        # cabecalho da tabela
+        hd = tk.Frame(main, bg=BAR, height=34)
+        hd.pack(fill="x", padx=22)
+        hd.pack_propagate(False)
+        tk.Label(hd, text="PERFIL", fg=MUTED, bg=BAR,
+                 font=(FONT, 9, "bold")).pack(side="left", padx=(16, 0))
+        tk.Label(hd, text="AÇÕES", fg=MUTED, bg=BAR,
+                 font=(FONT, 9, "bold")).pack(side="right", padx=(0, 20))
+        tk.Label(hd, text="TAGS", fg=MUTED, bg=BAR,
+                 font=(FONT, 9, "bold")).pack(side="right", padx=(0, 150))
+
+        # lista rolavel
+        cont = tk.Frame(main, bg=BG)
+        cont.pack(fill="both", expand=True, padx=22, pady=(0, 16))
         self.canvas = tk.Canvas(cont, bg=BG, highlightthickness=0)
         sb = ttk.Scrollbar(cont, orient="vertical", command=self.canvas.yview)
         self.lista = tk.Frame(self.canvas, bg=BG)
@@ -177,7 +221,7 @@ class App:
         for w in self.lista.winfo_children():
             w.destroy()
         filtro = self.var_busca.get().strip().lower()
-        self.var_info.set(f"{len(self.contas)} perfil(is)")
+        self.var_cont.set(f"{len(self.contas)} perfil(is)")
         visiveis = [n for n in self.contas if filtro in n.lower()]
         if not self.contas:
             self._placeholder("Nenhum perfil ainda.  Clique em "
@@ -196,23 +240,34 @@ class App:
 
     def _linha(self, i, nome):
         cor = CORES[i % len(CORES)]
-        card = tk.Frame(self.lista, bg=CARD, height=70)
-        card.pack(fill="x", pady=(0, 8))
+        card = tk.Frame(self.lista, bg=ROW, height=60)
+        card.pack(fill="x", pady=(0, 1))
         card.pack_propagate(False)
 
-        _avatar(card, nome[:1].upper(), cor, CARD).pack(side="left",
-                                                        padx=(14, 14))
-        tk.Label(card, text=nome, fg=FG, bg=CARD,
-                 font=(FONT, 14, "bold")).pack(side="left")
+        # icones tipo Dolphin (windows + globo)
+        tk.Label(card, text="⊞", fg="#5b9bd5", bg=ROW,
+                 font=(FONT, 13)).pack(side="left", padx=(16, 2))
+        tk.Label(card, text="🌐", fg=MUTED, bg=ROW,
+                 font=(FONT, 11)).pack(side="left", padx=(0, 12))
+        _avatar(card, nome[:1].upper(), cor, ROW).pack(side="left",
+                                                       padx=(0, 10))
+        tk.Label(card, text=nome, fg=FG, bg=ROW,
+                 font=(FONT, 13, "bold")).pack(side="left")
 
-        RoundBtn(card, "🗑", lambda: self._remover(nome), w=42, h=36, r=9,
-                 fill=CHIP, hover="#3a2630", fg=MUTED, pbg=CARD,
-                 size=12).pack(side="right", padx=(4, 14))
-        RoundBtn(card, "▶  Iniciar", lambda: self._abrir(nome), w=124, h=40,
-                 r=11, fill=GREEN, hover=GREENH, fg="#06231f", pbg=CARD,
-                 size=12).pack(side="right", padx=4)
-        tk.Label(card, text="  tiktok  ", fg=MUTED, bg=CHIP,
-                 font=(FONT, 9)).pack(side="right", padx=10, ipady=3)
+        # acoes (direita)
+        RoundBtn(card, "🗑", lambda: self._remover(nome), w=40, h=32, r=8,
+                 fill=CHIP, hover="#3a2630", fg=MUTED, pbg=ROW,
+                 size=11).pack(side="right", padx=(4, 16))
+        RoundBtn(card, "▷  START", lambda: self._abrir(nome), w=110, h=34,
+                 r=9, pbg=ROW, contorno=GREEN, size=11).pack(side="right",
+                                                             padx=4)
+        # tag estilo Dolphin
+        tag = tk.Canvas(card, width=84, height=24, bg=ROW,
+                        highlightthickness=0)
+        _round_rect(tag, 1, 1, 83, 23, 7, fill=CHIP, outline="")
+        tag.create_text(42, 12, text="TikTok Shop", fill="#8fb7ff",
+                        font=(FONT, 8, "bold"))
+        tag.pack(side="right", padx=10)
 
     # ---------- acoes ----------
     def nova(self):
@@ -298,8 +353,8 @@ def main():
         dpi = root.winfo_fpixels("1i")
         root.tk.call("tk", "scaling", dpi / 72.0)
         f = dpi / 96.0
-        root.geometry(f"{int(740 * f)}x{int(620 * f)}")
-        root.minsize(int(600 * f), int(440 * f))
+        root.geometry(f"{int(940 * f)}x{int(620 * f)}")
+        root.minsize(int(780 * f), int(460 * f))
     except Exception:
         pass
     App(root)
