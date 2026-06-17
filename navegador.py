@@ -261,10 +261,8 @@ class App:
         self.lista = tk.Frame(self.canvas, bg=BG)
         self._win = self.canvas.create_window((0, 0), window=self.lista,
                                               anchor="nw")
-        self.lista.bind("<Configure>", lambda e: self.canvas.configure(
-            scrollregion=self.canvas.bbox("all")))
-        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(
-            self._win, width=e.width))
+        self.lista.bind("<Configure>", self._on_lista_config)
+        self.canvas.bind("<Configure>", self._on_canvas_config)
         self.canvas.configure(yscrollcommand=sb.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
@@ -324,10 +322,31 @@ class App:
         # mantem a lista no TOPO (corrige o scroll ficar preso embaixo)
         self.root.after_idle(self._sync_scroll)
 
+    def _on_canvas_config(self, e):
+        self.canvas.itemconfig(self._win, width=e.width)
+        self._fit()
+
+    def _on_lista_config(self, e):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self._fit()
+
+    def _fit(self):
+        # se o conteudo cabe na area visivel, GRUDA no topo (sem scroll fantasma)
+        try:
+            box = self.canvas.bbox("all")
+            if not box:
+                return
+            alt_conteudo = box[3] - box[1]
+            if alt_conteudo <= self.canvas.winfo_height():
+                self.canvas.yview_moveto(0)
+        except Exception:
+            pass
+
     def _sync_scroll(self):
         try:
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
             self.canvas.yview_moveto(0)
+            self._fit()
         except Exception:
             pass
 
