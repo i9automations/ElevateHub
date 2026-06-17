@@ -10,7 +10,7 @@ import json
 import shutil
 import subprocess
 import tkinter as tk
-from tkinter import ttk, simpledialog, messagebox
+from tkinter import ttk
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
 CHROME_UDD = os.path.join(PASTA, "navegadores")
@@ -94,15 +94,6 @@ class RoundBtn(tk.Canvas):
             self.bind("<Enter>", lambda e: self.itemconfig(self._r, fill=hover))
             self.bind("<Leave>", lambda e: self.itemconfig(self._r, fill=fill))
         self.bind("<Button-1>", lambda e: self._cmd())
-
-
-def _avatar(parent, inicial, cor, bg, size=34):
-    c = tk.Canvas(parent, width=size, height=size, bg=bg,
-                  highlightthickness=0)
-    c.create_oval(1, 1, size - 1, size - 1, fill=cor, outline="")
-    c.create_text(size // 2, size // 2, text=inicial, fill="#0c0d11",
-                  font=(FONT, 13, "bold"))
-    return c
 
 
 class Dialogo(tk.Toplevel):
@@ -272,17 +263,10 @@ class App:
         self._montar_lista()
 
     def _estilo(self):
-        s = ttk.Style(self.root)
         try:
-            s.theme_use("clam")
+            ttk.Style(self.root).theme_use("clam")
         except Exception:
             pass
-        # barra de rolagem ESCURA (sem o clam fica branca no Windows)
-        s.configure("Dark.Vertical.TScrollbar", troughcolor=BG,
-                    background=LINE, bordercolor=BG, arrowcolor=MUTED,
-                    relief="flat", borderwidth=0)
-        s.map("Dark.Vertical.TScrollbar",
-              background=[("active", ROWH), ("pressed", ROWH)])
 
     # ---------- dados ----------
     def _carregar(self):
@@ -330,55 +314,54 @@ class App:
         cv.pack(fill="x", pady=5)
         cv.card = None
 
-        def desenhar(w):
+        def desenhar(w=None):
+            if w is None:
+                w = cv.winfo_width()
             if w < 60:
                 return
             cv.delete("all")
-            # card arredondado
             cv.card = _round_rect(cv, 1, 3, w - 1, 65, 16, fill=ROW,
                                   outline="")
-            # icones windows + globo
             cv.create_text(28, 34, text="⊞", fill="#5b9bd5", font=(FONT, 13))
             cv.create_text(52, 34, text="🌐", fill=MUTED, font=(FONT, 11))
-            # avatar redondo
             cv.create_oval(70, 18, 102, 50, fill=cor, outline="")
             cv.create_text(86, 34, text=nome[:1].upper(), fill="#0c0d11",
                            font=(FONT, 14, "bold"))
-            # nome
             cv.create_text(118, 34, text=nome, anchor="w", fill=FG,
                            font=(FONT, 14, "bold"))
-            # lixeira (direita)
             cv.create_text(w - 34, 34, text="🗑", fill=MUTED,
                            font=(FONT, 13), tags="trash")
-            # botao START
             sx2, sx1 = w - 62, w - 62 - 122
             cv.start = _round_rect(cv, sx1, 16, sx2, 52, 10, fill=GREEN,
                                    outline="", tags="start")
             cv.create_text((sx1 + sx2) // 2, 34, text="▶  START",
                            fill="#06231f", font=(FONT, 11, "bold"),
                            tags="start")
-            # tag TikTok Shop
             tx2 = sx1 - 18
             tx1 = tx2 - 98
             _round_rect(cv, tx1, 22, tx2, 46, 8, fill=CHIP, outline="")
             cv.create_text((tx1 + tx2) // 2, 34, text="TikTok Shop",
                            fill="#8fb7ff", font=(FONT, 9, "bold"))
+            # liga os cliques NOS itens recem-criados (senao o START nao clica)
+            cv.tag_bind("start", "<Button-1>", lambda e: self._abrir(nome))
+            cv.tag_bind("start", "<Enter>", lambda e: (
+                cv.itemconfig(cv.start, fill=GREENH),
+                cv.configure(cursor="hand2")))
+            cv.tag_bind("start", "<Leave>", lambda e: (
+                cv.itemconfig(cv.start, fill=GREEN), cv.configure(cursor="")))
+            cv.tag_bind("trash", "<Button-1>", lambda e: self._remover(nome))
+            cv.tag_bind("trash", "<Enter>",
+                        lambda e: cv.configure(cursor="hand2"))
+            cv.tag_bind("trash", "<Leave>", lambda e: cv.configure(cursor=""))
 
         def hover(c):
-            if cv.card is not None:
+            if getattr(cv, "card", None) is not None:
                 cv.itemconfig(cv.card, fill=c)
 
         cv.bind("<Configure>", lambda e: desenhar(e.width))
         cv.bind("<Enter>", lambda e: hover(ROWH))
         cv.bind("<Leave>", lambda e: hover(ROW))
-        cv.tag_bind("start", "<Button-1>", lambda e: self._abrir(nome))
-        cv.tag_bind("start", "<Enter>", lambda e: (
-            cv.itemconfig(cv.start, fill=GREENH), cv.configure(cursor="hand2")))
-        cv.tag_bind("start", "<Leave>", lambda e: (
-            cv.itemconfig(cv.start, fill=GREEN), cv.configure(cursor="")))
-        cv.tag_bind("trash", "<Button-1>", lambda e: self._remover(nome))
-        cv.tag_bind("trash", "<Enter>", lambda e: cv.configure(cursor="hand2"))
-        cv.tag_bind("trash", "<Leave>", lambda e: cv.configure(cursor=""))
+        cv.after(80, desenhar)        # desenho inicial garantido
 
     # ---------- acoes ----------
     def nova(self):
@@ -453,6 +436,17 @@ def _corrigir_dpi():
             pass
 
 
+def _maximizar(root):
+    try:
+        root.state("zoomed")                       # maximizado (com barra)
+    except Exception:
+        try:
+            root.geometry(f"{root.winfo_screenwidth()}x"
+                          f"{root.winfo_screenheight()}+0+0")
+        except Exception:
+            pass
+
+
 def main():
     _corrigir_dpi()
     root = tk.Tk()
@@ -465,15 +459,12 @@ def main():
         dpi = root.winfo_fpixels("1i")
         root.tk.call("tk", "scaling", dpi / 72.0)
         f = dpi / 96.0
-        root.geometry(f"{int(940 * f)}x{int(620 * f)}")
-        root.minsize(int(780 * f), int(460 * f))
-    except Exception:
-        pass
-    try:
-        root.state("zoomed")          # abre maximizado (tela cheia)
+        root.geometry(f"{int(1000 * f)}x{int(640 * f)}")
+        root.minsize(int(820 * f), int(480 * f))
     except Exception:
         pass
     App(root)
+    root.after(80, lambda: _maximizar(root))   # maximiza apos montar a janela
     root.mainloop()
 
 
