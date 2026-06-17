@@ -22,10 +22,10 @@ LOGIN_URL = "https://seller-br.tiktok.com/account/login"
 SIDE   = "#0d1219"
 BG     = "#121821"
 BAR    = "#0f151d"
-ROW    = "#19212c"
-ROWH   = "#202a37"
+ROW    = "#1d2733"
+ROWH   = "#27333f"
 LINE   = "#2a3543"
-CHIP   = "#1c2631"
+CHIP   = "#2b3744"
 FG     = "#e9eef5"
 MUTED  = "#7e8a99"
 TEAL   = "#19c39a"
@@ -245,13 +245,14 @@ class App:
         cx.create_window(102, 19, window=ent, width=168, height=22)
         self.var_busca.trace_add("write", lambda *a: self._montar_lista())
 
-        hd = tk.Frame(main, bg=BAR, height=34)
-        hd.pack(fill="x", padx=22)
+        hd = tk.Frame(main, bg=BG, height=28)
+        hd.pack(fill="x", padx=24)
         hd.pack_propagate(False)
-        tk.Label(hd, text="PERFIL", fg=MUTED, bg=BAR,
-                 font=(FONT, 9, "bold")).pack(side="left", padx=(16, 0))
-        tk.Label(hd, text="AÇÕES", fg=MUTED, bg=BAR,
-                 font=(FONT, 9, "bold")).pack(side="right", padx=(0, 20))
+        tk.Label(hd, text="PERFIL", fg=MUTED, bg=BG,
+                 font=(FONT, 9, "bold")).pack(side="left")
+        tk.Label(hd, text="AÇÕES", fg=MUTED, bg=BG,
+                 font=(FONT, 9, "bold")).pack(side="right", padx=(0, 16))
+        tk.Frame(main, bg=LINE, height=1).pack(fill="x", padx=24, pady=(0, 4))
 
         # lista direta (sem canvas de rolagem -> nao flicka nem scrolla sozinho).
         # os perfis ficam fixos no topo, empilhados.
@@ -320,31 +321,59 @@ class App:
 
     def _linha(self, i, nome):
         cor = CORES[i % len(CORES)]
-        card = tk.Frame(self.lista, bg=ROW, height=60)
-        card.pack(fill="x", pady=(0, 1))
-        card.pack_propagate(False)
+        cv = tk.Canvas(self.lista, height=68, bg=BG, highlightthickness=0)
+        cv.pack(fill="x", pady=5)
+        cv.card = None
 
-        tk.Label(card, text="⊞", fg="#5b9bd5", bg=ROW,
-                 font=(FONT, 13)).pack(side="left", padx=(16, 2))
-        tk.Label(card, text="🌐", fg=MUTED, bg=ROW,
-                 font=(FONT, 11)).pack(side="left", padx=(0, 12))
-        _avatar(card, nome[:1].upper(), cor, ROW).pack(side="left",
-                                                       padx=(0, 10))
-        tk.Label(card, text=nome, fg=FG, bg=ROW,
-                 font=(FONT, 13, "bold")).pack(side="left")
+        def desenhar(w):
+            if w < 60:
+                return
+            cv.delete("all")
+            # card arredondado
+            cv.card = _round_rect(cv, 1, 3, w - 1, 65, 16, fill=ROW,
+                                  outline="")
+            # icones windows + globo
+            cv.create_text(28, 34, text="⊞", fill="#5b9bd5", font=(FONT, 13))
+            cv.create_text(52, 34, text="🌐", fill=MUTED, font=(FONT, 11))
+            # avatar redondo
+            cv.create_oval(70, 18, 102, 50, fill=cor, outline="")
+            cv.create_text(86, 34, text=nome[:1].upper(), fill="#0c0d11",
+                           font=(FONT, 14, "bold"))
+            # nome
+            cv.create_text(118, 34, text=nome, anchor="w", fill=FG,
+                           font=(FONT, 14, "bold"))
+            # lixeira (direita)
+            cv.create_text(w - 34, 34, text="🗑", fill=MUTED,
+                           font=(FONT, 13), tags="trash")
+            # botao START
+            sx2, sx1 = w - 62, w - 62 - 122
+            cv.start = _round_rect(cv, sx1, 16, sx2, 52, 10, fill=GREEN,
+                                   outline="", tags="start")
+            cv.create_text((sx1 + sx2) // 2, 34, text="▶  START",
+                           fill="#06231f", font=(FONT, 11, "bold"),
+                           tags="start")
+            # tag TikTok Shop
+            tx2 = sx1 - 18
+            tx1 = tx2 - 98
+            _round_rect(cv, tx1, 22, tx2, 46, 8, fill=CHIP, outline="")
+            cv.create_text((tx1 + tx2) // 2, 34, text="TikTok Shop",
+                           fill="#8fb7ff", font=(FONT, 9, "bold"))
 
-        RoundBtn(card, "🗑", lambda: self._remover(nome), w=40, h=32, r=8,
-                 fill=CHIP, hover="#3a2630", fg=MUTED, pbg=ROW,
-                 size=11).pack(side="right", padx=(4, 16))
-        RoundBtn(card, "▶  START", lambda: self._abrir(nome), w=116, h=36,
-                 r=9, fill=GREEN, hover=GREENH, fg="#06231f", pbg=ROW,
-                 size=11).pack(side="right", padx=4)
-        tag = tk.Canvas(card, width=84, height=24, bg=ROW,
-                        highlightthickness=0)
-        _round_rect(tag, 1, 1, 83, 23, 7, fill=CHIP, outline="")
-        tag.create_text(42, 12, text="TikTok Shop", fill="#8fb7ff",
-                        font=(FONT, 8, "bold"))
-        tag.pack(side="right", padx=10)
+        def hover(c):
+            if cv.card is not None:
+                cv.itemconfig(cv.card, fill=c)
+
+        cv.bind("<Configure>", lambda e: desenhar(e.width))
+        cv.bind("<Enter>", lambda e: hover(ROWH))
+        cv.bind("<Leave>", lambda e: hover(ROW))
+        cv.tag_bind("start", "<Button-1>", lambda e: self._abrir(nome))
+        cv.tag_bind("start", "<Enter>", lambda e: (
+            cv.itemconfig(cv.start, fill=GREENH), cv.configure(cursor="hand2")))
+        cv.tag_bind("start", "<Leave>", lambda e: (
+            cv.itemconfig(cv.start, fill=GREEN), cv.configure(cursor="")))
+        cv.tag_bind("trash", "<Button-1>", lambda e: self._remover(nome))
+        cv.tag_bind("trash", "<Enter>", lambda e: cv.configure(cursor="hand2"))
+        cv.tag_bind("trash", "<Leave>", lambda e: cv.configure(cursor=""))
 
     # ---------- acoes ----------
     def nova(self):
