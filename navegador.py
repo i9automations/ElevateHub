@@ -98,8 +98,7 @@ HTML = r"""<!doctype html>
 html,body{height:100%}
 body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,sans-serif;
   color:var(--fg);display:flex;overflow:hidden;
-  background:radial-gradient(900px 520px at 88% -12%,rgba(22,199,154,.10),transparent 60%),
-             radial-gradient(760px 520px at -8% 112%,rgba(254,44,85,.06),transparent 55%),var(--bg)}
+  background:var(--bg)}
 ::-webkit-scrollbar{width:11px}
 ::-webkit-scrollbar-thumb{background:#2a3340;border-radius:9px;border:3px solid transparent;background-clip:padding-box}
 ::-webkit-scrollbar-thumb:hover{background:#384455;background-clip:padding-box}
@@ -115,8 +114,8 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .brand h1{font-size:16px;font-weight:700;letter-spacing:.2px}
 .btn-criar{width:100%;border:0;border-radius:12px;cursor:pointer;color:#04231b;
   background:linear-gradient(135deg,var(--teal),var(--teal2));font-weight:700;
-  font-size:14px;padding:13px;transition:.18s;box-shadow:0 6px 16px rgba(22,199,154,.28)}
-.btn-criar:hover{transform:translateY(-2px);box-shadow:0 11px 24px rgba(22,199,154,.42)}
+  font-size:14px;padding:13px;transition:.15s}
+.btn-criar:hover{filter:brightness(1.06)}
 .btn-criar:active{transform:translateY(0)}
 .navit{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-top:22px;
   border-radius:11px;font-weight:600;font-size:13px;position:relative;color:var(--fg);
@@ -134,7 +133,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   padding:12px 14px 12px 39px;width:252px;font-size:13px;outline:none;transition:.15s;
   background:var(--card) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="%238a96a6" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M15 15l-4-4"/></svg>') no-repeat 14px center}
 .search::placeholder{color:var(--muted)}
-.search:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(22,199,154,.13)}
+.search:focus{border-color:#3a4656}
 .thead{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;
   font-weight:700;letter-spacing:1px;padding:8px 36px;border-bottom:1px solid var(--line)}
 .list{flex:1;overflow-y:auto;padding:16px 26px 26px}
@@ -143,8 +142,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   margin-bottom:11px;border:1px solid var(--line);transition:.16s;
   background:linear-gradient(180deg,var(--card),#141a24);animation:rise .34s ease backwards}
 @keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
-.card:hover{transform:translateY(-2px);border-color:rgba(22,199,154,.32);
-  box-shadow:0 12px 28px rgba(0,0,0,.5),0 0 0 1px rgba(22,199,154,.12)}
+.card:hover{border-color:rgba(255,255,255,.13);background:linear-gradient(180deg,var(--card2),#161d29)}
 .ava{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
   font-weight:800;color:#08130f;font-size:18px;flex-shrink:0;
   box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.2),0 3px 9px rgba(0,0,0,.4)}
@@ -153,8 +151,8 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   padding:5px 12px;border-radius:20px;border:1px solid rgba(159,193,255,.14)}
 .start{border:0;border-radius:11px;cursor:pointer;color:#04231b;font-weight:800;
   font-size:13px;padding:11px 20px;transition:.15s;display:flex;align-items:center;gap:8px;
-  background:linear-gradient(135deg,var(--green),var(--green2));box-shadow:0 5px 14px rgba(40,196,131,.3)}
-.start:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(40,196,131,.45)}
+  background:linear-gradient(135deg,var(--green),var(--green2))}
+.start:hover{filter:brightness(1.07)}
 .del{background:none;border:0;color:var(--muted);cursor:pointer;display:grid;
   place-items:center;width:40px;height:40px;border-radius:11px;transition:.15s}
 .del:hover{color:#ff6b6b;background:rgba(254,44,85,.12)}
@@ -174,7 +172,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .modal p{color:var(--muted);font-size:13px;margin-bottom:16px}
 .modal input{width:100%;background:#0a0e14;border:1px solid var(--line);border-radius:11px;
   color:var(--fg);padding:13px;font-size:14px;outline:none;transition:.15s}
-.modal input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(22,199,154,.13)}
+.modal input:focus{border-color:#3a4656}
 .macts{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 .bsec{background:var(--chip);color:var(--fg);border:0;border-radius:11px;
   padding:11px 18px;font-weight:600;cursor:pointer;transition:.15s}
@@ -192,7 +190,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
     <button class="btn-criar" onclick="abrirModal()">+ &nbsp;Criar perfil</button>
     <div class="navit">Todos os perfis</div>
     <div class="count" id="count">0 perfis</div>
-    <div class="foot">sem proxy · sem anti-detecção<br>simples e direto</div>
+    <div class="foot">By Avant IA</div>
   </aside>
 
   <main class="main">
