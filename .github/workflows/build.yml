@@ -1,0 +1,35 @@
+name: build-exe
+
+# Compila o Contas TikTok.exe na nuvem (Windows) e publica num Release.
+# Roda a cada push na main (e da pra disparar na mao em Actions).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar PyInstaller
+        run: pip install pyinstaller
+
+      - name: Compilar o .exe
+        run: pyinstaller --onefile --windowed --name "Contas TikTok" --icon app.ico --hidden-import tkinter --hidden-import tkinter.messagebox launcher.py
+
+      - name: Publicar no Release "app"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app
+          name: Contas TikTok (download)
+          body: "Baixe o Contas TikTok.exe abaixo. Dois cliques pra usar (precisa do Google Chrome)."
+          files: dist/*.exe
