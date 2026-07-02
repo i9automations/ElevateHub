@@ -51,6 +51,9 @@ def achar_chrome():
 
 CHROME = achar_chrome()
 
+# contas abertas agora: nome -> processo do navegador (pra saber quais estao 'aberta')
+_abertos = {}
+
 
 def _slug(nome):
     return re.sub(r'[\\/:*?"<>|]', "", nome).strip() or "conta"
@@ -191,12 +194,57 @@ def abrir_perfil(nome):
         exe = _chrome_sistema()
         if not exe:
             return "sem_navegador"
-    subprocess.Popen([
+    _abertos[nome] = subprocess.Popen([
         exe,
         f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
         "--no-first-run", "--no-default-browser-check", LOGIN_URL,
     ])
     return "ok" if exe == CHROME_FIXO else "ok_sistema"
+
+
+# cookies de SESSAO do TikTok Seller (presenca = logado; validade = nao expirou)
+_COOKIES_SELLER = ("sessionid_tiktokseller", "sid_guard_tiktokseller",
+                   "sessionid_ss_tiktokseller", "sid_tt_tiktokseller")
+
+
+def _status_conta(nome):
+    """aberta (rodando agora) / logada / expirada / deslogada — lido do disco."""
+    proc = _abertos.get(nome)
+    if proc is not None and proc.poll() is None:
+        return "aberta"
+    src = os.path.join(_perfil_dir(nome), "Default", "Network", "Cookies")
+    if not os.path.exists(src):
+        alt = os.path.join(_perfil_dir(nome), "Default", "Cookies")
+        src = alt if os.path.exists(alt) else src
+    if not os.path.exists(src):
+        return "deslogada"
+    import sqlite3
+    import datetime
+    import tempfile
+    fd, tmp = tempfile.mkstemp(suffix="_ck.db")
+    os.close(fd)
+    try:
+        shutil.copy2(src, tmp)          # copia (o original pode estar em uso)
+        db = sqlite3.connect(tmp)
+        marcas = ",".join("'%s'" % n for n in _COOKIES_SELLER)
+        rows = db.execute(
+            "select expires_utc from cookies where name in (%s)" % marcas
+        ).fetchall()
+        db.close()
+    except Exception:
+        return "?"
+    finally:
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+    if not rows:
+        return "deslogada"
+    epoca = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
+    agora = (datetime.datetime.now(datetime.timezone.utc)
+             - epoca).total_seconds() * 1_000_000
+    validos = [e for (e,) in rows if e == 0 or e > agora]
+    return "logada" if validos else "expirada"
 
 
 # pastas de cache que NAO precisam ir pro backup (so incham o zip)
@@ -406,6 +454,15 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   font-size:12.5px;cursor:pointer;transition:.13s}
 .btool:hover{background:rgba(255,255,255,.05);color:#fff}
 .tstatus{font-size:11.5px;color:#8a8f99;min-height:14px;padding:2px 2px 0}
+.stbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  color:var(--muted);margin-top:3px;font-weight:600}
+.stbadge::before{content:"";width:8px;height:8px;border-radius:50%;
+  background:#5a6472;flex:none}
+.stbadge.aberta{color:#22d3ee}.stbadge.aberta::before{background:#22d3ee;
+  box-shadow:0 0 0 3px rgba(34,211,238,.18)}
+.stbadge.logada{color:#34d399}.stbadge.logada::before{background:#34d399}
+.stbadge.expirada{color:#fbbf24}.stbadge.expirada::before{background:#fbbf24}
+.stbadge.deslogada{color:#8b95a3}
 </style></head>
 <body>
   <aside class="side">
@@ -476,6 +533,10 @@ async function pollPrep(){try{const s=await api('/api/chrome_status');const p=$(
   else if(s.ok===false){p.style.display='block';p.textContent='Não consegui baixar o navegador próprio ('+(s.msg||'')+'). Por enquanto as contas abrem no Chrome do sistema. Verifique a internet.';}
   else{p.style.display='block';p.textContent='Preparando o navegador próprio (só na primeira vez)...';}
 }catch(e){}setTimeout(pollPrep,1500);}
+let STATUS={};
+const _STXT={aberta:'aberta agora',logada:'logada',expirada:'sessão expirada',deslogada:'não logada','?':''};
+async function pollStatus(){try{const d=await api('/api/status');STATUS=d.status||{};pintarStatus();}catch(e){}setTimeout(pollStatus,5000);}
+function pintarStatus(){CONTAS.forEach((c,i)=>{const el=$('st'+i);if(!el)return;const s=STATUS[c.nome]||'';el.className='stbadge '+s;el.textContent=_STXT[s]||'';});}
 function setFiltro(t){FILTRO=(FILTRO===t?'':t);render();}
 function setFiltroIdx(i){setFiltro(ALLTAGS[i]);}
 function render(){
@@ -493,11 +554,12 @@ function render(){
     const chips=(c.tags||[]).map(t=>`<span class="t2">${esc(t)}</span>`).join('');
     return `<div class="card" style="animation-delay:${(vi%14)*45}ms">
       <div class="ava" style="background:linear-gradient(135deg,${cor},color-mix(in srgb,${cor},#000 38%))">${ini}</div>
-      <div style="flex:1;min-width:0"><div class="nome">${esc(c.nome)}</div>${chips?`<div class="cardtags">${chips}</div>`:''}</div>
+      <div style="flex:1;min-width:0"><div class="nome">${esc(c.nome)}</div><span class="stbadge" id="st${i}"></span>${chips?`<div class="cardtags">${chips}</div>`:''}</div>
       <button class="edit" title="Editar / renomear" onclick="editar(${i})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
       <button class="start" onclick="abrir(${i})"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>START</button>
       <button class="del" title="Remover" onclick="remover(${i})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
     </div>`;}).join('');
+  pintarStatus();
 }
 async function abrir(i){const r=await api('/api/open',{nome:CONTAS[i].nome});
   if(r.status==='preparando'){dlgAviso('O navegador próprio ainda está baixando (só na primeira vez). Espere a barra azul terminar e clique de novo.');}
@@ -520,6 +582,7 @@ function dlgConfirma(msg,cb,tit,ok){dlg(tit||'Confirmar',msg,ok||'Sim',cb);}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){fecharModal();d2fechar();}else if(e.key==='Enter'&&$('ov2').classList.contains('on'))$('d2ok').click();});
 load();
 pollPrep();
+pollStatus();
 </script>
 </body></html>"""
 
@@ -547,6 +610,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/chrome_status":
             self._send(200, json.dumps(
                 {**_chrome_status, "pronto": os.path.exists(CHROME_FIXO)}))
+        elif self.path == "/api/status":
+            st = {c["nome"]: _status_conta(c["nome"]) for c in carregar()}
+            self._send(200, json.dumps({"status": st}))
         else:
             self._send(404, "{}")
 
