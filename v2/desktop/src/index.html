@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contas TikTok V2</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">CT</div>
+        <div>
+          <h1>Contas TikTok</h1>
+          <span>V2 compartilhado</span>
+        </div>
+      </div>
+
+      <button class="primary" id="newProfileBtn" type="button">Novo perfil</button>
+
+      <nav class="nav">
+        <button class="nav-item active" type="button" data-view="profiles">Perfis</button>
+        <button class="nav-item" type="button" data-view="sessions">Sessoes</button>
+        <button class="nav-item" type="button" data-view="team">Equipe</button>
+        <button class="nav-item" type="button" data-view="settings">Configuracoes</button>
+      </nav>
+
+      <div class="server-card">
+        <span>Servidor</span>
+        <strong id="serverState">desconectado</strong>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section class="login" id="loginView">
+        <div class="login-panel">
+          <h2>Entrar no aplicativo</h2>
+          <p>Use sua conta da empresa para acessar perfis compartilhados.</p>
+          <label for="email">E-mail</label>
+          <input id="email" type="email" autocomplete="username" value="admin@elevate.local">
+          <label for="password">Senha</label>
+          <input id="password" type="password" autocomplete="current-password" value="admin123">
+          <button class="primary wide" id="loginBtn" type="button">Entrar</button>
+          <div class="form-note" id="loginMsg">Ambiente dev: admin@elevate.local / admin123</div>
+        </div>
+      </section>
+
+      <section class="dashboard hidden" id="dashboardView">
+        <header class="topbar">
+          <div>
+            <h2>Perfis compartilhados</h2>
+            <span id="subtitle">0 perfis cadastrados</span>
+          </div>
+          <div class="toolbar">
+            <input id="search" type="search" placeholder="Buscar perfil, tag ou responsavel">
+            <button class="secondary" id="refreshBtn" type="button">Atualizar</button>
+          </div>
+        </header>
+
+        <div class="metrics">
+          <div class="metric"><strong id="metricTotal">0</strong><span>Total</span></div>
+          <div class="metric"><strong id="metricReady">0</strong><span>Logadas</span></div>
+          <div class="metric"><strong id="metricBusy">0</strong><span>Em uso</span></div>
+          <div class="metric"><strong id="metricQueue">0</strong><span>Fila</span></div>
+        </div>
+
+        <div class="content-grid">
+          <section class="profiles-pane">
+            <div class="table-head">
+              <span>Perfil</span>
+              <span>Status</span>
+              <span>Responsavel</span>
+              <span>Acoes</span>
+            </div>
+            <div id="profileList" class="profile-list"></div>
+          </section>
+
+          <aside class="session-pane">
+            <div class="session-header">
+              <span>Sessao remota</span>
+              <strong id="selectedName">Nenhum perfil</strong>
+            </div>
+            <div class="screen-placeholder" id="sessionScreen">
+              <div class="screen-grid"></div>
+              <div class="screen-copy">
+                <strong>Browser remoto</strong>
+                <span>Na proxima etapa entra o stream do navegador isolado.</span>
+              </div>
+            </div>
+            <div class="session-actions">
+              <button class="primary wide" id="openRemoteBtn" type="button" disabled>Abrir sessao</button>
+              <button class="secondary wide" id="releaseBtn" type="button" disabled>Liberar trava</button>
+            </div>
+            <div class="activity" id="activityLog"></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="profileDialog">
+    <form method="dialog" class="dialog-form">
+      <h3>Novo perfil</h3>
+      <label for="profileName">Nome do cliente</label>
+      <input id="profileName" autocomplete="off" placeholder="ex: Loja da Ana">
+      <label for="profileEmail">E-mail TikTok / alias</label>
+      <input id="profileEmail" autocomplete="off" placeholder="cliente@elevateecom.com.br">
+      <label for="profileTags">Tags</label>
+      <input id="profileTags" autocomplete="off" placeholder="Moda, Consultoria">
+      <div class="dialog-actions">
+        <button class="secondary" value="cancel" type="button" id="cancelProfileBtn">Cancelar</button>
+        <button class="primary" value="default" type="submit">Criar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="./renderer.js"></script>
+</body>
+</html>

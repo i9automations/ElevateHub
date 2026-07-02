@@ -1,0 +1,11 @@
+{
+  "name": "contas-tiktok-v2",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Contas TikTok V2 - aplicativo desktop com backend central compartilhado.",
+  "scripts": {
+    "server": "node server/src/index.js",
+    "desktop": "npm --prefix desktop run dev",
+    "check": "node --check server/src/index.js && node --check desktop/src/main.js && node --check desktop/src/preload.js && node --check desktop/src/renderer.js"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@contas-tiktok-v2/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Aplicativo desktop do Contas TikTok V2.",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

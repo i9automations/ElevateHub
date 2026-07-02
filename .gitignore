@@ -19,6 +19,7 @@ _cache_app.py
 build_tmp/
 dist/
 build/
+node_modules/
 *.spec
 __pycache__/
 *.exe
