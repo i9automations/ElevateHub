@@ -12,6 +12,7 @@ _chrome_tmp/
 backups/
 # lista de clientes e cache do launcher
 contas.json
+hostinger.json
 _cache_app.py
 
 # ===== gerados (nao versionar) =====
