@@ -139,17 +139,43 @@ def _migrar_se_preciso(nome):
             pass
 
 
+# paleta de cores por cliente (mesma vibe da UI) — diferencia as janelas
+_PALETA = [0xA78BFA, 0x34D399, 0x60A5FA, 0xFBBF24, 0xFB7185,
+           0x22D3EE, 0xF472B6, 0x4ADE80, 0x818CF8, 0xF0883E]
+
+
+def _marcar_perfil(nome):
+    """Identidade visual da conta (estilo Dolphin): nome do cliente + cor + avatar
+    proprios, pra diferenciar as janelas na barra de tarefas. Mescla no
+    Preferences (nao apaga login — cookies ficam em arquivo separado)."""
+    prefs_path = os.path.join(_perfil_dir(nome), "Default", "Preferences")
+    try:
+        with open(prefs_path, encoding="utf-8") as f:
+            p = json.load(f)
+    except Exception:
+        p = {}
+    h = sum(ord(c) for c in nome)
+    rgb = _PALETA[h % len(_PALETA)]
+    prof = p.setdefault("profile", {})
+    prof["name"] = nome
+    prof["avatar_index"] = h % 56
+    prof["using_default_avatar"] = False
+    prof["using_default_name"] = False
+    theme = p.setdefault("browser", {}).setdefault("theme", {})
+    theme["user_color"] = (0xFF << 24) | rgb          # cor do tema (ARGB)
+    theme["is_grayscale"] = False
+    try:
+        os.makedirs(os.path.dirname(prefs_path), exist_ok=True)
+        with open(prefs_path, "w", encoding="utf-8") as f:
+            json.dump(p, f)
+    except Exception:
+        pass
+
+
 def semear(nome):
     _migrar_se_preciso(nome)
-    d = os.path.join(_perfil_dir(nome), "Default")
-    os.makedirs(d, exist_ok=True)
-    prefs = os.path.join(d, "Preferences")
-    if not os.path.exists(prefs):
-        try:
-            with open(prefs, "w", encoding="utf-8") as f:
-                json.dump({"profile": {"name": nome}}, f)
-        except Exception:
-            pass
+    os.makedirs(os.path.join(_perfil_dir(nome), "Default"), exist_ok=True)
+    _marcar_perfil(nome)          # nome + cor + avatar do cliente
 
 
 def abrir_perfil(nome):
