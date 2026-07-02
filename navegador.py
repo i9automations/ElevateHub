@@ -9,6 +9,7 @@ SEM proxy/anti-deteccao (veja LEIA-ME.txt).
 import os
 import re
 import json
+import base64
 import shutil
 import threading
 import subprocess
@@ -69,12 +70,16 @@ def carregar():
     out = []
     for c in dados:
         if isinstance(c, str):
-            out.append({"nome": c, "tags": [], "ultima_abertura": None})
+            out.append({"nome": c, "tags": [], "ultima_abertura": None,
+                        "email_alias": "", "email_login": "", "email_senha": ""})
         elif isinstance(c, dict) and c.get("nome"):
             item = dict(c)
             item["nome"] = c["nome"]
             item["tags"] = list(c.get("tags") or [])
             item.setdefault("ultima_abertura", None)
+            item.setdefault("email_alias", "")
+            item.setdefault("email_login", "")
+            item.setdefault("email_senha", "")
             out.append(item)
     return out
 
@@ -92,6 +97,89 @@ def _idx(contas, nome):
         if c["nome"] == nome:
             return k
     return -1
+
+
+def _contas_publicas(contas):
+    out = []
+    for c in contas:
+        item = dict(c)
+        senha = item.pop("email_senha", "")
+        item["email_senha_salva"] = bool(senha)
+        out.append(item)
+    return out
+
+
+def _dpapi_encrypt(texto):
+    if not texto:
+        return ""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [("cbData", wintypes.DWORD),
+                        ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+        data = texto.encode("utf-8")
+        buf = ctypes.create_string_buffer(data)
+        entrada = DATA_BLOB(len(data), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char)))
+        saida = DATA_BLOB()
+        ok = ctypes.windll.crypt32.CryptProtectData(
+            ctypes.byref(entrada), None, None, None, None, 0, ctypes.byref(saida))
+        if not ok:
+            raise ctypes.WinError()
+        try:
+            enc = ctypes.string_at(saida.pbData, saida.cbData)
+        finally:
+            ctypes.windll.kernel32.LocalFree(saida.pbData)
+        return "dpapi:" + base64.b64encode(enc).decode("ascii")
+    except Exception:
+        return "b64:" + base64.b64encode(texto.encode("utf-8")).decode("ascii")
+
+
+def _dpapi_decrypt(valor):
+    if not valor:
+        return ""
+    if valor.startswith("b64:"):
+        try:
+            return base64.b64decode(valor[4:]).decode("utf-8")
+        except Exception:
+            return ""
+    if not valor.startswith("dpapi:"):
+        return valor
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [("cbData", wintypes.DWORD),
+                        ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+        data = base64.b64decode(valor[6:])
+        buf = ctypes.create_string_buffer(data)
+        entrada = DATA_BLOB(len(data), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char)))
+        saida = DATA_BLOB()
+        ok = ctypes.windll.crypt32.CryptUnprotectData(
+            ctypes.byref(entrada), None, None, None, None, 0, ctypes.byref(saida))
+        if not ok:
+            raise ctypes.WinError()
+        try:
+            dec = ctypes.string_at(saida.pbData, saida.cbData)
+        finally:
+            ctypes.windll.kernel32.LocalFree(saida.pbData)
+        return dec.decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _aplicar_email(conta, dados, manter_senha=True):
+    conta["email_alias"] = (dados.get("email_alias") or "").strip().lower()
+    conta["email_login"] = (dados.get("email_login") or "").strip().lower()
+    senha = dados.get("email_senha")
+    if senha:
+        conta["email_senha"] = _dpapi_encrypt(str(senha))
+    elif not manter_senha:
+        conta["email_senha"] = ""
 
 
 def _agora_iso():
@@ -277,6 +365,124 @@ def _status_conta(nome):
              - epoca).total_seconds() * 1_000_000
     validos = [e for (e,) in rows if e == 0 or e > agora]
     return "logada" if validos else "expirada"
+
+
+def _texto_email(msg):
+    partes = []
+    if msg.is_multipart():
+        for p in msg.walk():
+            ctype = p.get_content_type()
+            disp = (p.get("Content-Disposition") or "").lower()
+            if "attachment" in disp or ctype not in ("text/plain", "text/html"):
+                continue
+            try:
+                txt = p.get_content()
+            except Exception:
+                payload = p.get_payload(decode=True) or b""
+                charset = p.get_content_charset() or "utf-8"
+                txt = payload.decode(charset, errors="ignore")
+            partes.append(txt)
+    else:
+        try:
+            partes.append(msg.get_content())
+        except Exception:
+            payload = msg.get_payload(decode=True) or b""
+            charset = msg.get_content_charset() or "utf-8"
+            partes.append(payload.decode(charset, errors="ignore"))
+    texto = "\n".join(partes)
+    texto = re.sub(r"<[^>]+>", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def _extrair_codigo_tiktok(texto):
+    if not texto:
+        return None
+    # Primeiro tenta achar um codigo perto de palavras de verificacao.
+    ctx = re.compile(
+        r"(?i)(?:tiktok|c[oó]digo|codigo|code|verification|verifica[cç][aã]o)"
+        r".{0,120}?\b(\d{6})\b")
+    m = ctx.search(texto)
+    if m:
+        return m.group(1)
+    achados = re.findall(r"\b(\d{6})\b", texto)
+    return achados[0] if achados else None
+
+
+def buscar_codigo_tiktok(nome):
+    import datetime
+    import imaplib
+    import email
+    from email import policy
+
+    contas = carregar()
+    k = _idx(contas, nome)
+    if k < 0:
+        return {"ok": False, "erro": "Perfil nao encontrado."}
+    c = contas[k]
+    alias = (c.get("email_alias") or "").strip().lower()
+    login = (c.get("email_login") or "").strip().lower()
+    senha = _dpapi_decrypt(c.get("email_senha") or "")
+    if not alias or not login or not senha:
+        return {"ok": False, "erro": "Configure o alias, a caixa Hostinger e a senha no perfil."}
+
+    imap = None
+    try:
+        imap = imaplib.IMAP4_SSL("imap.hostinger.com", 993)
+        imap.login(login, senha)
+        imap.select("INBOX", readonly=True)
+        desde = (datetime.date.today() - datetime.timedelta(days=2)).strftime("%d-%b-%Y")
+        typ, data = imap.search(None, "SINCE", desde)
+        if typ != "OK":
+            raise RuntimeError("Nao consegui listar a caixa de entrada.")
+        ids = data[0].split()[-90:]
+        for mid in reversed(ids):
+            typ, raw = imap.fetch(mid, "(INTERNALDATE BODY.PEEK[])")
+            if typ != "OK" or not raw:
+                continue
+            msg_bytes = None
+            internal = None
+            for item in raw:
+                if isinstance(item, tuple):
+                    internal = item[0]
+                    msg_bytes = item[1]
+                    break
+            if not msg_bytes:
+                continue
+            msg = email.message_from_bytes(msg_bytes, policy=policy.default)
+            headers = " ".join(str(x or "") for x in [
+                msg.get("From"), msg.get("To"), msg.get("Cc"), msg.get("Subject"),
+                msg.get("Delivered-To"), msg.get("X-Original-To"), msg.get("Envelope-To")])
+            corpo = _texto_email(msg)
+            pacote = (headers + " " + corpo).lower()
+            if alias not in pacote:
+                continue
+            if "tiktok" not in pacote and "verification" not in pacote and "verifica" not in pacote:
+                continue
+            codigo = _extrair_codigo_tiktok(headers + " " + corpo)
+            if not codigo:
+                continue
+            dt = None
+            try:
+                tup = imaplib.Internaldate2tuple(internal)
+                if tup:
+                    dt = datetime.datetime.fromtimestamp(
+                        datetime.datetime(*tup[:6]).timestamp()).isoformat(timespec="seconds")
+            except Exception:
+                pass
+            return {"ok": True, "codigo": codigo, "alias": alias,
+                    "caixa": login, "assunto": str(msg.get("Subject") or ""),
+                    "data": dt}
+        return {"ok": False, "erro": "Nenhum codigo recente do TikTok foi encontrado para esse alias."}
+    except imaplib.IMAP4.error:
+        return {"ok": False, "erro": "Falha no login da caixa Hostinger. Confira e-mail e senha."}
+    except Exception as e:
+        return {"ok": False, "erro": str(e)}
+    finally:
+        if imap is not None:
+            try:
+                imap.logout()
+            except Exception:
+                pass
 
 
 # pastas de cache que NAO precisam ir pro backup (so incham o zip)
@@ -486,14 +692,14 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   background:var(--card) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="%238b95a3" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M15 15l-4-4"/></svg>') no-repeat 13px center}
 .search::placeholder{color:var(--muted)}
 .search:focus{border-color:#465262;background-color:#151c25}
-.thead{display:grid;grid-template-columns:minmax(260px,2.2fr) minmax(118px,.78fr) minmax(150px,1.1fr) minmax(150px,.9fr) 150px;
+.thead{display:grid;grid-template-columns:minmax(240px,2fr) minmax(118px,.72fr) minmax(130px,1fr) minmax(150px,.9fr) 220px;
   gap:12px;color:var(--muted);font-size:10.5px;font-weight:850;letter-spacing:.9px;padding:10px 32px;
   border-bottom:1px solid var(--line);background:#0d1117;text-transform:uppercase}
 .thead span:last-child{text-align:right}
 .list{flex:1;overflow-y:auto;padding:0 26px 26px}
 .table{border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;overflow:hidden;background:#0d1117}
 
-.card{display:grid;grid-template-columns:minmax(260px,2.2fr) minmax(118px,.78fr) minmax(150px,1.1fr) minmax(150px,.9fr) 150px;
+.card{display:grid;grid-template-columns:minmax(240px,2fr) minmax(118px,.72fr) minmax(130px,1fr) minmax(150px,.9fr) 220px;
   gap:12px;align-items:center;min-height:68px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.055);
   background:var(--card);transition:.13s}
 .card:last-child{border-bottom:0}
@@ -508,11 +714,15 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .last{color:#9aa7b8;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tag{background:rgba(37,244,238,.10);color:var(--cy);font-size:11px;font-weight:700;
   padding:5px 11px;border-radius:7px;border:1px solid rgba(37,244,238,.18)}
-.actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-shrink:0}
 .start{border:0;border-radius:8px;cursor:pointer;color:#04211f;font-weight:850;
   font-size:12.5px;width:86px;height:36px;transition:.13s;display:flex;align-items:center;
   justify-content:center;gap:8px;background:var(--cy)}
 .start:hover{background:var(--cyd)}
+.codebtn{border:1px solid rgba(37,244,238,.24);border-radius:8px;background:rgba(37,244,238,.08);
+  color:#bdfdfb;font-weight:800;font-size:12px;width:70px;height:36px;cursor:pointer;transition:.13s}
+.codebtn:hover{background:rgba(37,244,238,.16);border-color:rgba(37,244,238,.42)}
+.codebtn.busy{opacity:.65;pointer-events:none}
 .del{background:none;border:0;color:var(--muted);cursor:pointer;display:grid;
   place-items:center;width:36px;height:36px;border-radius:8px;transition:.13s}
 .del:hover{color:var(--pk);background:rgba(254,44,85,.12)}
@@ -533,13 +743,14 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .ov{position:fixed;inset:0;background:rgba(5,7,10,.62);backdrop-filter:blur(3px);
   display:none;place-items:center;z-index:9}
 .ov.on{display:grid}
-.modal{background:var(--card2);border-radius:10px;padding:26px;width:400px;
+.modal{background:var(--card2);border-radius:10px;padding:26px;width:460px;
   border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.55)}
 .modal h3{font-size:18px;margin-bottom:6px;font-weight:700}
 .modal p{color:var(--muted);font-size:13px;margin-bottom:16px}
 .modal input{width:100%;background:#0a0d12;border:1px solid var(--line);border-radius:8px;
   color:var(--fg);padding:13px;font-size:14px;outline:none;transition:.13s}
 .modal input:focus{border-color:#39434f}
+.hint{color:#7f8a99;font-size:11.5px;margin-top:6px;line-height:1.35}
 .macts{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 .bsec{background:var(--chip);color:var(--fg);border:0;border-radius:8px;
   padding:11px 18px;font-weight:600;cursor:pointer;transition:.13s}
@@ -634,6 +845,13 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
       <input id="mNome" autocomplete="off" placeholder="ex: Loja da Ana">
       <label>Tags / pastas (separe por vírgula)</label>
       <input id="mTags" autocomplete="off" placeholder="ex: Consultoria, Moda">
+      <label>E-mail do TikTok / alias do cliente</label>
+      <input id="mEmailAlias" autocomplete="off" placeholder="ex: petalabeauty@elevateecom.com.br">
+      <label>Caixa principal da Hostinger</label>
+      <input id="mEmailLogin" autocomplete="off" placeholder="ex: clientes1@elevateecom.com.br">
+      <label>Senha da caixa</label>
+      <input id="mEmailSenha" type="password" autocomplete="off" placeholder="Deixe em branco para manter a senha salva">
+      <div class="hint" id="mEmailHint">Usado só para buscar o código do TikTok. A senha fica criptografada neste PC.</div>
       <div class="macts">
         <button class="bsec" onclick="fecharModal()">Cancelar</button>
         <button class="bok" id="mok">Salvar</button>
@@ -737,6 +955,7 @@ function render(){
       <div class="last">${esc(ultima)}</div>
       <div class="actions">
         <button class="edit" title="Editar / renomear" onclick="editar(${i})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="codebtn" id="code${i}" onclick="codigo(${i})" title="Buscar código do TikTok no e-mail">Código</button>
         <button class="start" onclick="abrir(${i})"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Abrir</button>
         <button class="del" title="Remover" onclick="remover(${i})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </div>
@@ -748,15 +967,28 @@ async function abrir(i){const r=await api('/api/open',{nome:CONTAS[i].nome});
   if(r.status==='preparando'){dlgAviso('O navegador próprio ainda está baixando (só na primeira vez). Espere a barra azul terminar e clique de novo.');}
   else if(r.status==='sem_navegador'){dlgAviso('Não achei um navegador pra abrir. Conecte a internet (pra baixar o navegador próprio) ou instale o Google Chrome.');}
   else{CONTAS[i].ultima_abertura=r.ultima_abertura||new Date().toISOString();STATUS[CONTAS[i].nome]='aberta';render();}}
+async function codigo(i){
+  const c=CONTAS[i];
+  if(!c.email_alias||!c.email_login||!c.email_senha_salva){
+    dlgAviso('Abra o editar perfil e preencha: e-mail/alias do cliente, caixa principal da Hostinger e senha da caixa.','Código TikTok');
+    return;
+  }
+  const b=$('code'+i); if(b){b.classList.add('busy');b.textContent='...';}
+  const r=await api('/api/code',{nome:c.nome});
+  if(b){b.classList.remove('busy');b.textContent='Código';}
+  if(!r||!r.ok){dlgAviso((r&&r.erro)||'Não encontrei o código agora.','Código TikTok');return;}
+  try{await navigator.clipboard.writeText(r.codigo);}catch(e){}
+  dlgAviso('Código '+r.codigo+' encontrado e copiado.\\nAlias: '+(r.alias||'')+(r.assunto?'\\nAssunto: '+r.assunto:''),'Código TikTok');
+}
 function remover(i){const n=CONTAS[i].nome;dlgConfirma("Remover '"+n+"'? Isso apaga o login salvo dele (vai precisar logar de novo).",()=>api('/api/delete',{nome:n}).then(load),'Remover perfil','Remover');}
-function novo(){abrirModal('Novo perfil','',[],async(nome,tags)=>{const r=await api('/api/create',{nome,tags});if(r.erro){dlgAviso(r.erro);return;}load();});}
-function editar(i){const c=CONTAS[i];abrirModal('Editar perfil',c.nome,c.tags||[],async(nome,tags)=>{if(nome!==c.nome){const r=await api('/api/rename',{nome:c.nome,novo:nome});if(r.erro){dlgAviso(r.erro);return;}}await api('/api/tags',{nome,tags});load();});}
+function novo(){abrirModal('Novo perfil','',[],{},async(nome,tags,email)=>{const r=await api('/api/create',{nome,tags,...email});if(r.erro){dlgAviso(r.erro);return;}load();});}
+function editar(i){const c=CONTAS[i];abrirModal('Editar perfil',c.nome,c.tags||[],c,async(nome,tags,email)=>{if(nome!==c.nome){const r=await api('/api/rename',{nome:c.nome,novo:nome});if(r.erro){dlgAviso(r.erro);return;}}await api('/api/tags',{nome,tags});await api('/api/email',{nome,email_alias:email.email_alias,email_login:email.email_login,email_senha:email.email_senha});load();});}
 let _cb=null;
-function abrirModal(tit,nome,tags,cb){$('mtit').textContent=tit;$('mNome').value=nome||'';$('mTags').value=(tags||[]).join(', ');$('ov').classList.add('on');_cb=cb;setTimeout(()=>$('mNome').focus(),50);}
+function abrirModal(tit,nome,tags,email,cb){$('mtit').textContent=tit;$('mNome').value=nome||'';$('mTags').value=(tags||[]).join(', ');$('mEmailAlias').value=(email&&email.email_alias)||'';$('mEmailLogin').value=(email&&email.email_login)||'';$('mEmailSenha').value='';$('mEmailSenha').placeholder=(email&&email.email_senha_salva)?'Senha salva - deixe em branco para manter':'Senha da caixa Hostinger';$('ov').classList.add('on');_cb=cb;setTimeout(()=>$('mNome').focus(),50);}
 function fecharModal(){$('ov').classList.remove('on');_cb=null;}
-function salvarModal(){const nome=$('mNome').value.trim();const tags=$('mTags').value.split(',').map(s=>s.trim()).filter(Boolean);if(!nome)return;const cb=_cb;fecharModal();if(cb)cb(nome,tags);}
+function salvarModal(){const nome=$('mNome').value.trim();const tags=$('mTags').value.split(',').map(s=>s.trim()).filter(Boolean);const email={email_alias:$('mEmailAlias').value.trim(),email_login:$('mEmailLogin').value.trim(),email_senha:$('mEmailSenha').value};if(!nome)return;const cb=_cb;fecharModal();if(cb)cb(nome,tags,email);}
 $('mok').onclick=salvarModal;
-['mNome','mTags'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')salvarModal();}));
+['mNome','mTags','mEmailAlias','mEmailLogin','mEmailSenha'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')salvarModal();}));
 let _d2cb=null;
 function dlg(tit,msg,okTxt,cb){$('d2tit').textContent=tit;$('d2msg').textContent=msg;$('d2ok').textContent=okTxt||'OK';$('d2cancel').style.display=cb?'':'none';$('ov2').classList.add('on');_d2cb=cb||null;}
 function d2fechar(){$('ov2').classList.remove('on');_d2cb=null;}
@@ -789,7 +1021,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/list":
             contas = carregar()
             self._send(200, json.dumps(
-                {"contas": contas, "tags": _todas_tags(contas),
+                {"contas": _contas_publicas(contas), "tags": _todas_tags(contas),
                  "chrome_travado": os.path.exists(CHROME_FIXO)}))
         elif self.path == "/api/chrome_status":
             self._send(200, json.dumps(
@@ -815,7 +1047,9 @@ class Handler(BaseHTTPRequestHandler):
             if _idx(contas, nome) >= 0:
                 return self._send(200, json.dumps(
                     {"erro": "Ja existe um perfil com esse nome."}))
-            contas.append({"nome": nome, "tags": tags, "ultima_abertura": None})
+            nova = {"nome": nome, "tags": tags, "ultima_abertura": None}
+            _aplicar_email(nova, dados, manter_senha=False)
+            contas.append(nova)
             salvar(contas)
             semear(nome)
             self._send(200, json.dumps({"ok": True}))
@@ -838,6 +1072,14 @@ class Handler(BaseHTTPRequestHandler):
                 contas[k]["tags"] = tags
                 salvar(contas)
             self._send(200, json.dumps({"ok": True}))
+        elif self.path == "/api/email":
+            k = _idx(contas, nome)
+            if k >= 0:
+                _aplicar_email(contas[k], dados, manter_senha=True)
+                salvar(contas)
+            self._send(200, json.dumps({"ok": True}))
+        elif self.path == "/api/code":
+            self._send(200, json.dumps(buscar_codigo_tiktok(nome)))
         elif self.path == "/api/rename":
             novo = (dados.get("novo") or "").strip()
             k = _idx(contas, nome)

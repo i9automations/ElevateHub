@@ -25,6 +25,10 @@ import socketserver    # noqa: F401
 import urllib.parse    # noqa: F401
 import webbrowser      # noqa: F401
 import base64          # noqa: F401
+import ctypes          # noqa: F401
+import imaplib         # noqa: F401
+import email           # noqa: F401
+import email.policy    # noqa: F401
 
 # A API do GitHub reflete a versao mais nova NA HORA. O raw.githubusercontent
 # tem um cache (CDN) que ignora ?t= e servia versao velha -> por isso usamos a
