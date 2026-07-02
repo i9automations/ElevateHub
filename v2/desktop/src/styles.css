@@ -373,6 +373,41 @@ label {
   background: #05070b;
 }
 
+.browserbar,
+.typebar {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.typebar {
+  grid-template-columns: 1fr auto;
+  margin: 10px 0 0;
+}
+
+.browserbar input,
+.typebar input {
+  height: 38px;
+  font-size: 12.5px;
+}
+
+.browserbar button,
+.typebar button {
+  min-height: 38px;
+  font-size: 12.5px;
+}
+
+.browser-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #05070b;
+  cursor: crosshair;
+}
+
 .screen-grid {
   position: absolute;
   inset: 0;

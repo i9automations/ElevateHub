@@ -43,7 +43,7 @@ Responsabilidades:
 
 ### Browser worker
 
-Ainda nao implementado neste scaffold.
+Contrato inicial implementado na API.
 
 Responsabilidades futuras:
 
@@ -53,6 +53,38 @@ Responsabilidades futuras:
 - Receber input do usuario.
 - Persistir cookies e storage entre acessos.
 - Liberar ou encerrar sessoes ociosas.
+
+## Estrategia de navegador
+
+Para ficar igual ao Dolphin, o navegador nao pode rodar no PC do usuario. Ele precisa rodar no servidor/worker, porque os cookies e a sessao logada devem ser compartilhados por toda a empresa.
+
+### V1 local
+
+O app atual usa Chrome for Testing local por perfil. Isso e bom para estabilidade em um unico PC, mas nao compartilha login entre usuarios.
+
+### V2 centralizada
+
+A V2 deve usar Chrome for Testing ou Chromium no servidor, controlado por Playwright/CDP, com `user-data-dir` persistente por perfil.
+
+Fluxo:
+
+1. Usuario abre perfil no aplicativo desktop.
+2. API cria uma trava para aquele perfil.
+3. Worker inicia/reconecta um Chrome persistente daquele perfil.
+4. App recebe frames do navegador e envia cliques/teclado.
+5. Login, cookies e storage ficam salvos no servidor.
+6. Outro usuario abre depois e encontra a conta ja logada.
+
+O contrato inicial ja existe:
+
+- `POST /api/profiles/:id/session/start`
+- `GET /api/profiles/:id/session/frame`
+- `POST /api/profiles/:id/session/navigate`
+- `POST /api/profiles/:id/session/click`
+- `POST /api/profiles/:id/session/type`
+- `POST /api/profiles/:id/release`
+
+No modo atual, se o driver Chrome/Playwright ainda nao estiver habilitado, a API retorna um frame visual de fallback. Quando `V2_BROWSER_DRIVER=playwright` estiver ativo e `playwright-core`/Chrome estiverem instalados, o mesmo contrato passa a retornar screenshots reais do navegador.
 
 ## Proximas decisoes
 

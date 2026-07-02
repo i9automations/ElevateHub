@@ -2,6 +2,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const browserWorker = require("./browser-worker");
 
 const PORT = Number(process.env.PORT || 8787);
 const DATA_DIR = path.join(__dirname, "..", "data");
@@ -241,6 +242,7 @@ async function handle(req, res) {
         if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
           return send(res, 403, { error: "Perfil travado por outro usuario" });
         }
+        await browserWorker.stopBrowserSession(profile.id);
         profile.lockedBy = null;
         profile.lockedAt = null;
         audit(db, user, "profile.release", profile.id);
@@ -255,18 +257,59 @@ async function handle(req, res) {
         profile.lockedBy = user.id;
         profile.lockedAt = profile.lockedAt || now();
         profile.lastOpenedAt = now();
-        profile.sessionState = profile.sessionState === "empty" ? "queued" : profile.sessionState;
+        const browserSession = await browserWorker.startBrowserSession(profile, user);
+        profile.sessionState = browserSession.state === "running" ? "ready" : "queued";
         audit(db, user, "session.start", profile.id);
         saveDb(db);
         return send(res, 202, {
           profile: profileDto(db, profile),
-          session: {
-            id: id("ses"),
-            state: profile.sessionState,
-            streamUrl: null,
-            message: "Worker de navegador remoto sera plugado nesta etapa."
-          }
+          session: browserSession
         });
+      }
+
+      if (req.method === "GET" && parts[3] === "session" && parts[4] === "frame") {
+        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const frame = await browserWorker.getBrowserFrame(profile.id);
+        if (!frame) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, frame);
+      }
+
+      if (req.method === "GET" && parts[3] === "session") {
+        return send(res, 200, { session: browserWorker.getBrowserSession(profile.id) });
+      }
+
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "navigate") {
+        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const body = await readBody(req);
+        const session = await browserWorker.navigateBrowser(profile.id, body.url);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        audit(db, user, "session.navigate", profile.id, { url: session.url });
+        saveDb(db);
+        return send(res, 200, { session });
+      }
+
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "click") {
+        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const body = await readBody(req);
+        const session = await browserWorker.clickBrowser(profile.id, body.x, body.y);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
+      }
+
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "type") {
+        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const body = await readBody(req);
+        const session = await browserWorker.typeBrowser(profile.id, body.text);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
       }
     }
 

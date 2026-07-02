@@ -1,7 +1,7 @@
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("node:path");
 
-const API_URL = process.env.ELEVATE_API_URL || "http://127.0.0.1:8787";
+const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
 
 function createWindow() {
   const win = new BrowserWindow({

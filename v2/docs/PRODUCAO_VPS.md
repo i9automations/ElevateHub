@@ -14,6 +14,7 @@ Deploy inicial da API central do Contas TikTok V2.
 - Caminho base: `/opt/contas-tiktok-v2`
 - Release atual: `/opt/contas-tiktok-v2/current`
 - Dados persistentes: `/opt/contas-tiktok-v2/shared/data/db.json`
+- Perfis de navegador futuros: `/opt/contas-tiktok-v2/shared/data/browser-profiles`
 - Servico: `contas-tiktok-v2.service`
 - Porta interna: `127.0.0.1:8787`
 
@@ -87,3 +88,24 @@ Credenciais iniciais do admin foram geradas na VPS em:
 ```
 
 Esse arquivo tem permissao `600` e nao deve ser enviado em chat.
+
+## Navegador remoto
+
+O contrato de sessao remota ja existe na API. O modo atual roda com fallback visual.
+
+Para habilitar Chrome real no servidor:
+
+```bash
+cd /opt/contas-tiktok-v2/current/server
+npm install playwright-core
+# instalar Chrome for Testing/Chromium e definir V2_CHROME_PATH se necessario
+```
+
+Depois ajustar `/etc/contas-tiktok-v2.env`:
+
+```txt
+V2_BROWSER_DRIVER=playwright
+V2_BROWSER_DATA_DIR=/opt/contas-tiktok-v2/shared/data/browser-profiles
+```
+
+Essa etapa deve ser feita em janela de manutencao, porque navegadores consomem CPU/RAM. Nao instalar dependencias pesadas sem validar recursos da VPS.

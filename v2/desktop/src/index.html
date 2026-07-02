@@ -38,11 +38,11 @@
           <h2>Entrar no aplicativo</h2>
           <p>Use sua conta da empresa para acessar perfis compartilhados.</p>
           <label for="email">E-mail</label>
-          <input id="email" type="email" autocomplete="username" value="admin@elevate.local">
+          <input id="email" type="email" autocomplete="username" placeholder="seu@email.com.br">
           <label for="password">Senha</label>
-          <input id="password" type="password" autocomplete="current-password" value="admin123">
+          <input id="password" type="password" autocomplete="current-password">
           <button class="primary wide" id="loginBtn" type="button">Entrar</button>
-          <div class="form-note" id="loginMsg">Ambiente dev: admin@elevate.local / admin123</div>
+          <div class="form-note" id="loginMsg">Conectando em contas-v2.elevateecom.com.br</div>
         </div>
       </section>
 
@@ -81,12 +81,22 @@
               <span>Sessao remota</span>
               <strong id="selectedName">Nenhum perfil</strong>
             </div>
+            <div class="browserbar">
+              <input id="browserUrl" type="text" placeholder="URL do navegador remoto" disabled>
+              <button class="secondary" id="browserGoBtn" type="button" disabled>Ir</button>
+              <button class="secondary" id="browserRefreshBtn" type="button" disabled>Atualizar</button>
+            </div>
             <div class="screen-placeholder" id="sessionScreen">
-              <div class="screen-grid"></div>
-              <div class="screen-copy">
+              <img id="browserFrame" class="browser-frame hidden" alt="Frame do navegador remoto">
+              <div class="screen-grid" id="screenGrid"></div>
+              <div class="screen-copy" id="screenCopy">
                 <strong>Browser remoto</strong>
                 <span>Na proxima etapa entra o stream do navegador isolado.</span>
               </div>
+            </div>
+            <div class="typebar">
+              <input id="browserText" type="text" placeholder="Texto para enviar ao navegador remoto" disabled>
+              <button class="secondary" id="browserTypeBtn" type="button" disabled>Digitar</button>
             </div>
             <div class="session-actions">
               <button class="primary wide" id="openRemoteBtn" type="button" disabled>Abrir sessao</button>

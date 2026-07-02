@@ -1,7 +1,7 @@
 const { contextBridge } = require("electron");
 
 const apiArg = process.argv.find((arg) => arg.startsWith("--api-url="));
-const apiBase = apiArg ? apiArg.slice("--api-url=".length) : "http://127.0.0.1:8787";
+const apiBase = apiArg ? apiArg.slice("--api-url=".length) : "https://contas-v2.elevateecom.com.br";
 
 contextBridge.exposeInMainWorld("elevate", {
   apiBase,
