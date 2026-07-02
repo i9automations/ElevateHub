@@ -13,117 +13,248 @@
         <div class="mark">CT</div>
         <div>
           <h1>Contas TikTok</h1>
-          <span>V2 compartilhado</span>
+          <span>Aplicativo compartilhado</span>
         </div>
       </div>
 
-      <button class="primary" id="newProfileBtn" type="button">Novo perfil</button>
+      <div class="quick-actions">
+        <button class="primary" id="newProfileBtn" type="button">Novo perfil</button>
+        <button class="secondary" id="importBtn" type="button">Importar CSV</button>
+      </div>
 
-      <nav class="nav">
+      <nav class="nav" aria-label="Navegacao principal">
         <button class="nav-item active" type="button" data-view="profiles">Perfis</button>
-        <button class="nav-item" type="button" data-view="sessions">Sessoes</button>
+        <button class="nav-item" type="button" data-view="audit">Auditoria</button>
         <button class="nav-item" type="button" data-view="team">Equipe</button>
-        <button class="nav-item" type="button" data-view="settings">Configuracoes</button>
+        <button class="nav-item" type="button" data-view="settings">Configuracao</button>
       </nav>
 
       <div class="server-card">
         <span>Servidor</span>
         <strong id="serverState">desconectado</strong>
+        <small id="serverUrl">contas-v2.elevateecom.com.br</small>
       </div>
     </aside>
 
     <main class="workspace">
       <section class="login" id="loginView">
         <div class="login-panel">
+          <div class="login-mark">CT</div>
           <h2>Entrar no aplicativo</h2>
-          <p>Use sua conta da empresa para acessar perfis compartilhados.</p>
+          <p>Acesse os perfis compartilhados da empresa.</p>
           <label for="email">E-mail</label>
           <input id="email" type="email" autocomplete="username" placeholder="seu@email.com.br">
           <label for="password">Senha</label>
           <input id="password" type="password" autocomplete="current-password">
           <button class="primary wide" id="loginBtn" type="button">Entrar</button>
-          <div class="form-note" id="loginMsg">Conectando em contas-v2.elevateecom.com.br</div>
+          <div class="form-note" id="loginMsg">Conectando ao servidor da V2</div>
         </div>
       </section>
 
       <section class="dashboard hidden" id="dashboardView">
         <header class="topbar">
           <div>
-            <h2>Perfis compartilhados</h2>
-            <span id="subtitle">0 perfis cadastrados</span>
+            <h2 id="viewTitle">Perfis compartilhados</h2>
+            <span id="viewSubtitle">0 perfis cadastrados</span>
           </div>
-          <div class="toolbar">
-            <input id="search" type="search" placeholder="Buscar perfil, tag ou responsavel">
+          <div class="topbar-right">
+            <div class="user-chip">
+              <strong id="appUserName">Equipe</strong>
+              <span id="appUserRole">operador</span>
+            </div>
             <button class="secondary" id="refreshBtn" type="button">Atualizar</button>
           </div>
         </header>
 
-        <div class="metrics">
-          <div class="metric"><strong id="metricTotal">0</strong><span>Total</span></div>
-          <div class="metric"><strong id="metricReady">0</strong><span>Logadas</span></div>
-          <div class="metric"><strong id="metricBusy">0</strong><span>Em uso</span></div>
-          <div class="metric"><strong id="metricQueue">0</strong><span>Fila</span></div>
-        </div>
+        <section class="view active" id="profilesView">
+          <div class="metrics">
+            <div class="metric"><strong id="metricTotal">0</strong><span>Total</span></div>
+            <div class="metric"><strong id="metricReady">0</strong><span>Logadas</span></div>
+            <div class="metric"><strong id="metricBusy">0</strong><span>Em uso</span></div>
+            <div class="metric"><strong id="metricFree">0</strong><span>Livres</span></div>
+          </div>
 
-        <div class="content-grid">
-          <section class="profiles-pane">
-            <div class="table-head">
-              <span>Perfil</span>
-              <span>Status</span>
-              <span>Responsavel</span>
-              <span>Acoes</span>
+          <div class="profile-toolbar">
+            <div class="filter-tabs" role="tablist" aria-label="Filtro de perfis">
+              <button class="filter-tab active" type="button" data-filter="all">Todos</button>
+              <button class="filter-tab" type="button" data-filter="free">Livres</button>
+              <button class="filter-tab" type="button" data-filter="ready">Logadas</button>
+              <button class="filter-tab" type="button" data-filter="busy">Em uso</button>
             </div>
-            <div id="profileList" class="profile-list"></div>
-          </section>
+            <input id="search" type="search" placeholder="Buscar cliente, e-mail, tag ou responsavel">
+          </div>
 
-          <aside class="session-pane">
-            <div class="session-header">
-              <span>Sessao remota</span>
-              <strong id="selectedName">Nenhum perfil</strong>
-            </div>
-            <div class="browserbar">
-              <input id="browserUrl" type="text" placeholder="URL do navegador remoto" disabled>
-              <button class="secondary" id="browserGoBtn" type="button" disabled>Ir</button>
-              <button class="secondary" id="browserRefreshBtn" type="button" disabled>Atualizar</button>
-            </div>
-            <div class="screen-placeholder" id="sessionScreen">
-              <img id="browserFrame" class="browser-frame hidden" alt="Frame do navegador remoto">
-              <div class="screen-grid" id="screenGrid"></div>
-              <div class="screen-copy" id="screenCopy">
-                <strong>Browser remoto</strong>
-                <span>Na proxima etapa entra o stream do navegador isolado.</span>
+          <div class="content-grid">
+            <section class="profiles-pane">
+              <div class="table-head">
+                <span>Perfil</span>
+                <span>Status</span>
+                <span>Responsavel</span>
+                <span>Ultimo acesso</span>
+                <span>Acoes</span>
               </div>
+              <div id="profileList" class="profile-list"></div>
+              <div id="emptyProfiles" class="empty-state hidden">
+                <strong>Nenhum perfil encontrado</strong>
+                <span>Ajuste o filtro ou importe a planilha de clientes.</span>
+              </div>
+            </section>
+
+            <aside class="session-pane">
+              <div class="session-header">
+                <span>Sessao remota</span>
+                <strong id="selectedName">Nenhum perfil</strong>
+                <small id="selectedEmail">Selecione um cliente para abrir o browser.</small>
+              </div>
+
+              <div class="status-strip">
+                <span class="badge empty" id="selectedStatusPill">sem sessao</span>
+                <span id="lockLine">Perfil livre para uso.</span>
+              </div>
+
+              <div class="browserbar">
+                <button class="icon-button" id="browserBackBtn" type="button" disabled aria-label="Voltar">&lt;</button>
+                <button class="icon-button" id="browserForwardBtn" type="button" disabled aria-label="Avancar">&gt;</button>
+                <button class="icon-button" id="browserRefreshBtn" type="button" disabled aria-label="Atualizar">R</button>
+                <input id="browserUrl" type="text" placeholder="URL do navegador remoto" disabled>
+                <button class="secondary" id="browserGoBtn" type="button" disabled>Ir</button>
+              </div>
+
+              <div class="screen-placeholder" id="sessionScreen" tabindex="0" role="application" aria-label="Navegador remoto">
+                <img id="browserFrame" class="browser-frame hidden" alt="Frame do navegador remoto">
+                <div class="screen-grid" id="screenGrid"></div>
+                <div class="screen-copy" id="screenCopy">
+                  <strong>Browser remoto</strong>
+                  <span>Abra um perfil para controlar o Chrome da VPS.</span>
+                </div>
+              </div>
+
+              <div class="typebar">
+                <input id="browserText" type="text" placeholder="Texto para enviar ao navegador remoto" disabled>
+                <button class="secondary" id="browserTypeBtn" type="button" disabled>Digitar</button>
+              </div>
+
+              <div class="keybar" aria-label="Teclas rapidas">
+                <button class="secondary" id="browserEnterBtn" type="button" disabled>Enter</button>
+                <button class="secondary" id="browserTabBtn" type="button" disabled>Tab</button>
+                <button class="secondary" id="browserEscBtn" type="button" disabled>Esc</button>
+              </div>
+
+              <div class="session-actions">
+                <button class="primary wide" id="openRemoteBtn" type="button" disabled>Abrir browser</button>
+                <button class="secondary wide" id="releaseBtn" type="button" disabled>Liberar perfil</button>
+              </div>
+
+              <div class="activity" id="activityLog">Selecione um perfil para abrir uma sessao remota.</div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="auditView">
+          <div class="view-panel">
+            <div class="panel-head">
+              <div>
+                <h3>Auditoria</h3>
+                <span>Historico recente de acessos e acoes.</span>
+              </div>
+              <button class="secondary" id="auditRefreshBtn" type="button">Atualizar</button>
             </div>
-            <div class="typebar">
-              <input id="browserText" type="text" placeholder="Texto para enviar ao navegador remoto" disabled>
-              <button class="secondary" id="browserTypeBtn" type="button" disabled>Digitar</button>
+            <div id="auditList" class="audit-list"></div>
+          </div>
+        </section>
+
+        <section class="view" id="teamView">
+          <div class="team-grid">
+            <div class="view-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>Equipe</h3>
+                  <span>Usuarios com acesso ao aplicativo.</span>
+                </div>
+              </div>
+              <div id="userList" class="user-list"></div>
             </div>
-            <div class="session-actions">
-              <button class="primary wide" id="openRemoteBtn" type="button" disabled>Abrir sessao</button>
-              <button class="secondary wide" id="releaseBtn" type="button" disabled>Liberar trava</button>
+
+            <form class="view-panel team-form" id="userForm">
+              <h3>Novo usuario</h3>
+              <label for="userName">Nome</label>
+              <input id="userName" autocomplete="off" placeholder="Nome do colaborador">
+              <label for="userEmail">E-mail</label>
+              <input id="userEmail" type="email" autocomplete="off" placeholder="email@empresa.com.br">
+              <label for="userRole">Perfil</label>
+              <select id="userRole">
+                <option value="operator">Operador</option>
+                <option value="admin">Admin</option>
+              </select>
+              <label for="userPassword">Senha inicial</label>
+              <input id="userPassword" type="text" autocomplete="off" placeholder="Gerar automaticamente">
+              <button class="primary wide" type="submit">Criar usuario</button>
+              <div class="form-note" id="userMsg"></div>
+            </form>
+          </div>
+        </section>
+
+        <section class="view" id="settingsView">
+          <div class="settings-grid">
+            <div class="view-panel">
+              <h3>Servidor</h3>
+              <dl>
+                <dt>API</dt>
+                <dd id="settingsApiUrl">-</dd>
+                <dt>Status</dt>
+                <dd id="settingsServerStatus">-</dd>
+                <dt>Navegador remoto</dt>
+                <dd>Playwright + Chrome for Testing na VPS</dd>
+              </dl>
             </div>
-            <div class="activity" id="activityLog"></div>
-          </aside>
-        </div>
+            <div class="view-panel">
+              <h3>Operacao segura</h3>
+              <p>Os perfis ficam salvos no servidor. Ao liberar um perfil, o Chrome fecha, mas a sessao continua persistida para o proximo acesso.</p>
+              <p>Se um perfil ficar preso, um admin pode liberar pela lista de perfis.</p>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
   </div>
 
   <dialog id="profileDialog">
     <form method="dialog" class="dialog-form">
-      <h3>Novo perfil</h3>
+      <h3 id="profileDialogTitle">Novo perfil</h3>
       <label for="profileName">Nome do cliente</label>
       <input id="profileName" autocomplete="off" placeholder="ex: Loja da Ana">
       <label for="profileEmail">E-mail TikTok / alias</label>
       <input id="profileEmail" autocomplete="off" placeholder="cliente@elevateecom.com.br">
+      <label for="profileMailbox">Caixa Hostinger</label>
+      <input id="profileMailbox" autocomplete="off" placeholder="clientes@elevateecom.com.br">
       <label for="profileTags">Tags</label>
       <input id="profileTags" autocomplete="off" placeholder="Moda, Consultoria">
+      <label for="profileNotes">Observacoes</label>
+      <textarea id="profileNotes" placeholder="Dados internos, responsavel ou regra desse cliente"></textarea>
       <div class="dialog-actions">
         <button class="secondary" value="cancel" type="button" id="cancelProfileBtn">Cancelar</button>
-        <button class="primary" value="default" type="submit">Criar</button>
+        <button class="primary" value="default" type="submit" id="saveProfileBtn">Salvar</button>
       </div>
     </form>
   </dialog>
+
+  <dialog id="importDialog">
+    <form method="dialog" class="dialog-form">
+      <h3>Importar perfis</h3>
+      <p class="dialog-copy">Use colunas como nome, email, tags e caixa_email. O app atualiza perfis pelo e-mail TikTok quando ja existir.</p>
+      <label for="importFile">Arquivo CSV</label>
+      <input id="importFile" type="file" accept=".csv,.txt">
+      <label for="importText">Ou cole o CSV aqui</label>
+      <textarea id="importText" placeholder="nome;email;tags;caixa_email"></textarea>
+      <div class="form-note" id="importResult"></div>
+      <div class="dialog-actions">
+        <button class="secondary" value="cancel" type="button" id="cancelImportBtn">Cancelar</button>
+        <button class="primary" value="default" type="button" id="runImportBtn">Importar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
   <script src="./renderer.js"></script>
 </body>

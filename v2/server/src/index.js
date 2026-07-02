@@ -104,6 +104,115 @@ function profileDto(db, profile) {
   };
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeTags(value) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  return String(value || "")
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function applyProfileFields(profile, body) {
+  if (body.name !== undefined) profile.name = String(body.name || "").trim();
+  if (body.tiktokEmail !== undefined) profile.tiktokEmail = normalizeEmail(body.tiktokEmail);
+  if (body.mailboxEmail !== undefined) profile.mailboxEmail = normalizeEmail(body.mailboxEmail);
+  if (body.notes !== undefined) profile.notes = String(body.notes || "").trim();
+  if (body.tags !== undefined) profile.tags = normalizeTags(body.tags);
+  profile.updatedAt = now();
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  const input = String(text || "").replace(/^\uFEFF/, "");
+  const firstLine = input.split(/\r?\n/, 1)[0] || "";
+  const delimiterCounts = {
+    ",": (firstLine.match(/,/g) || []).length,
+    ";": (firstLine.match(/;/g) || []).length,
+    "\t": (firstLine.match(/\t/g) || []).length
+  };
+  const delimiter = Object.entries(delimiterCounts).sort((a, b) => b[1] - a[1])[0][0];
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1];
+    if (quoted) {
+      if (char === "\"" && next === "\"") {
+        field += "\"";
+        index += 1;
+      } else if (char === "\"") {
+        quoted = false;
+      } else {
+        field += char;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      quoted = true;
+    } else if (char === delimiter) {
+      row.push(field.trim());
+      field = "";
+    } else if (char === "\n") {
+      row.push(field.trim());
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (char !== "\r") {
+      field += char;
+    }
+  }
+  row.push(field.trim());
+  if (row.some(Boolean)) rows.push(row);
+  if (!rows.length) return [];
+
+  const headers = rows.shift().map((header) => slugHeader(header));
+  return rows
+    .filter((item) => item.some(Boolean))
+    .map((item) => Object.fromEntries(headers.map((header, index) => [header, item[index] || ""])));
+}
+
+function slugHeader(value) {
+  return String(value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function pick(row, names) {
+  for (const name of names) {
+    if (row[name] !== undefined && row[name] !== "") return row[name];
+  }
+  return "";
+}
+
+function profileFromImportRow(row) {
+  const name = String(pick(row, ["name", "nome", "cliente", "perfil", "marca"]) || "").trim();
+  const email = normalizeEmail(pick(row, ["tiktok_email", "email_tiktok", "email", "alias", "e_mail"]));
+  const mailboxEmail = normalizeEmail(pick(row, ["mailbox_email", "caixa_email", "email_principal", "caixa", "hostinger"]));
+  const tags = normalizeTags(pick(row, ["tags", "tag", "categoria", "grupo"]));
+  const notes = String(pick(row, ["notes", "observacoes", "obs", "nota"]) || "").trim();
+  const fallbackName = email ? email.split("@")[0] : "";
+  return {
+    name: name || fallbackName,
+    tiktokEmail: email,
+    mailboxEmail,
+    tags,
+    notes
+  };
+}
+
+function canControlProfile(profile, user) {
+  return !profile.lockedBy || profile.lockedBy === user.id || user.role === "admin";
+}
+
 function send(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -111,7 +220,7 @@ function send(res, status, payload) {
     "Content-Length": Buffer.byteLength(body),
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
   });
   res.end(body);
 }
@@ -198,6 +307,34 @@ async function handle(req, res) {
       return send(res, 200, { user: publicUser(user) });
     }
 
+    if (req.method === "GET" && parts.join("/") === "api/users") {
+      return send(res, 200, { users: db.users.map(publicUser) });
+    }
+
+    if (req.method === "POST" && parts.join("/") === "api/users") {
+      if (user.role !== "admin") return send(res, 403, { error: "Apenas admin pode criar usuarios" });
+      const body = await readBody(req);
+      const name = String(body.name || "").trim();
+      const email = normalizeEmail(body.email);
+      if (!name || !email) return send(res, 400, { error: "Nome e e-mail sao obrigatorios" });
+      if (db.users.some((item) => item.email.toLowerCase() === email)) {
+        return send(res, 409, { error: "Usuario ja cadastrado" });
+      }
+      const temporaryPassword = String(body.password || "").trim() || crypto.randomBytes(6).toString("base64url");
+      const created = {
+        id: id("usr"),
+        name,
+        email,
+        role: body.role === "admin" ? "admin" : "operator",
+        passwordHash: hashPassword(temporaryPassword),
+        createdAt: now()
+      };
+      db.users.push(created);
+      audit(db, user, "user.create", created.id, { email: created.email, role: created.role });
+      saveDb(db);
+      return send(res, 201, { user: publicUser(created), temporaryPassword });
+    }
+
     if (req.method === "GET" && parts.join("/") === "api/profiles") {
       return send(res, 200, { profiles: db.profiles.map((profile) => profileDto(db, profile)) });
     }
@@ -209,8 +346,10 @@ async function handle(req, res) {
       const profile = {
         id: id("prf"),
         name,
-        tiktokEmail: String(body.tiktokEmail || "").trim().toLowerCase(),
-        tags: Array.isArray(body.tags) ? body.tags.map(String).filter(Boolean) : [],
+        tiktokEmail: normalizeEmail(body.tiktokEmail),
+        mailboxEmail: normalizeEmail(body.mailboxEmail),
+        notes: String(body.notes || "").trim(),
+        tags: normalizeTags(body.tags),
         sessionState: "empty",
         lockedBy: null,
         lockedAt: null,
@@ -223,9 +362,74 @@ async function handle(req, res) {
       return send(res, 201, { profile: profileDto(db, profile) });
     }
 
+    if (req.method === "POST" && parts.join("/") === "api/profiles/import") {
+      const body = await readBody(req);
+      const rows = Array.isArray(body.rows) ? body.rows : parseCsv(body.csvText);
+      const result = { created: 0, updated: 0, skipped: 0 };
+      const changedProfiles = [];
+
+      for (const rawRow of rows) {
+        const incoming = profileFromImportRow(rawRow);
+        if (!incoming.name) {
+          result.skipped += 1;
+          continue;
+        }
+        const existing = incoming.tiktokEmail
+          ? db.profiles.find((profile) => normalizeEmail(profile.tiktokEmail) === incoming.tiktokEmail)
+          : null;
+        if (existing) {
+          applyProfileFields(existing, incoming);
+          result.updated += 1;
+          changedProfiles.push(existing);
+        } else {
+          const profile = {
+            id: id("prf"),
+            name: incoming.name,
+            tiktokEmail: incoming.tiktokEmail,
+            mailboxEmail: incoming.mailboxEmail,
+            notes: incoming.notes,
+            tags: incoming.tags,
+            sessionState: "empty",
+            lockedBy: null,
+            lockedAt: null,
+            lastOpenedAt: null,
+            createdAt: now()
+          };
+          db.profiles.push(profile);
+          result.created += 1;
+          changedProfiles.push(profile);
+        }
+      }
+
+      audit(db, user, "profile.import", null, result);
+      saveDb(db);
+      return send(res, 200, {
+        result,
+        profiles: changedProfiles.map((profile) => profileDto(db, profile))
+      });
+    }
+
     if (parts[0] === "api" && parts[1] === "profiles" && parts[2]) {
       const profile = db.profiles.find((item) => item.id === parts[2]);
       if (!profile) return send(res, 404, { error: "Perfil nao encontrado" });
+
+      if (req.method === "PATCH" && parts.length === 3) {
+        const body = await readBody(req);
+        applyProfileFields(profile, body);
+        if (!profile.name) return send(res, 400, { error: "Nome vazio" });
+        audit(db, user, "profile.update", profile.id, { name: profile.name });
+        saveDb(db);
+        return send(res, 200, { profile: profileDto(db, profile) });
+      }
+
+      if (req.method === "DELETE" && parts.length === 3) {
+        if (user.role !== "admin") return send(res, 403, { error: "Apenas admin pode remover perfis" });
+        await browserWorker.stopBrowserSession(profile.id);
+        db.profiles = db.profiles.filter((item) => item.id !== profile.id);
+        audit(db, user, "profile.delete", profile.id, { name: profile.name });
+        saveDb(db);
+        return send(res, 200, { ok: true });
+      }
 
       if (req.method === "POST" && parts[3] === "lock") {
         if (profile.lockedBy && profile.lockedBy !== user.id) {
@@ -268,7 +472,7 @@ async function handle(req, res) {
       }
 
       if (req.method === "GET" && parts[3] === "session" && parts[4] === "frame") {
-        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+        if (!canControlProfile(profile, user)) {
           return send(res, 403, { error: "Perfil travado por outro usuario" });
         }
         const frame = await browserWorker.getBrowserFrame(profile.id);
@@ -281,7 +485,7 @@ async function handle(req, res) {
       }
 
       if (req.method === "POST" && parts[3] === "session" && parts[4] === "navigate") {
-        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+        if (!canControlProfile(profile, user)) {
           return send(res, 403, { error: "Perfil travado por outro usuario" });
         }
         const body = await readBody(req);
@@ -292,8 +496,35 @@ async function handle(req, res) {
         return send(res, 200, { session });
       }
 
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "reload") {
+        if (!canControlProfile(profile, user)) {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const session = await browserWorker.reloadBrowser(profile.id);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
+      }
+
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "back") {
+        if (!canControlProfile(profile, user)) {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const session = await browserWorker.goBackBrowser(profile.id);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
+      }
+
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "forward") {
+        if (!canControlProfile(profile, user)) {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const session = await browserWorker.goForwardBrowser(profile.id);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
+      }
+
       if (req.method === "POST" && parts[3] === "session" && parts[4] === "click") {
-        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+        if (!canControlProfile(profile, user)) {
           return send(res, 403, { error: "Perfil travado por outro usuario" });
         }
         const body = await readBody(req);
@@ -302,12 +533,32 @@ async function handle(req, res) {
         return send(res, 200, { session });
       }
 
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "scroll") {
+        if (!canControlProfile(profile, user)) {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const body = await readBody(req);
+        const session = await browserWorker.scrollBrowser(profile.id, body.deltaX, body.deltaY);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
+      }
+
       if (req.method === "POST" && parts[3] === "session" && parts[4] === "type") {
-        if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+        if (!canControlProfile(profile, user)) {
           return send(res, 403, { error: "Perfil travado por outro usuario" });
         }
         const body = await readBody(req);
         const session = await browserWorker.typeBrowser(profile.id, body.text);
+        if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
+        return send(res, 200, { session });
+      }
+
+      if (req.method === "POST" && parts[3] === "session" && parts[4] === "key") {
+        if (!canControlProfile(profile, user)) {
+          return send(res, 403, { error: "Perfil travado por outro usuario" });
+        }
+        const body = await readBody(req);
+        const session = await browserWorker.pressBrowserKey(profile.id, body.key);
         if (!session) return send(res, 404, { error: "Sessao remota nao iniciada" });
         return send(res, 200, { session });
       }

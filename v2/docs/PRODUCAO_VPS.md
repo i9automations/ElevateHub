@@ -19,6 +19,7 @@ Deploy inicial da API central do Contas TikTok V2.
 - Porta interna: `127.0.0.1:8787`
 - Navegador remoto: Playwright com Chrome for Testing isolado em `/opt/contas-tiktok-v2/shared/ms-playwright`
 - Limite inicial: `1` sessao remota simultanea
+- Desktop V2: instalador publicado manualmente no release `app-v2`
 
 O servico roda com usuario Linux isolado `contasv2`.
 
@@ -117,3 +118,13 @@ Smoke tests executados:
 - HTTPS externo: `https://contas-v2.elevateecom.com.br/api/health`.
 
 Manter o limite inicial baixo ate medir CPU/RAM com usuarios reais. Para aumentar concorrencia, ajustar `V2_BROWSER_MAX_SESSIONS` e reiniciar apenas `contas-tiktok-v2`.
+
+## Deploy da API
+
+Sempre criar nova release em `/opt/contas-tiktok-v2/releases/<timestamp>`, atualizar o link `current` e reiniciar apenas:
+
+```bash
+systemctl restart contas-tiktok-v2
+```
+
+Nao alterar Nginx, Docker, outros projetos em `/opt`, DNS raiz, `www`, MX, TXT, SPF, DKIM ou DMARC para atualizar a V2.

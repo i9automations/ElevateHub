@@ -213,6 +213,42 @@ async function navigateBrowser(profileId, url) {
   return publicSession(session);
 }
 
+async function reloadBrowser(profileId) {
+  const session = sessions.get(profileId);
+  if (!session) return null;
+  session.lastActivityAt = now();
+  session.message = "Pagina atualizada.";
+  if (session.page) {
+    await session.page.reload({ waitUntil: "domcontentloaded" });
+    session.url = session.page.url();
+  }
+  return publicSession(session);
+}
+
+async function goBackBrowser(profileId) {
+  const session = sessions.get(profileId);
+  if (!session) return null;
+  session.lastActivityAt = now();
+  session.message = "Voltou uma pagina.";
+  if (session.page) {
+    await session.page.goBack({ waitUntil: "domcontentloaded" }).catch(() => null);
+    session.url = session.page.url();
+  }
+  return publicSession(session);
+}
+
+async function goForwardBrowser(profileId) {
+  const session = sessions.get(profileId);
+  if (!session) return null;
+  session.lastActivityAt = now();
+  session.message = "Avancou uma pagina.";
+  if (session.page) {
+    await session.page.goForward({ waitUntil: "domcontentloaded" }).catch(() => null);
+    session.url = session.page.url();
+  }
+  return publicSession(session);
+}
+
 async function clickBrowser(profileId, x, y) {
   const session = sessions.get(profileId);
   if (!session) return null;
@@ -224,6 +260,18 @@ async function clickBrowser(profileId, x, y) {
   return publicSession(session);
 }
 
+async function scrollBrowser(profileId, deltaX, deltaY) {
+  const session = sessions.get(profileId);
+  if (!session) return null;
+  session.lastActivityAt = now();
+  session.message = "Rolagem enviada para o navegador remoto.";
+  if (session.page) {
+    await session.page.mouse.wheel(Number(deltaX) || 0, Number(deltaY) || 0);
+    session.url = session.page.url();
+  }
+  return publicSession(session);
+}
+
 async function typeBrowser(profileId, text) {
   const session = sessions.get(profileId);
   if (!session) return null;
@@ -231,6 +279,20 @@ async function typeBrowser(profileId, text) {
   session.message = "Texto enviado para o navegador remoto.";
   if (session.page) {
     await session.page.keyboard.type(String(text || ""));
+  }
+  return publicSession(session);
+}
+
+async function pressBrowserKey(profileId, key) {
+  const session = sessions.get(profileId);
+  if (!session) return null;
+  const normalized = String(key || "").trim();
+  if (!normalized) return publicSession(session);
+  session.lastActivityAt = now();
+  session.message = `Tecla enviada: ${normalized}.`;
+  if (session.page) {
+    await session.page.keyboard.press(normalized);
+    session.url = session.page.url();
   }
   return publicSession(session);
 }
@@ -250,7 +312,12 @@ module.exports = {
   getBrowserSession,
   getBrowserFrame,
   navigateBrowser,
+  reloadBrowser,
+  goBackBrowser,
+  goForwardBrowser,
   clickBrowser,
+  scrollBrowser,
   typeBrowser,
+  pressBrowserKey,
   stopBrowserSession
 };

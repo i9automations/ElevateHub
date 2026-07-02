@@ -43,16 +43,16 @@ Responsabilidades:
 
 ### Browser worker
 
-Contrato inicial implementado na API.
+Implementado com Playwright + Chrome for Testing no servidor.
 
-Responsabilidades futuras:
+Responsabilidades atuais:
 
-- Rodar Chromium/Chrome em servidor.
+- Rodar Chrome em servidor.
 - Manter uma pasta de perfil por conta TikTok.
-- Expor stream visual para o aplicativo.
-- Receber input do usuario.
+- Retornar frames do navegador para o aplicativo.
+- Receber clique, scroll, digitacao e teclas especiais do usuario.
 - Persistir cookies e storage entre acessos.
-- Liberar ou encerrar sessoes ociosas.
+- Liberar o processo do Chrome quando o perfil e solto.
 
 ## Estrategia de navegador
 
@@ -75,22 +75,39 @@ Fluxo:
 5. Login, cookies e storage ficam salvos no servidor.
 6. Outro usuario abre depois e encontra a conta ja logada.
 
-O contrato inicial ja existe:
+Contrato atual:
 
 - `POST /api/profiles/:id/session/start`
 - `GET /api/profiles/:id/session/frame`
 - `POST /api/profiles/:id/session/navigate`
+- `POST /api/profiles/:id/session/reload`
+- `POST /api/profiles/:id/session/back`
+- `POST /api/profiles/:id/session/forward`
 - `POST /api/profiles/:id/session/click`
+- `POST /api/profiles/:id/session/scroll`
 - `POST /api/profiles/:id/session/type`
+- `POST /api/profiles/:id/session/key`
 - `POST /api/profiles/:id/release`
 
-No modo atual, se o driver Chrome/Playwright ainda nao estiver habilitado, a API retorna um frame visual de fallback. Quando `V2_BROWSER_DRIVER=playwright` estiver ativo e `playwright-core`/Chrome estiverem instalados, o mesmo contrato passa a retornar screenshots reais do navegador.
+Em producao, `V2_BROWSER_DRIVER=playwright` esta ativo. Em desenvolvimento sem Chrome, a API ainda consegue retornar um frame visual de fallback.
+
+## Operacao do aplicativo
+
+Recursos implementados no desktop:
+
+- Login persistido localmente via token.
+- Perfis com busca, filtros, tags, caixa Hostinger e observacoes.
+- Importacao CSV com upsert por e-mail TikTok.
+- Painel de browser remoto com clique, scroll, teclado, URL, voltar, avancar e atualizar.
+- Tela de auditoria.
+- Tela de equipe com criacao de usuario por admin.
+- Build Windows por Electron Builder.
 
 ## Proximas decisoes
 
 - Banco de dados de producao: Postgres.
 - Armazenamento dos perfis remotos: volume persistente criptografado por perfil.
-- Stream remoto: Playwright/CDP + WebRTC ou container com VNC/noVNC embutido no app.
+- Stream remoto: manter screenshots em polling no MVP ou evoluir para WebRTC/VNC quando precisar de FPS maior.
 - Hospedagem: VPS Windows/Linux com CPU/RAM suficiente para navegadores simultaneos.
 - Seguranca: HTTPS, tokens com refresh, 2FA para usuarios internos e logs de auditoria.
 
