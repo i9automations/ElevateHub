@@ -15,6 +15,8 @@ COMO ABRIR O APP
 - Na primeira abertura, ele se instala sozinho em:
   %LOCALAPPDATA%\Contas TikTok
 - Tambem cria o atalho "Contas TikTok" na Area de Trabalho e no Menu Iniciar.
+- Se ja existia uma pasta antiga do app na Area de Trabalho, ele tenta migrar
+  as contas/logins automaticamente na primeira abertura.
 - Depois disso, use o atalho criado. Nao precisa guardar o arquivo baixado.
 
 COMO USAR

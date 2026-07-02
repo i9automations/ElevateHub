@@ -35,6 +35,85 @@ RAW_URL = ("https://raw.githubusercontent.com/i9automations/"
            "contas-tiktok/main/navegador.py")
 
 
+def _tem_dados_app(pasta):
+    return any(os.path.exists(os.path.join(pasta, nome))
+               for nome in ("contas.json", "navegadores", "contas", "backups"))
+
+
+def _parece_app_antigo(pasta):
+    if not os.path.isdir(pasta) or not _tem_dados_app(pasta):
+        return False
+    sinais = ("Contas TikTok.exe", "launcher.py", "navegador.py",
+              "ABRIR.bat", "LEIA-ME.txt")
+    return any(os.path.exists(os.path.join(pasta, nome)) for nome in sinais)
+
+
+def _desktop_dirs():
+    cands = [
+        os.path.join(os.environ.get("USERPROFILE", ""), "Desktop"),
+        os.path.join(os.environ.get("OneDrive", ""), "Desktop"),
+        os.path.join(os.environ.get("OneDriveConsumer", ""), "Desktop"),
+        os.path.join(os.environ.get("OneDriveCommercial", ""), "Desktop"),
+    ]
+    vistos, out = set(), []
+    for p in cands:
+        if not p:
+            continue
+        ap = os.path.abspath(p)
+        if ap.lower() not in vistos and os.path.isdir(ap):
+            vistos.add(ap.lower())
+            out.append(ap)
+    return out
+
+
+def _origens_migracao(exe_dir, base):
+    vistos, origens = set(), []
+
+    def add(pasta):
+        ap = os.path.abspath(pasta)
+        if ap.lower() in vistos or ap.lower() == os.path.abspath(base).lower():
+            return
+        vistos.add(ap.lower())
+        if _parece_app_antigo(ap):
+            origens.append(ap)
+
+    add(exe_dir)  # caso ideal: exe novo rodado dentro da pasta antiga
+    for desk in _desktop_dirs():
+        add(desk)  # caso alguem usasse o app direto na Area de Trabalho
+        try:
+            for nome in os.listdir(desk):
+                p = os.path.join(desk, nome)
+                if os.path.isdir(p):
+                    add(p)
+        except Exception:
+            pass
+    return origens
+
+
+def _migrar_dados_antigos(base):
+    # Nao sobrescreve instalacao que ja tem dados no AppData.
+    if _tem_dados_app(base):
+        return
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    for origem in _origens_migracao(exe_dir, base):
+        migrou = False
+        for nome in ("contas.json", "navegadores", "contas", "backups"):
+            orig = os.path.join(origem, nome)
+            if not os.path.exists(orig):
+                continue
+            dest = os.path.join(base, nome)
+            try:
+                if os.path.isdir(orig):
+                    shutil.copytree(orig, dest, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(orig, dest)
+                migrou = True
+            except Exception:
+                pass
+        if migrou:
+            break
+
+
 def _base_dir():
     # Dados SEMPRE em %LOCALAPPDATA%\Contas TikTok, nao ao lado do .exe. Assim a
     # pessoa pode rodar o .exe de QUALQUER lugar (Downloads, Desktop) sem criar
@@ -49,22 +128,7 @@ def _base_dir():
         os.makedirs(base, exist_ok=True)
     except Exception:
         pass
-    # Migra dados de uma instalacao ANTIGA que ficava ao lado do .exe (uma vez).
-    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-    if (os.path.abspath(exe_dir) != os.path.abspath(base)
-            and not os.path.exists(os.path.join(base, "contas.json"))):
-        for nome in ("contas.json", "navegadores", "contas", "backups"):
-            orig = os.path.join(exe_dir, nome)
-            if not os.path.exists(orig):
-                continue
-            dest = os.path.join(base, nome)
-            try:
-                if os.path.isdir(orig):
-                    shutil.copytree(orig, dest, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(orig, dest)
-            except Exception:
-                pass
+    _migrar_dados_antigos(base)
     return base
 
 
