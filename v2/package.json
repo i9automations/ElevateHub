@@ -7,6 +7,6 @@
     "server": "node server/src/index.js",
     "desktop": "npm --prefix desktop run dev",
     "desktop:dist": "npm --prefix desktop run dist",
-    "check": "node --check server/src/index.js && node --check server/src/browser-worker.js && node --check desktop/src/main.js && node --check desktop/src/preload.js && node --check desktop/src/renderer.js"
+    "check": "node --check server/src/index.js && node --check server/src/browser-worker.js && node --check server/src/shared.js && node --check server/src/json-store.js && node --check server/src/supabase-store.js && node --check server/src/store.js && node --check desktop/src/main.js && node --check desktop/src/preload.js && node --check desktop/src/renderer.js"
   }
 }

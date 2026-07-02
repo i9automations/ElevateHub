@@ -4,13 +4,13 @@
 
 A V2 e um aplicativo desktop, nao um painel web aberto no navegador.
 
-Mesmo assim, a parte compartilhada precisa ficar em um servidor central. O aplicativo instalado nos PCs vira o cliente, enquanto o servidor guarda usuarios, perfis, travas, auditoria e sessoes de navegador.
+Mesmo assim, a parte compartilhada precisa ficar fora do PC do usuario. O aplicativo instalado nos PCs vira o cliente. Supabase guarda os dados do sistema, enquanto a VPS roda o navegador remoto e guarda sessoes/cookies de Chrome.
 
 ## Modelo Dolphin-like
 
 1. Usuario abre o aplicativo desktop.
 2. App autentica na API central.
-3. API lista os perfis TikTok compartilhados.
+3. API lista os perfis TikTok compartilhados usando JSON ou Supabase.
 4. Ao abrir um perfil, a API cria uma trava para evitar duas pessoas controlando o mesmo perfil ao mesmo tempo.
 5. Um worker no servidor inicia ou reconecta um navegador remoto isolado daquele perfil.
 6. O stream do navegador aparece dentro do aplicativo.
@@ -34,12 +34,15 @@ Motivos:
 
 Responsabilidades:
 
-- Login de usuarios.
-- Cadastro de perfis.
-- Tags, busca e status.
-- Trava de perfil em uso.
-- Auditoria.
+- Validar login via storage configurado.
+- Expor contrato HTTP para o app desktop.
+- Orquestrar travas, sessoes e auditoria.
 - Orquestracao das sessoes remotas.
+
+Storage:
+
+- `json`: fallback local e rollback rapido.
+- `supabase`: Auth/Postgres para usuarios, perfis e auditoria.
 
 ### Browser worker
 
@@ -105,7 +108,7 @@ Recursos implementados no desktop:
 
 ## Proximas decisoes
 
-- Banco de dados de producao: Postgres.
+- Ativar Supabase em producao depois de criar projeto e migrar dados.
 - Armazenamento dos perfis remotos: volume persistente criptografado por perfil.
 - Stream remoto: manter screenshots em polling no MVP ou evoluir para WebRTC/VNC quando precisar de FPS maior.
 - Hospedagem: VPS Windows/Linux com CPU/RAM suficiente para navegadores simultaneos.

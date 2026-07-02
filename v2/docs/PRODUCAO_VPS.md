@@ -12,7 +12,7 @@ Deploy inicial da API central do Contas TikTok V2.
 ## Aplicacao
 
 - Caminho base: `/opt/contas-tiktok-v2`
-- Release atual: `/opt/contas-tiktok-v2/current`
+- Release atual: `/opt/contas-tiktok-v2/releases/20260702201600`
 - Dados persistentes: `/opt/contas-tiktok-v2/shared/data/db.json`
 - Perfis de navegador: `/opt/contas-tiktok-v2/shared/data/browser-profiles`
 - Servico: `contas-tiktok-v2.service`
@@ -20,6 +20,8 @@ Deploy inicial da API central do Contas TikTok V2.
 - Navegador remoto: Playwright com Chrome for Testing isolado em `/opt/contas-tiktok-v2/shared/ms-playwright`
 - Limite inicial: `1` sessao remota simultanea
 - Desktop V2: instalador publicado manualmente no release `app-v2`
+- Storage atual: `json`
+- Storage preparado: `supabase`
 
 O servico roda com usuario Linux isolado `contasv2`.
 
@@ -128,3 +130,28 @@ systemctl restart contas-tiktok-v2
 ```
 
 Nao alterar Nginx, Docker, outros projetos em `/opt`, DNS raiz, `www`, MX, TXT, SPF, DKIM ou DMARC para atualizar a V2.
+
+## Ativar Supabase
+
+Somente depois de criar projeto Supabase e rodar `v2/supabase/schema.sql`.
+
+Adicionar em `/etc/contas-tiktok-v2.env`:
+
+```txt
+V2_DATA_STORE=supabase
+V2_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+V2_SUPABASE_ANON_KEY=...
+V2_SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+Depois reiniciar apenas:
+
+```bash
+systemctl restart contas-tiktok-v2
+```
+
+Rollback rapido:
+
+```txt
+V2_DATA_STORE=json
+```

@@ -7,7 +7,8 @@ O objetivo e reproduzir a logica do Dolphin: perfis, cookies e sessoes ficam no 
 ## Estrutura
 
 - `desktop/`: aplicativo Electron. A UI abre como app instalado, nao como aba de navegador.
-- `server/`: API central para usuarios, perfis, travas, sessoes e auditoria.
+- `server/`: API fina e browser worker. Pode usar JSON local ou Supabase como storage.
+- `supabase/`: schema SQL para Postgres/Auth.
 - `docs/`: decisoes tecnicas e proximos passos.
 
 ## Recursos atuais
@@ -21,6 +22,25 @@ O objetivo e reproduzir a logica do Dolphin: perfis, cookies e sessoes ficam no 
 - Tela de equipe para criar usuarios.
 - Auditoria das acoes principais.
 - Instalador Windows via Electron Builder.
+
+## Storage
+
+Por padrao, desenvolvimento local e VPS atual usam JSON:
+
+```txt
+V2_DATA_STORE=json
+```
+
+Para usar Supabase:
+
+```txt
+V2_DATA_STORE=supabase
+V2_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+V2_SUPABASE_ANON_KEY=...
+V2_SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+Veja `docs/SUPABASE.md`.
 
 ## Desenvolvimento local
 

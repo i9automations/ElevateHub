@@ -9,6 +9,7 @@
     "start": "node src/index.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.0",
     "playwright": "^1.61.1"
   }
 }
