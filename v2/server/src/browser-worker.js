@@ -4,6 +4,7 @@ const path = require("node:path");
 const LOGIN_URL = "https://seller-br.tiktok.com/account/login";
 const DEFAULT_VIEWPORT = { width: 1365, height: 768 };
 const DRIVER = process.env.V2_BROWSER_DRIVER || "mock";
+const MAX_SESSIONS = Number(process.env.V2_BROWSER_MAX_SESSIONS || 2);
 const DATA_DIR = process.env.V2_BROWSER_DATA_DIR || path.join(__dirname, "..", "data", "browser-profiles");
 const sessions = new Map();
 
@@ -90,9 +91,13 @@ function escapeXml(value) {
 
 function getPlaywright() {
   try {
-    return require("playwright-core");
+    return require("playwright");
   } catch {
-    return null;
+    try {
+      return require("playwright-core");
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -132,6 +137,10 @@ async function startBrowserSession(profile, user) {
   if (existing) {
     existing.lastActivityAt = now();
     return publicSession(existing);
+  }
+
+  if (sessions.size >= MAX_SESSIONS) {
+    throw new Error(`Limite de ${MAX_SESSIONS} sessoes remotas simultaneas atingido.`);
   }
 
   const session = {
