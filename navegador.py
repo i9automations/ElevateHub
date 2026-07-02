@@ -467,7 +467,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .foot{margin-top:auto;color:#5a6573;font-size:11px;letter-spacing:.3px;padding:0 8px;font-weight:600}
 
 .main{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--panel)}
-.top{display:flex;align-items:center;gap:14px;padding:22px 28px 14px}
+.top{display:flex;align-items:center;gap:14px;padding:20px 26px 12px;border-bottom:1px solid var(--line)}
 .headcopy{flex:1;min-width:170px}
 .top h2{font-size:22px;font-weight:850;letter-spacing:0;line-height:1.15}
 .subhead{display:block;color:var(--muted);font-size:12px;margin-top:4px;font-weight:600}
@@ -475,41 +475,55 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .stat{min-width:78px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#0d1117}
 .stat b{display:block;font-size:17px;line-height:1;color:#fff}
 .stat span{display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-top:4px;text-transform:uppercase}
+.toolbar{display:flex;align-items:center;gap:10px;padding:12px 26px;background:#0d1117;border-bottom:1px solid var(--line)}
+.statusfilters{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.filterbtn{height:34px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);
+  padding:0 11px;font-size:12.5px;font-weight:800;cursor:pointer;transition:.13s;white-space:nowrap}
+.filterbtn:hover{background:rgba(255,255,255,.045);color:#fff}
+.filterbtn.on{background:#18212b;border-color:rgba(255,255,255,.10);color:#fff}
 .search{border:1px solid var(--line);border-radius:8px;color:var(--fg);
-  padding:11px 14px 11px 38px;width:248px;font-size:13px;outline:none;transition:.13s;
+  padding:10px 14px 10px 38px;width:248px;font-size:13px;outline:none;transition:.13s;
   background:var(--card) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="%238b95a3" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="5.2"/><path d="M15 15l-4-4"/></svg>') no-repeat 13px center}
 .search::placeholder{color:var(--muted)}
 .search:focus{border-color:#465262;background-color:#151c25}
-.thead{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;
-  font-weight:800;letter-spacing:1px;padding:9px 32px;border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);background:#0d1117}
-.list{flex:1;overflow-y:auto;padding:14px 26px 26px}
+.thead{display:grid;grid-template-columns:minmax(260px,2.2fr) minmax(118px,.78fr) minmax(150px,1.1fr) minmax(150px,.9fr) 150px;
+  gap:12px;color:var(--muted);font-size:10.5px;font-weight:850;letter-spacing:.9px;padding:10px 32px;
+  border-bottom:1px solid var(--line);background:#0d1117;text-transform:uppercase}
+.thead span:last-child{text-align:right}
+.list{flex:1;overflow-y:auto;padding:0 26px 26px}
+.table{border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;overflow:hidden;background:#0d1117}
 
-.card{display:flex;align-items:center;gap:14px;border-radius:8px;padding:14px 16px;
-  margin-bottom:9px;border:1px solid var(--line);background:var(--card);transition:.13s}
-.card:hover{background:var(--card2);border-color:rgba(255,255,255,.13)}
-.ava{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
-  font-weight:800;color:#08130f;font-size:18px;flex-shrink:0}
-.cardbody{flex:1;min-width:0}
-.cardhead{display:flex;align-items:center;gap:10px;min-width:0}
+.card{display:grid;grid-template-columns:minmax(260px,2.2fr) minmax(118px,.78fr) minmax(150px,1.1fr) minmax(150px,.9fr) 150px;
+  gap:12px;align-items:center;min-height:68px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.055);
+  background:var(--card);transition:.13s}
+.card:last-child{border-bottom:0}
+.card:hover{background:var(--card2)}
+.profilecell{display:flex;align-items:center;gap:12px;min-width:0}
+.ava{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  font-weight:850;color:#08130f;font-size:16px;flex-shrink:0}
+.cardbody{min-width:0}
+.cardhead{display:flex;align-items:center;gap:8px;min-width:0}
 .nome{font-size:15px;font-weight:800;letter-spacing:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.last{color:#7f8a99;font-size:12px;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slugline{color:#697586;font-size:11.5px;font-weight:700;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.last{color:#9aa7b8;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tag{background:rgba(37,244,238,.10);color:var(--cy);font-size:11px;font-weight:700;
   padding:5px 11px;border-radius:7px;border:1px solid rgba(37,244,238,.18)}
 .actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
 .start{border:0;border-radius:8px;cursor:pointer;color:#04211f;font-weight:850;
-  font-size:13px;width:94px;height:38px;transition:.13s;display:flex;align-items:center;
+  font-size:12.5px;width:86px;height:36px;transition:.13s;display:flex;align-items:center;
   justify-content:center;gap:8px;background:var(--cy)}
 .start:hover{background:var(--cyd)}
 .del{background:none;border:0;color:var(--muted);cursor:pointer;display:grid;
-  place-items:center;width:38px;height:38px;border-radius:8px;transition:.13s}
+  place-items:center;width:36px;height:36px;border-radius:8px;transition:.13s}
 .del:hover{color:var(--pk);background:rgba(254,44,85,.12)}
 .edit{background:none;border:0;color:var(--muted);cursor:pointer;display:grid;
-  place-items:center;width:38px;height:38px;border-radius:8px;transition:.13s}
+  place-items:center;width:36px;height:36px;border-radius:8px;transition:.13s}
 .edit:hover{color:var(--cy);background:rgba(37,244,238,.10)}
-.cardtags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.cardtags{display:flex;gap:5px;flex-wrap:wrap}
 .t2{background:var(--chip);color:#9fb3c9;font-size:10.5px;font-weight:700;
   padding:3px 8px;border-radius:7px;border:1px solid var(--line)}
+.mutedcell{color:#788697;font-size:12px;font-weight:700}
+.statuscell{min-width:0}
 .modal label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:600}
 
 .vazio{text-align:center;color:var(--muted);margin-top:90px}
@@ -550,11 +564,21 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .stbadge.expirada{color:#fbbf24}.stbadge.expirada::before{background:#fbbf24}
 .stbadge.deslogada{color:#8b95a3}
 .ordbtn{background:var(--chip);color:var(--fg);border:1px solid var(--line);
-  border-radius:8px;padding:10px 13px;font-size:13px;font-weight:800;cursor:pointer;
+  border-radius:8px;height:36px;padding:0 13px;font-size:13px;font-weight:800;cursor:pointer;
   white-space:nowrap;transition:.13s}
 .ordbtn:hover{border-color:var(--pk);color:var(--pk)}
 .prep{display:none;margin:0 28px 12px;padding:11px 15px;border:1px solid var(--cy);
   border-radius:8px;background:rgba(37,244,238,.07);color:var(--fg);font-size:13px}
+@media (max-width: 980px){
+  .quickstats{display:none}
+  .toolbar{flex-wrap:wrap}
+  .search{width:100%}
+  .thead{display:none}
+  .list{padding:12px}
+  .table{border-radius:10px;border-top:1px solid var(--line)}
+  .card{grid-template-columns:1fr;gap:8px;padding:14px}
+  .actions{justify-content:flex-end}
+}
 </style></head>
 <body>
   <aside class="side">
@@ -586,12 +610,20 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
         <div class="stat"><b id="statLogadas">0</b><span>Logadas</span></div>
         <div class="stat"><b id="statAbertas">0</b><span>Abertas</span></div>
       </div>
+    </div>
+    <div class="toolbar">
+      <div class="statusfilters">
+        <button class="filterbtn on" id="sfTodos" onclick="setStatusFiltro('')">Todos</button>
+        <button class="filterbtn" id="sfAbertas" onclick="setStatusFiltro('aberta')">Abertas</button>
+        <button class="filterbtn" id="sfLogadas" onclick="setStatusFiltro('logada')">Logadas</button>
+        <button class="filterbtn" id="sfExpiradas" onclick="setStatusFiltro('expirada')">Expiradas</button>
+        <button class="filterbtn" id="sfDeslogadas" onclick="setStatusFiltro('deslogada')">Não logadas</button>
+      </div>
       <button class="ordbtn" id="ordbtn" onclick="toggleOrdem()" title="Ordenar">A → Z</button>
-      <input class="search" id="busca" placeholder="Buscar perfil..."
-             oninput="render()">
+      <input class="search" id="busca" placeholder="Buscar perfil..." oninput="render()">
     </div>
     <div id="prep" class="prep"></div>
-    <div class="thead"><span>PERFIL</span><span>AÇÕES</span></div>
+    <div class="thead"><span>Perfil</span><span>Status</span><span>Tags</span><span>Última abertura</span><span>Ações</span></div>
     <div class="list" id="list"></div>
   </main>
 
@@ -622,7 +654,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 
 <script>
 const CORES=["#a78bfa","#34d399","#60a5fa","#fbbf24","#fb7185","#22d3ee","#f472b6","#4ade80","#818cf8","#f0883e"];
-let CONTAS=[], ALLTAGS=[], FILTRO='', ORDEM='az', VISCOUNT=0;
+let CONTAS=[], ALLTAGS=[], FILTRO='', STATUS_FILTRO='', ORDEM='az', VISCOUNT=0;
 function toggleOrdem(){ORDEM=ORDEM==='az'?'za':'az';const b=document.getElementById('ordbtn');if(b)b.textContent=ORDEM==='az'?'A → Z':'Z → A';render();}
 const $=id=>document.getElementById(id);
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -651,6 +683,11 @@ function updateStats(visCount){
   if($('subhead'))$('subhead').textContent=plural(CONTAS.length,'perfil cadastrado','perfis cadastrados');
   if($('count'))$('count').textContent=(visCount!==undefined&&visCount!==CONTAS.length)?(visCount+' de '+CONTAS.length+' perfis'):plural(CONTAS.length,'perfil','perfis');
 }
+function setStatusFiltro(s){STATUS_FILTRO=(STATUS_FILTRO===s?'':s);render();}
+function syncStatusTabs(){
+  const map={sfTodos:'',sfAbertas:'aberta',sfLogadas:'logada',sfExpiradas:'expirada',sfDeslogadas:'deslogada'};
+  Object.entries(map).forEach(([id,val])=>{const el=$(id);if(el)el.classList.toggle('on',STATUS_FILTRO===val);});
+}
 async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
 async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];render();}
 function importar(){dlgConfirma('Procurar contas já logadas na versão antiga do app (neste PC) e importar? O login é mantido. FECHE os navegadores abertos antes.',async()=>{$('tstatus').textContent='Importando...';const r=await api('/api/importar',{});$('tstatus').textContent='';if(!r||!r.ok){dlgAviso('Falhou ao importar'+(r&&r.erro?': '+r.erro:'.'));return;}load();if((r.encontradas||0)===0){dlgAviso('Nenhuma conta antiga foi encontrada na pasta do app (navegadores) neste PC. Se os logins antigos estiverem em outro lugar, me avise.','Importar contas');}else{dlgAviso('Encontrei '+r.encontradas+' conta(s) antiga(s): '+r.importadas+' nova(s) adicionada(s) à lista e '+r.logadas+' logada(s). As logadas ficam com a bolinha verde.','Importar contas');}},'Importar contas antigas','Importar');}
@@ -664,16 +701,21 @@ async function pollPrep(){try{const s=await api('/api/chrome_status');const p=$(
 }catch(e){}setTimeout(pollPrep,1500);}
 let STATUS={};
 const _STXT={aberta:'aberta agora',logada:'logada',expirada:'sessão expirada',deslogada:'não logada','?':''};
-async function pollStatus(){try{const d=await api('/api/status');STATUS=d.status||{};pintarStatus();}catch(e){}setTimeout(pollStatus,5000);}
+async function pollStatus(){try{const d=await api('/api/status');STATUS=d.status||{};if(STATUS_FILTRO)render();else pintarStatus();}catch(e){}setTimeout(pollStatus,5000);}
 function pintarStatus(){CONTAS.forEach((c,i)=>{const el=$('st'+i);if(!el)return;const s=STATUS[c.nome]||'';el.className='stbadge '+s;el.textContent=_STXT[s]||'';});updateStats(VISCOUNT);}
 function setFiltro(t){FILTRO=(FILTRO===t?'':t);render();}
 function setFiltroIdx(i){setFiltro(ALLTAGS[i]);}
 function render(){
+  syncStatusTabs();
   $('navtodos').classList.toggle('on',FILTRO==='');
   $('tagnav').innerHTML=ALLTAGS.map((t,i)=>`<div class="tagit ${FILTRO===t?'on':''}" onclick="setFiltroIdx(${i})"><span class="dt"></span>${esc(t)}</div>`).join('');
   const f=($('busca').value||'').toLowerCase();
   let vis=CONTAS.filter(c=>c.nome.toLowerCase().includes(f));
   if(FILTRO)vis=vis.filter(c=>(c.tags||[]).includes(FILTRO));
+  if(STATUS_FILTRO)vis=vis.filter(c=>{
+    const s=STATUS[c.nome]||'';
+    return STATUS_FILTRO==='logada' ? (s==='logada'||s==='aberta') : s===STATUS_FILTRO;
+  });
   if(ORDEM==='az')vis.sort((a,b)=>a.nome.localeCompare(b.nome,'pt',{sensitivity:'base'}));
   else if(ORDEM==='za')vis.sort((a,b)=>b.nome.localeCompare(a.nome,'pt',{sensitivity:'base'}));
   VISCOUNT=vis.length;
@@ -681,19 +723,25 @@ function render(){
   const L=$('list');
   if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic"><svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Nenhum perfil ainda</h3><div>Clique em "+ Criar perfil".</div></div>`;return;}
   if(!vis.length){L.innerHTML=`<div class="vazio"><h3>Nada encontrado</h3></div>`;return;}
-  L.innerHTML=vis.map((c,vi)=>{
+  const rows=vis.map((c,vi)=>{
     const i=CONTAS.indexOf(c),cor=CORES[i%CORES.length],ini=(c.nome.trim()[0]||'?').toUpperCase();
     const chips=(c.tags||[]).map(t=>`<span class="t2">${esc(t)}</span>`).join('');
     const ultima=fmtUltima(c.ultima_abertura);
     return `<div class="card" style="animation-delay:${(vi%14)*45}ms">
-      <div class="ava" style="background:linear-gradient(135deg,${cor},color-mix(in srgb,${cor},#000 38%))">${ini}</div>
-      <div class="cardbody"><div class="cardhead"><div class="nome">${esc(c.nome)}</div><span class="stbadge" id="st${i}"></span></div><div class="last">Última abertura: ${esc(ultima)}</div>${chips?`<div class="cardtags">${chips}</div>`:''}</div>
+      <div class="profilecell">
+        <div class="ava" style="background:linear-gradient(135deg,${cor},color-mix(in srgb,${cor},#000 38%))">${ini}</div>
+        <div class="cardbody"><div class="nome">${esc(c.nome)}</div><div class="slugline">TikTok Seller</div></div>
+      </div>
+      <div class="statuscell"><span class="stbadge" id="st${i}"></span></div>
+      <div class="cardtags">${chips||'<span class="mutedcell">Sem tags</span>'}</div>
+      <div class="last">${esc(ultima)}</div>
       <div class="actions">
         <button class="edit" title="Editar / renomear" onclick="editar(${i})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
         <button class="start" onclick="abrir(${i})"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Abrir</button>
         <button class="del" title="Remover" onclick="remover(${i})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </div>
     </div>`;}).join('');
+  L.innerHTML=`<div class="table">${rows}</div>`;
   pintarStatus();
 }
 async function abrir(i){const r=await api('/api/open',{nome:CONTAS[i].nome});
