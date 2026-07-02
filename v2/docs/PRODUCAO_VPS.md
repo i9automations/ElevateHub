@@ -47,9 +47,9 @@ De fora, antes do DNS propagar:
 curl.exe --resolve contas-v2.elevateecom.com.br:80:187.77.236.157 http://contas-v2.elevateecom.com.br/api/health
 ```
 
-## DNS pendente
+## DNS
 
-Criar na Hostinger:
+Registro criado na Hostinger:
 
 ```txt
 Tipo: A
@@ -60,15 +60,17 @@ TTL: padrao
 
 Nao alterar `@`, `www`, MX, TXT, SPF, DKIM ou DMARC.
 
-## HTTPS pendente
+Durante a propagacao, alguns resolvedores podem responder `NXDOMAIN` por cache. Os nameservers autoritativos da Hostinger ja respondem o IP correto.
 
-Depois que o DNS resolver para a VPS:
+## HTTPS
 
-```bash
-certbot --nginx -d contas-v2.elevateecom.com.br
-nginx -t
-systemctl reload nginx
-```
+HTTPS ativado com Certbot/Nginx em `2026-07-02`.
+
+- Certificado: `/etc/letsencrypt/live/contas-v2.elevateecom.com.br/fullchain.pem`
+- Chave: `/etc/letsencrypt/live/contas-v2.elevateecom.com.br/privkey.pem`
+- Expira em: `2026-09-30`
+- Renovacao automatica: configurada pelo Certbot
+- HTTP redireciona para HTTPS.
 
 ## Comandos uteis
 
