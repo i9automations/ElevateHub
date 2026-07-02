@@ -1,10 +1,18 @@
 # ===== NUNCA subir (seguranca / dados) =====
-navegadores/        # perfis do Chrome = LOGINS/COOKIES das contas (sensivel!)
-_ui_profile/        # perfil da janela do app (Chrome modo-app)
-perfis/             # (versao antiga) idem — logins
-chrome_profile/     # idem
-contas.json         # lista de clientes
-_cache_app.py       # cache baixado pelo launcher
+# perfis do Chrome = LOGINS/COOKIES das contas (sensivel!)
+navegadores/
+contas/
+_ui_profile/
+perfis/
+chrome_profile/
+# Chrome for Testing baixado (binario grande)
+chrome/
+_chrome_tmp/
+# backups das contas (contem logins)
+backups/
+# lista de clientes e cache do launcher
+contas.json
+_cache_app.py
 
 # ===== gerados (nao versionar) =====
 build_tmp/

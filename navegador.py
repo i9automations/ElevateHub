@@ -15,13 +15,22 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
-CHROME_UDD = os.path.join(PASTA, "navegadores")      # perfis dos clientes
+CHROME_UDD = os.path.join(PASTA, "navegadores")      # LEGADO: layout antigo (1 pasta p/ TODAS as contas)
+CONTAS_DIR = os.path.join(PASTA, "contas")           # NOVO: cada conta tem a PROPRIA pasta isolada
 UI_UDD = os.path.join(PASTA, "_ui_profile")          # perfil da janela do app
+BACKUPS_DIR = os.path.join(PASTA, "backups")         # zips de backup das contas
+# Chrome TRAVADO (Chrome for Testing) embutido no app, se existir. Ele NAO se
+# atualiza sozinho -> nao re-encripta os cookies -> nao desloga as contas.
+CHROME_FIXO = os.path.join(PASTA, "chrome", "chrome.exe")
 REG = os.path.join(PASTA, "contas.json")
 LOGIN_URL = "https://seller-br.tiktok.com/account/login"
 
 
 def achar_chrome():
+    # 1) PREFERE o Chrome travado embutido (nao se atualiza, mantem logins).
+    if os.path.exists(CHROME_FIXO):
+        return CHROME_FIXO
+    # 2) Senao, usa o Chrome do sistema (que se atualiza sozinho).
     cands = [
         os.path.join(os.environ.get("PROGRAMFILES", ""),
                      r"Google\Chrome\Application\chrome.exe"),
@@ -83,8 +92,52 @@ def _todas_tags(contas):
     return sorted(t)
 
 
+def _perfil_dir(nome):
+    """Pasta ISOLADA da conta (cada conta = 1 user-data-dir proprio = 1 chave
+    de cripto propria). Assim, se algo quebrar, cai SO essa conta, nunca todas."""
+    return os.path.join(CONTAS_DIR, _slug(nome))
+
+
+def _copia_tolerante(src, dst):
+    """Copia uma arvore de arquivos pulando os que estiverem travados (ex: Chrome
+    aberto) em vez de abortar tudo."""
+    os.makedirs(dst, exist_ok=True)
+    for raiz, _dirs, arqs in os.walk(src):
+        rel = os.path.relpath(raiz, src)
+        alvo = dst if rel == "." else os.path.join(dst, rel)
+        os.makedirs(alvo, exist_ok=True)
+        for a in arqs:
+            try:
+                shutil.copy2(os.path.join(raiz, a), os.path.join(alvo, a))
+            except Exception:
+                pass
+
+
+def _migrar_se_preciso(nome):
+    """Migra do layout ANTIGO (navegadores/<slug> = sub-perfil que dividia UMA
+    chave com todas as contas) para o NOVO (contas/<slug> = pasta isolada).
+    NAO destrutivo: copia e DEIXA o antigo intacto como backup."""
+    novo = _perfil_dir(nome)
+    if os.path.exists(novo):
+        return                       # ja migrado/criado
+    antigo = os.path.join(CHROME_UDD, _slug(nome))
+    if not os.path.isdir(antigo):
+        return                       # conta nova -> nada a migrar
+    # o sub-perfil antigo vira o "Default" do novo user-data-dir isolado
+    _copia_tolerante(antigo, os.path.join(novo, "Default"))
+    # a CHAVE de cripto morava no Local State compartilhado -> leva junto,
+    # senao os cookies (encriptados com ela) nao abrem na pasta nova.
+    ls = os.path.join(CHROME_UDD, "Local State")
+    if os.path.exists(ls):
+        try:
+            shutil.copy2(ls, os.path.join(novo, "Local State"))
+        except Exception:
+            pass
+
+
 def semear(nome):
-    d = os.path.join(CHROME_UDD, _slug(nome))
+    _migrar_se_preciso(nome)
+    d = os.path.join(_perfil_dir(nome), "Default")
     os.makedirs(d, exist_ok=True)
     prefs = os.path.join(d, "Preferences")
     if not os.path.exists(prefs):
@@ -101,11 +154,99 @@ def abrir_perfil(nome):
     semear(nome)
     subprocess.Popen([
         CHROME,
-        f"--user-data-dir={CHROME_UDD}",
-        f"--profile-directory={_slug(nome)}",
+        f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
         "--no-first-run", "--no-default-browser-check", LOGIN_URL,
     ])
     return True
+
+
+# pastas de cache que NAO precisam ir pro backup (so incham o zip)
+_SKIP_CACHE = {"Cache", "Code Cache", "GPUCache", "ShaderCache", "GrShaderCache",
+               "DawnGraphiteCache", "DawnWebGPUCache", "component_crx_cache",
+               "extensions_crx_cache", "Crashpad"}
+
+
+def fazer_backup():
+    """Zipa TODAS as contas (contas/) + contas.json num arquivo datado em backups/."""
+    import datetime
+    import zipfile
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+    carimbo = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    destino = os.path.join(BACKUPS_DIR, f"backup_{carimbo}.zip")
+    try:
+        with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
+            if os.path.exists(REG):
+                z.write(REG, "contas.json")
+            for raiz, dirs, arqs in os.walk(CONTAS_DIR):
+                dirs[:] = [d for d in dirs if d not in _SKIP_CACHE]
+                for a in arqs:
+                    fp = os.path.join(raiz, a)
+                    try:
+                        z.write(fp, os.path.relpath(fp, PASTA))
+                    except Exception:
+                        pass            # arquivo travado -> pula
+        return {"ok": True, "arquivo": os.path.basename(destino)}
+    except Exception as e:
+        return {"ok": False, "erro": str(e)}
+
+
+def restaurar_ultimo():
+    """Restaura o backup mais recente (precisa fechar os navegadores antes)."""
+    import zipfile
+    try:
+        zips = sorted(f for f in os.listdir(BACKUPS_DIR)
+                      if f.endswith(".zip")) if os.path.isdir(BACKUPS_DIR) else []
+        if not zips:
+            return {"ok": False, "erro": "Nenhum backup encontrado."}
+        with zipfile.ZipFile(os.path.join(BACKUPS_DIR, zips[-1])) as z:
+            z.extractall(PASTA)
+        return {"ok": True, "arquivo": zips[-1]}
+    except Exception as e:
+        return {"ok": False, "erro": str(e)}
+
+
+# estado do download do Chrome travado (consultado pela UI)
+_chrome_status = {"baixando": False, "msg": "", "ok": None}
+
+
+def baixar_chrome_travado():
+    """Baixa o Chrome for Testing (nao se atualiza) pra PASTA/chrome/."""
+    import urllib.request
+    import zipfile
+    import io
+    _chrome_status.update(baixando=True, ok=None, msg="Procurando versao...")
+    try:
+        idx = ("https://googlechromelabs.github.io/chrome-for-testing/"
+               "last-known-good-versions-with-downloads.json")
+        with urllib.request.urlopen(idx, timeout=30) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        dls = data["channels"]["Stable"]["downloads"]["chrome"]
+        url = next(d["url"] for d in dls if d["platform"] == "win64")
+        _chrome_status["msg"] = "Baixando Chrome (~150 MB)..."
+        with urllib.request.urlopen(url, timeout=600) as r:
+            buf = io.BytesIO(r.read())
+        _chrome_status["msg"] = "Extraindo..."
+        tmp = os.path.join(PASTA, "_chrome_tmp")
+        shutil.rmtree(tmp, ignore_errors=True)
+        with zipfile.ZipFile(buf) as z:
+            z.extractall(tmp)
+        # o zip vem como chrome-win64/chrome.exe -> acha e move pra PASTA/chrome
+        origem = None
+        for raiz, _d, arqs in os.walk(tmp):
+            if "chrome.exe" in arqs:
+                origem = raiz
+                break
+        if not origem:
+            raise RuntimeError("chrome.exe nao encontrado no download")
+        destino = os.path.join(PASTA, "chrome")
+        shutil.rmtree(destino, ignore_errors=True)
+        shutil.move(origem, destino)
+        shutil.rmtree(tmp, ignore_errors=True)
+        _chrome_status.update(baixando=False, ok=True,
+                              msg="Chrome travado instalado! Feche e reabra o app.")
+    except Exception as e:
+        _chrome_status.update(baixando=False, ok=False,
+                              msg="Falhou: " + str(e))
 
 
 HTML = r"""<!doctype html>
@@ -205,6 +346,13 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .bok{background:var(--pk);color:#fff;border:0;border-radius:9px;
   padding:11px 20px;font-weight:700;cursor:pointer;transition:.13s}
 .bok:hover{background:var(--pkd)}
+.tools{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);
+  display:flex;flex-direction:column;gap:6px}
+.btool{width:100%;text-align:left;background:transparent;color:#aeb2bd;
+  border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:9px 11px;
+  font-size:12.5px;cursor:pointer;transition:.13s}
+.btool:hover{background:rgba(255,255,255,.05);color:#fff}
+.tstatus{font-size:11.5px;color:#8a8f99;min-height:14px;padding:2px 2px 0}
 </style></head>
 <body>
   <aside class="side">
@@ -216,6 +364,12 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
     <div class="navit on" id="navtodos" onclick="filtrar('')">Todos os perfis</div>
     <div class="tagnav" id="tagnav"></div>
     <div class="count" id="count">0 perfis</div>
+    <div class="tools">
+      <button class="btool" onclick="backup()">Backup das contas</button>
+      <button class="btool" onclick="restaurar()">Restaurar último backup</button>
+      <button class="btool" id="btravar" onclick="travar()">Travar Chrome (recomendado)</button>
+      <div class="tstatus" id="tstatus"></div>
+    </div>
     <div class="foot">By Avant IA</div>
   </aside>
 
@@ -260,7 +414,13 @@ let CONTAS=[], ALLTAGS=[], FILTRO='';
 const $=id=>document.getElementById(id);
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
-async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];render();}
+async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];
+  const bt=$('btravar');if(bt){if(d.chrome_travado){bt.textContent='Chrome travado ✓';bt.disabled=true;bt.style.opacity=.6;}else{bt.textContent='Travar Chrome (recomendado)';}}
+  render();}
+async function backup(){$('tstatus').textContent='Fazendo backup...';const r=await api('/api/backup',{});$('tstatus').textContent=r.ok?('Backup salvo: '+r.arquivo):('Falhou: '+(r.erro||''));}
+function restaurar(){dlgConfirma('Restaurar o último backup? FECHE todos os navegadores antes. Isso sobrescreve as contas atuais.',async()=>{$('tstatus').textContent='Restaurando...';const r=await api('/api/restaurar',{});$('tstatus').textContent=r.ok?('Restaurado: '+r.arquivo):('Falhou: '+(r.erro||''));if(r.ok)load();},'Restaurar backup','Restaurar');}
+function travar(){dlgConfirma('Baixar um Chrome que NÃO se atualiza (~150 MB)? É o que impede as contas de deslogarem sozinhas. Pode demorar alguns minutos.',()=>{api('/api/travar_chrome',{});pollChrome();},'Travar Chrome','Baixar');}
+async function pollChrome(){const s=await api('/api/chrome_status');$('tstatus').textContent=s.msg||'';if(s.baixando){setTimeout(pollChrome,1500);}else{if(s.ok)load();}}
 function setFiltro(t){FILTRO=(FILTRO===t?'':t);render();}
 function setFiltroIdx(i){setFiltro(ALLTAGS[i]);}
 function render(){
@@ -324,7 +484,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/list":
             contas = carregar()
             self._send(200, json.dumps(
-                {"contas": contas, "tags": _todas_tags(contas)}))
+                {"contas": contas, "tags": _todas_tags(contas),
+                 "chrome_travado": os.path.exists(CHROME_FIXO)}))
+        elif self.path == "/api/chrome_status":
+            self._send(200, json.dumps(_chrome_status))
         else:
             self._send(404, "{}")
 
@@ -354,11 +517,9 @@ class Handler(BaseHTTPRequestHandler):
             if k >= 0:
                 contas.pop(k)
                 salvar(contas)
-            try:
-                shutil.rmtree(os.path.join(CHROME_UDD, _slug(nome)),
-                              ignore_errors=True)
-            except Exception:
-                pass
+            shutil.rmtree(_perfil_dir(nome), ignore_errors=True)          # novo
+            shutil.rmtree(os.path.join(CHROME_UDD, _slug(nome)),          # antigo
+                          ignore_errors=True)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/tags":
             k = _idx(contas, nome)
@@ -375,23 +536,35 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps(
                     {"erro": "Ja existe um perfil com esse nome."}))
             if k >= 0:
-                old_d = os.path.join(CHROME_UDD, _slug(nome))
-                new_d = os.path.join(CHROME_UDD, _slug(novo))
+                # migra primeiro (caso ainda esteja no layout antigo), depois
+                # renomeia a pasta isolada -> preserva o login.
+                _migrar_se_preciso(nome)
+                old_d = _perfil_dir(nome)
+                new_d = _perfil_dir(novo)
                 if (_slug(nome) != _slug(novo) and os.path.isdir(old_d)
                         and not os.path.exists(new_d)):
                     try:
-                        os.rename(old_d, new_d)   # preserva o login
+                        os.rename(old_d, new_d)
                     except Exception:
                         pass
                 contas[k]["nome"] = novo
                 salvar(contas)
+            self._send(200, json.dumps({"ok": True}))
+        elif self.path == "/api/backup":
+            self._send(200, json.dumps(fazer_backup()))
+        elif self.path == "/api/restaurar":
+            self._send(200, json.dumps(restaurar_ultimo()))
+        elif self.path == "/api/travar_chrome":
+            if not _chrome_status["baixando"]:
+                threading.Thread(target=baixar_chrome_travado,
+                                 daemon=True).start()
             self._send(200, json.dumps({"ok": True}))
         else:
             self._send(404, "{}")
 
 
 def main():
-    os.makedirs(CHROME_UDD, exist_ok=True)
+    os.makedirs(CONTAS_DIR, exist_ok=True)
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
