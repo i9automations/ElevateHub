@@ -9,9 +9,11 @@ const {
   publicUser,
   profileDto,
   normalizeEmail,
+  normalizeSquad,
   normalizeTags,
   applyProfileFields,
-  profileFromImportRow
+  profileFromImportRow,
+  startUrlForSquad
 } = require("./shared");
 
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 12;
@@ -40,6 +42,8 @@ class JsonStore {
         name: "Petala Beauty",
         tiktokEmail: "petalabeauty@elevateecom.com.br",
         mailboxEmail: "",
+        squad: "fox",
+        startUrl: startUrlForSquad("fox"),
         notes: "",
         tags: ["Demo", "Beauty"],
         sessionState: "ready",
@@ -159,6 +163,8 @@ class JsonStore {
       name,
       tiktokEmail: normalizeEmail(body.tiktokEmail),
       mailboxEmail: normalizeEmail(body.mailboxEmail),
+      squad: normalizeSquad(body.squad),
+      startUrl: startUrlForSquad(body.squad),
       notes: String(body.notes || "").trim(),
       tags: normalizeTags(body.tags),
       sessionState: "empty",
@@ -218,6 +224,8 @@ class JsonStore {
           name: incoming.name,
           tiktokEmail: incoming.tiktokEmail,
           mailboxEmail: incoming.mailboxEmail,
+          squad: normalizeSquad(incoming.squad),
+          startUrl: startUrlForSquad(incoming.squad),
           notes: incoming.notes,
           tags: incoming.tags,
           sessionState: "empty",

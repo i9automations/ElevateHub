@@ -6,9 +6,11 @@ const {
   publicUser,
   profileDto,
   normalizeEmail,
+  normalizeSquad,
   normalizeTags,
   applyProfileFields,
-  profileFromImportRow
+  profileFromImportRow,
+  startUrlForSquad
 } = require("./shared");
 
 function requireEnv(name) {
@@ -39,13 +41,18 @@ function userToRow(user) {
 
 function profileFromRow(row) {
   if (!row) return null;
+  const rawTags = Array.isArray(row.tags) ? row.tags : [];
+  const squadTag = rawTags.find((tag) => /^squad:/i.test(String(tag || "")));
+  const squad = normalizeSquad(squadTag ? String(squadTag).split(":")[1] : row.squad);
   return {
     id: row.id,
     name: row.name,
     tiktokEmail: row.tiktok_email || "",
     mailboxEmail: row.mailbox_email || "",
+    squad,
+    startUrl: row.start_url || startUrlForSquad(squad),
     notes: row.notes || "",
-    tags: Array.isArray(row.tags) ? row.tags : [],
+    tags: rawTags.filter((tag) => !/^squad:/i.test(String(tag || ""))),
     sessionState: row.session_state || "empty",
     lockedBy: row.locked_by || null,
     lockedAt: row.locked_at || null,
@@ -56,13 +63,15 @@ function profileFromRow(row) {
 }
 
 function profileToRow(profile) {
+  const squad = normalizeSquad(profile.squad);
+  const tags = normalizeTags(profile.tags).filter((tag) => !/^squad:/i.test(String(tag || "")));
   return {
     id: profile.id,
     name: profile.name,
-    tiktok_email: normalizeEmail(profile.tiktokEmail),
-    mailbox_email: normalizeEmail(profile.mailboxEmail),
+    tiktok_email: normalizeEmail(profile.tiktokEmail) || null,
+    mailbox_email: normalizeEmail(profile.mailboxEmail) || null,
     notes: String(profile.notes || ""),
-    tags: normalizeTags(profile.tags),
+    tags: [...tags, `squad:${squad}`],
     session_state: profile.sessionState || "empty",
     locked_by: profile.lockedBy || null,
     locked_at: profile.lockedAt || null,
@@ -193,7 +202,7 @@ class SupabaseStore {
 
   async listProfiles() {
     const [{ data, error }, users] = await Promise.all([
-      this.admin.from("profiles").select("*").order("name", { ascending: true }),
+      this.admin.from("profiles").select("*").order("squad", { ascending: true }).order("name", { ascending: true }),
       this.usersForProfiles()
     ]);
     if (error) throw error;
@@ -228,6 +237,8 @@ class SupabaseStore {
       name,
       tiktokEmail: normalizeEmail(body.tiktokEmail),
       mailboxEmail: normalizeEmail(body.mailboxEmail),
+      squad: normalizeSquad(body.squad),
+      startUrl: startUrlForSquad(body.squad),
       notes: String(body.notes || "").trim(),
       tags: normalizeTags(body.tags),
       sessionState: "empty",

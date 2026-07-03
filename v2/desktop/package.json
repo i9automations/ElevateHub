@@ -1,7 +1,7 @@
 {
   "name": "@contas-tiktok-v2/desktop",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Aplicativo desktop do Contas TikTok V2.",
   "main": "src/main.js",
   "scripts": {

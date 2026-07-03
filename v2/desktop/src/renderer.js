@@ -5,6 +5,7 @@ const state = {
   users: [],
   audit: [],
   selectedId: null,
+  selectedSquad: localStorage.getItem("ctv2.squad") || "fox",
   currentSession: null,
   browserPoll: null,
   view: "profiles",
@@ -21,6 +22,13 @@ const $ = (id) => document.getElementById(id);
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
 const appVersion = window.elevate?.appVersion || "0.0.0";
 const updateReleaseUrl = "https://api.github.com/repos/i9automations/contas-tiktok/releases/tags/app-v2";
+const squads = [
+  { key: "fox", name: "Fox", label: "TikTok Seller", startUrl: "https://seller-br.tiktok.com/account/login" },
+  { key: "crown", name: "Crown", label: "Mercado Livre", startUrl: "https://www.mercadolivre.com.br/" },
+  { key: "jaguar", name: "Jaguar", label: "Shopee Seller", startUrl: "https://seller.shopee.com.br/" },
+  { key: "monkey", name: "Monkey", label: "Mercado Livre", startUrl: "https://www.mercadolivre.com.br/" },
+  { key: "sphynx", name: "Sphynx", label: "Amazon Seller", startUrl: "https://sellercentral.amazon.com.br/" }
+];
 
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
@@ -48,6 +56,23 @@ function isAdmin() {
   return state.user?.role === "admin";
 }
 
+function normalizeSquad(value) {
+  const key = String(value || "fox").trim().toLowerCase();
+  return squads.some((squad) => squad.key === key) ? key : "fox";
+}
+
+function selectedSquad() {
+  return squads.find((squad) => squad.key === state.selectedSquad) || squads[0];
+}
+
+function profileSquad(profile) {
+  return normalizeSquad(profile?.squad);
+}
+
+function profilesForSelectedSquad() {
+  return state.profiles.filter((profile) => profileSquad(profile) === state.selectedSquad);
+}
+
 function roleLabel(role) {
   return role === "admin" ? "Admin" : "";
 }
@@ -70,7 +95,7 @@ function compareVersions(left, right) {
 function friendlyError(error) {
   const message = error?.message || "Nao foi possivel concluir agora.";
   if (isAdmin()) return message;
-  if (/sess[aã]o|remot|servidor|api|playwright|chrome|driver|vps|limite/i.test(message)) {
+  if (/sess|remot|servidor|api|playwright|chrome|driver|vps|limite/i.test(message)) {
     return "Nao foi possivel abrir essa conta agora. Tente novamente em instantes.";
   }
   return message;
@@ -119,6 +144,7 @@ function showApp() {
   $("appUserName").textContent = state.user?.name || "Equipe";
   $("appUserRole").textContent = roleLabel(state.user?.role);
   $("appUserRole").classList.toggle("hidden", !isAdmin());
+  renderSquads();
   if (!canAccessView(state.view)) state.view = "profiles";
   setView(state.view);
   if (isAdmin()) renderSettings();
@@ -150,6 +176,20 @@ function requireAdminAction(action) {
   });
 }
 
+function renderSquads() {
+  const counts = squads.reduce((acc, squad) => ({ ...acc, [squad.key]: 0 }), {});
+  state.profiles.forEach((profile) => {
+    const key = profileSquad(profile);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  $("squadNav").innerHTML = squads.map((squad) => `
+    <button class="squad-item ${state.selectedSquad === squad.key ? "active" : ""}" type="button" data-squad="${squad.key}">
+      <strong>${escapeHtml(squad.name)}</strong>
+      <span>${escapeHtml(squad.label)} - ${counts[squad.key] || 0}</span>
+    </button>
+  `).join("");
+}
+
 function selectedProfile() {
   return state.profiles.find((profile) => profile.id === state.selectedId) || null;
 }
@@ -174,29 +214,31 @@ function profileMatchesFilter(profile) {
 }
 
 function renderMetrics() {
-  const total = state.profiles.length;
-  const ready = state.profiles.filter((profile) => profile.sessionState === "ready").length;
-  const busy = state.profiles.filter((profile) => profile.lockedBy).length;
+  const profiles = profilesForSelectedSquad();
+  const total = profiles.length;
+  const ready = profiles.filter((profile) => profile.sessionState === "ready").length;
+  const busy = profiles.filter((profile) => profile.lockedBy).length;
   $("metricTotal").textContent = total;
   $("metricReady").textContent = ready;
   $("metricBusy").textContent = busy;
   $("metricFree").textContent = Math.max(total - busy, 0);
   if (state.view === "profiles") {
-    $("viewSubtitle").textContent = isAdmin()
-      ? `${total} perfis cadastrados`
-      : "Escolha um cliente para abrir a conta";
+    const squad = selectedSquad();
+    $("viewTitle").textContent = squad.name;
+    $("viewSubtitle").textContent = `${squad.label} - ${total} perfis`;
   }
 }
 
 function renderProfiles() {
   const term = $("search").value.trim().toLowerCase();
-  const visible = state.profiles.filter((profile) => {
+  const visible = profilesForSelectedSquad().filter((profile) => {
     const haystack = [
       profile.name,
       profile.tiktokEmail,
       profile.mailboxEmail,
       profile.lockedByName,
       profile.notes,
+      selectedSquad().label,
       ...(profile.tags || [])
     ].join(" ").toLowerCase();
     return profileMatchesFilter(profile) && haystack.includes(term);
@@ -220,7 +262,7 @@ function renderProfiles() {
       <div class="profile-row${selected}" data-profile-id="${profile.id}">
         <div class="profile-title">
           <strong>${escapeHtml(profile.name)}</strong>
-          <small>${escapeHtml(profile.tiktokEmail || "sem e-mail TikTok")}</small>
+          <small>${escapeHtml(profile.tiktokEmail || selectedSquad().label)}</small>
           <div class="tag-row">${tags}</div>
         </div>
         <span class="badge ${status.cls}">${status.text}</span>
@@ -292,9 +334,11 @@ function renderSessionPane() {
 async function loadProfiles() {
   const data = await api("/api/profiles");
   state.profiles = data.profiles || [];
-  if (!state.profiles.some((profile) => profile.id === state.selectedId)) {
-    state.selectedId = state.profiles[0]?.id || null;
+  const currentProfiles = profilesForSelectedSquad();
+  if (!currentProfiles.some((profile) => profile.id === state.selectedId)) {
+    state.selectedId = currentProfiles[0]?.id || null;
   }
+  renderSquads();
   renderMetrics();
   renderProfiles();
 }
@@ -356,12 +400,14 @@ async function restoreSession() {
 }
 
 function openProfileDialog(profile = null) {
-  if (!isAdmin()) {
+  if (profile && !isAdmin()) {
     toast("Acesso exclusivo do admin.", "warning");
     return;
   }
+  const squad = profile ? squads.find((item) => item.key === profileSquad(profile)) || selectedSquad() : selectedSquad();
   state.editProfileId = profile?.id || null;
   $("profileDialogTitle").textContent = profile ? "Editar perfil" : "Novo perfil";
+  $("profileSquadName").textContent = `${squad.name} - ${squad.label}`;
   $("profileName").value = profile?.name || "";
   $("profileEmail").value = profile?.tiktokEmail || "";
   $("profileMailbox").value = profile?.mailboxEmail || "";
@@ -372,14 +418,17 @@ function openProfileDialog(profile = null) {
 
 async function saveProfile(event) {
   event.preventDefault();
-  if (!isAdmin()) return;
+  if (state.editProfileId && !isAdmin()) return;
   const body = {
     name: $("profileName").value.trim(),
     tiktokEmail: $("profileEmail").value.trim(),
-    mailboxEmail: $("profileMailbox").value.trim(),
-    tags: $("profileTags").value.split(",").map((item) => item.trim()).filter(Boolean),
-    notes: $("profileNotes").value.trim()
+    notes: $("profileNotes").value.trim(),
+    squad: state.editProfileId ? profileSquad(selectedProfile()) : state.selectedSquad
   };
+  if (isAdmin()) {
+    body.mailboxEmail = $("profileMailbox").value.trim();
+    body.tags = $("profileTags").value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
   if (!body.name) {
     toast("Informe o nome do cliente.", "warning");
     return;
@@ -665,12 +714,14 @@ async function setView(view) {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
   });
+  renderSquads();
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("active", section.id === `${view}View`);
   });
 
+  const squad = selectedSquad();
   const titles = {
-    profiles: ["Perfis compartilhados", isAdmin() ? `${state.profiles.length} perfis cadastrados` : "Escolha um cliente para abrir a conta"],
+    profiles: [squad.name, `${squad.label} - ${profilesForSelectedSquad().length} perfis`],
     audit: ["Auditoria", "Historico recente de acessos"],
     team: ["Equipe", "Usuarios do aplicativo"],
     settings: ["Configuracao", "Servidor e operacao"]
@@ -758,6 +809,7 @@ async function installUpdate() {
 }
 
 async function boot() {
+  state.selectedSquad = normalizeSquad(state.selectedSquad);
   $("settingsApiUrl").textContent = apiBase;
   try {
     await api("/api/health");
@@ -776,7 +828,7 @@ $("password").addEventListener("keydown", (event) => {
 });
 $("refreshBtn").addEventListener("click", refreshCurrentView);
 $("search").addEventListener("input", renderProfiles);
-$("newProfileBtn").addEventListener("click", () => requireAdminAction(() => openProfileDialog()));
+$("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
 $("importBtn").addEventListener("click", () => requireAdminAction(() => $("importDialog").showModal()));
 $("cancelProfileBtn").addEventListener("click", () => $("profileDialog").close());
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
@@ -791,6 +843,22 @@ $("importFile").addEventListener("change", async (event) => {
 
 document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => requireAuth(() => setView(button.dataset.view)));
+});
+$("squadNav").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-squad]");
+  if (!button) return;
+  requireAuth(() => {
+    state.selectedSquad = normalizeSquad(button.dataset.squad);
+    localStorage.setItem("ctv2.squad", state.selectedSquad);
+    const currentProfiles = profilesForSelectedSquad();
+    state.selectedId = currentProfiles[0]?.id || null;
+    stopBrowserPolling();
+    state.currentSession = null;
+    resetBrowserFrame();
+    setView("profiles");
+    renderMetrics();
+    renderProfiles();
+  });
 });
 document.querySelectorAll(".filter-tab").forEach((button) => {
   button.addEventListener("click", () => {

@@ -215,7 +215,6 @@ async function handle(req, res) {
     }
 
     if (req.method === "POST" && parts.join("/") === "api/profiles") {
-      if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const profile = await store.createProfile(user, body);
       return send(res, 201, { profile });

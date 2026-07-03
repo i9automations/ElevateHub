@@ -149,6 +149,7 @@ body:not(.admin-mode) .admin-only {
 
 .brand span,
 .server-card span,
+.sidebar-label,
 .topbar span,
 .metric span,
 .session-header span,
@@ -167,6 +168,15 @@ body:not(.admin-mode) .admin-only {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+
+.sidebar-label {
+  display: block;
+  margin: 2px 0 8px;
+  padding: 0 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
 
 .primary,
@@ -217,6 +227,16 @@ body:not(.admin-mode) .admin-only {
   padding-top: 4px;
 }
 
+.squad-block {
+  min-height: 0;
+}
+
+.squad-list {
+  display: grid;
+  gap: 6px;
+}
+
+.squad-item,
 .nav-item {
   min-height: 42px;
   text-align: left;
@@ -225,14 +245,43 @@ body:not(.admin-mode) .admin-only {
   padding: 0 12px;
 }
 
+.squad-item {
+  display: grid;
+  align-content: center;
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.squad-item strong {
+  display: block;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.squad-item span {
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .nav-item:hover,
-.nav-item.active {
+.nav-item.active,
+.squad-item:hover,
+.squad-item.active {
   background: #171b21;
   color: var(--text);
 }
 
-.nav-item.active {
+.nav-item.active,
+.squad-item.active {
   box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.squad-item.active {
+  border-color: rgba(37, 244, 238, .16);
 }
 
 .server-card {
@@ -782,6 +831,20 @@ dialog::backdrop {
 .dialog-copy {
   margin: 8px 0 4px;
   line-height: 1.45;
+}
+
+.folder-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin-top: 12px;
+  border: 1px solid rgba(37, 244, 238, .28);
+  border-radius: 999px;
+  background: rgba(37, 244, 238, .08);
+  color: #bcfffb;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .update-dialog {

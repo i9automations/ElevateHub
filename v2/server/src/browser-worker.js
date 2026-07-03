@@ -150,7 +150,7 @@ async function startBrowserSession(profile, user) {
     userId: user.id,
     state: "starting",
     mode: DRIVER,
-    url: LOGIN_URL,
+    url: safeUrl(profile.startUrl || LOGIN_URL),
     viewport: DEFAULT_VIEWPORT,
     message: "Iniciando navegador remoto.",
     createdAt: now(),

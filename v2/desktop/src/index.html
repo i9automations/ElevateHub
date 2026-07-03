@@ -17,13 +17,18 @@
         </div>
       </div>
 
-      <div class="quick-actions admin-only">
+      <div class="quick-actions">
         <button class="primary" id="newProfileBtn" type="button">Novo perfil</button>
-        <button class="secondary" id="importBtn" type="button">Importar CSV</button>
+        <button class="secondary admin-only" id="importBtn" type="button">Importar CSV</button>
       </div>
 
-      <nav class="nav" aria-label="Navegacao principal">
-        <button class="nav-item active" type="button" data-view="profiles">Perfis</button>
+      <div class="squad-block">
+        <span class="sidebar-label">Pastas</span>
+        <div class="squad-list" id="squadNav" aria-label="Pastas dos squads"></div>
+      </div>
+
+      <nav class="nav admin-only" aria-label="Area admin">
+        <span class="sidebar-label">Admin</span>
         <button class="nav-item admin-only" type="button" data-view="audit">Auditoria</button>
         <button class="nav-item admin-only" type="button" data-view="team">Equipe</button>
         <button class="nav-item admin-only" type="button" data-view="settings">Configuracao</button>
@@ -54,8 +59,8 @@
       <section class="dashboard hidden" id="dashboardView">
         <header class="topbar">
           <div>
-            <h2 id="viewTitle">Perfis compartilhados</h2>
-            <span id="viewSubtitle">0 perfis cadastrados</span>
+            <h2 id="viewTitle">Fox</h2>
+            <span id="viewSubtitle">TikTok Seller</span>
           </div>
           <div class="topbar-right">
             <div class="user-chip">
@@ -81,7 +86,7 @@
               <button class="filter-tab" type="button" data-filter="ready">Logadas</button>
               <button class="filter-tab" type="button" data-filter="busy">Em uso</button>
             </div>
-            <input id="search" type="search" placeholder="Buscar cliente, e-mail, tag ou responsavel">
+            <input id="search" type="search" placeholder="Buscar cliente, e-mail ou responsavel">
           </div>
 
           <div class="content-grid">
@@ -96,7 +101,7 @@
               <div id="profileList" class="profile-list"></div>
               <div id="emptyProfiles" class="empty-state hidden">
                 <strong>Nenhum perfil encontrado</strong>
-                <span>Ajuste o filtro ou importe a planilha de clientes.</span>
+                <span>Crie o primeiro perfil nesta pasta.</span>
               </div>
             </section>
 
@@ -221,16 +226,19 @@
   <dialog id="profileDialog">
     <form method="dialog" class="dialog-form">
       <h3 id="profileDialogTitle">Novo perfil</h3>
+      <div class="folder-pill" id="profileSquadName">Fox</div>
       <label for="profileName">Nome do cliente</label>
       <input id="profileName" autocomplete="off" placeholder="ex: Loja da Ana">
-      <label for="profileEmail">E-mail TikTok / alias</label>
-      <input id="profileEmail" autocomplete="off" placeholder="cliente@elevateecom.com.br">
-      <label for="profileMailbox">Caixa Hostinger</label>
-      <input id="profileMailbox" autocomplete="off" placeholder="clientes@elevateecom.com.br">
-      <label for="profileTags">Tags</label>
-      <input id="profileTags" autocomplete="off" placeholder="Moda, Consultoria">
+      <label for="profileEmail">E-mail de login</label>
+      <input id="profileEmail" autocomplete="off" placeholder="opcional">
+      <div class="admin-only">
+        <label for="profileMailbox">Caixa Hostinger</label>
+        <input id="profileMailbox" autocomplete="off" placeholder="clientes@elevateecom.com.br">
+        <label for="profileTags">Tags</label>
+        <input id="profileTags" autocomplete="off" placeholder="Moda, Consultoria">
+      </div>
       <label for="profileNotes">Observacoes</label>
-      <textarea id="profileNotes" placeholder="Dados internos, responsavel ou regra desse cliente"></textarea>
+      <textarea id="profileNotes" placeholder="Anotacoes importantes deste cliente"></textarea>
       <div class="dialog-actions">
         <button class="secondary" value="cancel" type="button" id="cancelProfileBtn">Cancelar</button>
         <button class="primary" value="default" type="submit" id="saveProfileBtn">Salvar</button>

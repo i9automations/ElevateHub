@@ -8,6 +8,45 @@ function id(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 }
 
+const SQUADS = Object.freeze({
+  fox: {
+    key: "fox",
+    name: "Fox",
+    startUrl: "https://seller-br.tiktok.com/account/login"
+  },
+  crown: {
+    key: "crown",
+    name: "Crown",
+    startUrl: "https://www.mercadolivre.com.br/"
+  },
+  jaguar: {
+    key: "jaguar",
+    name: "Jaguar",
+    startUrl: "https://seller.shopee.com.br/"
+  },
+  monkey: {
+    key: "monkey",
+    name: "Monkey",
+    startUrl: "https://www.mercadolivre.com.br/"
+  },
+  sphynx: {
+    key: "sphynx",
+    name: "Sphynx",
+    startUrl: "https://sellercentral.amazon.com.br/"
+  }
+});
+
+const DEFAULT_SQUAD = "fox";
+
+function normalizeSquad(value) {
+  const key = String(value || DEFAULT_SQUAD).trim().toLowerCase();
+  return SQUADS[key] ? key : DEFAULT_SQUAD;
+}
+
+function startUrlForSquad(value) {
+  return SQUADS[normalizeSquad(value)].startUrl;
+}
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.pbkdf2Sync(password, salt, 120000, 32, "sha256").toString("hex");
   return `${salt}:${hash}`;
@@ -57,6 +96,10 @@ function applyProfileFields(profile, body) {
   if (body.mailboxEmail !== undefined) profile.mailboxEmail = normalizeEmail(body.mailboxEmail);
   if (body.notes !== undefined) profile.notes = String(body.notes || "").trim();
   if (body.tags !== undefined) profile.tags = normalizeTags(body.tags);
+  if (body.squad !== undefined) {
+    profile.squad = normalizeSquad(body.squad);
+    profile.startUrl = startUrlForSquad(profile.squad);
+  }
   profile.updatedAt = now();
   return profile;
 }
@@ -135,13 +178,16 @@ function profileFromImportRow(row) {
   const mailboxEmail = normalizeEmail(pick(row, ["mailbox_email", "caixa_email", "email_principal", "caixa", "hostinger"]));
   const tags = normalizeTags(pick(row, ["tags", "tag", "categoria", "grupo"]));
   const notes = String(pick(row, ["notes", "observacoes", "obs", "nota"]) || "").trim();
+  const squad = normalizeSquad(pick(row, ["squad", "pasta", "folder", "grupo", "time"]));
   const fallbackName = email ? email.split("@")[0] : "";
   return {
     name: name || fallbackName,
     tiktokEmail: email,
     mailboxEmail,
     tags,
-    notes
+    notes,
+    squad,
+    startUrl: startUrlForSquad(squad)
   };
 }
 
@@ -154,6 +200,10 @@ module.exports = {
   id,
   hashPassword,
   verifyPassword,
+  SQUADS,
+  DEFAULT_SQUAD,
+  normalizeSquad,
+  startUrlForSquad,
   publicUser,
   profileDto,
   normalizeEmail,
