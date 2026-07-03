@@ -743,7 +743,7 @@ async function refreshCurrentView() {
 }
 
 function installerFromAsset(asset) {
-  const match = String(asset.name || "").match(/Contas(?:\.| )TikTok(?:\.| )V2(?:\.| )Setup(?:\.| )(\d+\.\d+\.\d+)\.exe$/i);
+  const match = String(asset.name || "").match(/(?:Elevate(?:\.| )Hub|Contas(?:\.| )TikTok(?:\.| )V2)(?:\.| )Setup(?:\.| )(\d+\.\d+\.\d+)\.exe$/i);
   if (!match) return null;
   return {
     version: match[1],
@@ -761,7 +761,7 @@ function latestInstaller(assets = []) {
 
 function showUpdateDialog(info) {
   state.updateInfo = info;
-  $("updateCopy").textContent = "Existe uma versao mais nova do Contas TikTok. Voce pode atualizar agora ou continuar usando por enquanto.";
+  $("updateCopy").textContent = "Existe uma versao mais nova do Elevate Hub. Voce pode atualizar agora ou continuar usando por enquanto.";
   $("updateMeta").textContent = `Instalada: ${appVersion} | Disponivel: ${info.version}`;
   if (!$("updateDialog").open) $("updateDialog").showModal();
 }

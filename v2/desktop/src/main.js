@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("node:path");
 
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
-const APP_NAME = "Contas TikTok";
+const APP_NAME = "Elevate Hub";
 
 function createWindow() {
   const win = new BrowserWindow({

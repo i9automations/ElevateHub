@@ -7,7 +7,7 @@ const appVersion = versionArg ? versionArg.slice("--app-version=".length) : "0.0
 
 contextBridge.exposeInMainWorld("elevate", {
   apiBase,
-  appName: "Contas TikTok",
+  appName: "Elevate Hub",
   appVersion,
   openExternal: (url) => ipcRenderer.invoke("open-external", url)
 });
