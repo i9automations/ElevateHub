@@ -20,8 +20,9 @@ Deploy inicial da API central do Contas TikTok V2.
 - Navegador remoto: Playwright com Chrome for Testing isolado em `/opt/contas-tiktok-v2/shared/ms-playwright`
 - Limite inicial: `1` sessao remota simultanea
 - Desktop V2: instalador publicado manualmente no release `app-v2`
-- Storage atual: `json`
-- Storage preparado: `supabase`
+- Storage atual: `supabase`
+- Projeto Supabase: `tnbxoutjrjoilvboidcb`
+- URL Supabase: `https://tnbxoutjrjoilvboidcb.supabase.co`
 
 O servico roda com usuario Linux isolado `contasv2`.
 
@@ -133,22 +134,31 @@ Nao alterar Nginx, Docker, outros projetos em `/opt`, DNS raiz, `www`, MX, TXT, 
 
 ## Ativar Supabase
 
-Somente depois de criar projeto Supabase e rodar `v2/supabase/schema.sql`.
+Supabase ativado em `2026-07-03`.
 
-Adicionar em `/etc/contas-tiktok-v2.env`:
+Variaveis ativas em `/etc/contas-tiktok-v2.env`:
 
 ```txt
 V2_DATA_STORE=supabase
-V2_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+V2_SUPABASE_URL=https://tnbxoutjrjoilvboidcb.supabase.co
 V2_SUPABASE_ANON_KEY=...
 V2_SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
-Depois reiniciar apenas:
+Backup antes da ativacao:
 
-```bash
-systemctl restart contas-tiktok-v2
+```txt
+/etc/contas-tiktok-v2.env.bak-20260703000540
 ```
+
+Smoke test executado:
+
+- `GET /api/health` retornou `storage.store=supabase`.
+- Login admin via Supabase Auth.
+- Criacao de perfil temporario no Supabase.
+- Start session com Playwright real na VPS.
+- Frame JPEG retornado.
+- Release e delete do perfil temporario.
 
 Rollback rapido:
 

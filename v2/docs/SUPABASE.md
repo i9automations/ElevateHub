@@ -15,6 +15,17 @@ Objetivo: tirar usuarios, perfis, configuracoes e auditoria do JSON na VPS. A VP
 3. Criar o primeiro usuario admin em Authentication.
 4. Rodar o insert final comentado no `schema.sql` ajustando o e-mail do admin.
 
+## Projeto atual
+
+- Organizacao: `Elevate`
+- Nome: `ELEVATE - CONTAS TIKTOK V2`
+- Ref: `tnbxoutjrjoilvboidcb`
+- Regiao: `sa-east-1`
+- URL: `https://tnbxoutjrjoilvboidcb.supabase.co`
+- Schema aplicado em `2026-07-03`.
+- Admin inicial migrado a partir da V2 atual.
+- Dados iniciais migrados: 1 perfil e 24 eventos de auditoria.
+
 ## Variaveis na VPS
 
 Adicionar em `/etc/contas-tiktok-v2.env`:
