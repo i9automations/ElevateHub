@@ -21,7 +21,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
 const appVersion = window.elevate?.appVersion || "0.0.0";
-const updateReleaseUrl = "https://api.github.com/repos/i9automations/contas-tiktok/releases/tags/app-v2";
+const updateReleaseUrl = "https://api.github.com/repos/i9automations/ElevateHub/releases/tags/app-v2";
 const squads = [
   { key: "fox", name: "Fox", label: "TikTok Seller", startUrl: "https://seller-br.tiktok.com/account/login" },
   { key: "crown", name: "Crown", label: "Mercado Livre", startUrl: "https://www.mercadolivre.com.br/" },
@@ -792,32 +792,130 @@ function dismissUpdate() {
   $("updateDialog").close();
 }
 
+function downloadLabelForPct(pct) {
+  if (pct >= 100) return "Instalando";
+  if (pct >= 90) return "Finalizando download";
+  return "Baixando atualizacao";
+}
+
 async function installUpdate() {
   const url = state.updateInfo?.url;
   const name = state.updateInfo?.name || `ElevateHub.Setup.${state.updateInfo?.version || "latest"}.exe`;
   if (!url) return;
   $("installUpdateBtn").disabled = true;
   $("installUpdateBtn").textContent = "Baixando...";
+  $("updateDialog").close();
+  installScreen.show("Baixando a nova versao do ElevateHub");
+  installScreen.render(0, "Baixando atualizacao");
   try {
     if (window.elevate?.downloadUpdate) {
       await window.elevate.downloadUpdate({ url, name, size: state.updateInfo?.size });
-      $("updateDialog").close();
-      toast("Atualizador aberto. O app vai fechar para concluir.", "success");
+      installScreen.render(100, "Instalacao concluida");
+      // O app fecha sozinho (main.js) para o instalador assumir.
     } else if (window.elevate?.openExternal) {
       await window.elevate.openExternal(url);
-      $("updateDialog").close();
+      installScreen.render(100, "Instalador aberto");
       toast("Instalador aberto. Rode por cima da versao atual.", "success");
+      setTimeout(() => installScreen.hide(), 1800);
     } else {
       window.open(url, "_blank", "noopener,noreferrer");
-      $("updateDialog").close();
+      installScreen.render(100, "Instalador aberto");
       toast("Instalador aberto. Rode por cima da versao atual.", "success");
+      setTimeout(() => installScreen.hide(), 1800);
     }
   } catch {
+    installScreen.hide();
     toast("Nao consegui abrir a atualizacao agora.", "danger");
   } finally {
     $("installUpdateBtn").disabled = false;
     $("installUpdateBtn").textContent = "Atualizar";
   }
+}
+
+const installScreen = (() => {
+  const root = $("installScreen");
+  const stage = $("installStage");
+  const bar = $("installBar");
+  const pctEl = $("installPct");
+  const statusEl = $("installStatus");
+  const footerEl = $("installFooter");
+
+  function fit() {
+    if (!stage) return;
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
+
+  function show(footer) {
+    if (!root) return;
+    if (footer && footerEl) footerEl.textContent = footer;
+    root.classList.remove("install-hide");
+    root.style.display = "block";
+    fit();
+  }
+
+  function render(pct, label) {
+    const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
+    if (bar) bar.style.width = clamped.toFixed(1) + "%";
+    if (pctEl) pctEl.textContent = Math.round(clamped) + "%";
+    if (label && statusEl) statusEl.textContent = label;
+  }
+
+  function hide() {
+    if (!root) return;
+    root.classList.add("install-hide");
+    setTimeout(() => { root.style.display = "none"; }, 650);
+  }
+
+  window.addEventListener("resize", fit);
+  return { show, render, hide, fit };
+})();
+
+let splashTimer = null;
+let splashSafety = null;
+let splashDone = false;
+
+function startSplash() {
+  installScreen.show("Sincronizando seus canais de venda");
+  installScreen.render(0, "Iniciando");
+  const stages = [
+    { to: 30, label: "Conectando" },
+    { to: 60, label: "Sincronizando" },
+    { to: 88, label: "Otimizando" }
+  ];
+  let pct = 0;
+  let cur = 0;
+  clearInterval(splashTimer);
+  splashTimer = setInterval(() => {
+    const stage = stages[Math.min(cur, stages.length - 1)];
+    if (pct < stage.to) {
+      pct = Math.min(stage.to, pct + (Math.random() * 2.4 + 0.6));
+    } else if (cur < stages.length - 1) {
+      cur += 1;
+    }
+    installScreen.render(pct, stage.label);
+  }, 55);
+  // Rede lenta nunca deve prender o funcionario no splash.
+  splashSafety = setTimeout(finishSplash, 15000);
+}
+
+function finishSplash() {
+  if (splashDone) return;
+  splashDone = true;
+  clearTimeout(splashSafety);
+  clearInterval(splashTimer);
+  let pct = parseFloat(($("installBar")?.style.width || "").replace("%", "")) || 88;
+  const closer = setInterval(() => {
+    pct = Math.min(100, pct + 3.5);
+    installScreen.render(pct, pct >= 100 ? "Pronto para comecar" : "Otimizando");
+    if (pct >= 100) {
+      clearInterval(closer);
+      setTimeout(() => {
+        installScreen.hide();
+        setTimeout(checkForUpdates, 500);
+      }, 520);
+    }
+  }, 30);
 }
 
 async function boot() {
@@ -831,7 +929,6 @@ async function boot() {
   }
   const restored = await restoreSession();
   if (!restored) showLogin();
-  checkForUpdates();
 }
 
 $("loginBtn").addEventListener("click", login);
@@ -923,4 +1020,13 @@ $("sessionScreen").addEventListener("keydown", handleBrowserKeydown);
 $("auditRefreshBtn").addEventListener("click", loadAudit);
 $("userForm").addEventListener("submit", createUser);
 
-boot();
+if (window.elevate?.onUpdateProgress) {
+  window.elevate.onUpdateProgress((data) => {
+    const pct = Number(data?.pct) || 0;
+    const label = data?.reused ? "Preparando instalador" : downloadLabelForPct(pct);
+    installScreen.render(pct, label);
+  });
+}
+
+startSplash();
+boot().finally(finishSplash);

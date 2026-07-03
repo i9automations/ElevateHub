@@ -10,5 +10,10 @@ contextBridge.exposeInMainWorld("elevate", {
   appName: "ElevateHub",
   appVersion,
   downloadUpdate: (info) => ipcRenderer.invoke("download-update", info),
-  openExternal: (url) => ipcRenderer.invoke("open-external", url)
+  openExternal: (url) => ipcRenderer.invoke("open-external", url),
+  onUpdateProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("update-progress", handler);
+    return () => ipcRenderer.removeListener("update-progress", handler);
+  }
 });

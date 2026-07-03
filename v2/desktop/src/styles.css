@@ -999,3 +999,248 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Tela cheia de instalacao / carregamento (arte Elevate) ===== */
+@keyframes ev-orb {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(40px, -30px) scale(1.08); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes ev-orb2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-50px, 25px) scale(1.12); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes ev-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ev-shimmer {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+@keyframes ev-pulse {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+
+.install-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  background: #05121b;
+  opacity: 1;
+  transition: opacity .6s ease;
+}
+.install-screen.install-hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.install-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(1);
+  transform-origin: center center;
+  overflow: hidden;
+  font-family: "Jost", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  background: linear-gradient(180deg, #05121b 0%, #0a2233 24%, #17475e 52%, #3e7f9c 76%, #9fcbe0 100%);
+}
+
+.install-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(8px);
+}
+.install-orb-a {
+  width: 900px; height: 900px; left: -180px; top: -260px;
+  background: radial-gradient(circle, rgba(90,170,210,0.28) 0%, rgba(90,170,210,0) 68%);
+  animation: ev-orb 14s ease-in-out infinite;
+}
+.install-orb-b {
+  width: 1050px; height: 1050px; right: -260px; bottom: -360px;
+  background: radial-gradient(circle, rgba(150,205,230,0.30) 0%, rgba(150,205,230,0) 66%);
+  animation: ev-orb2 18s ease-in-out infinite;
+}
+.install-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 8%, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 55%);
+}
+
+.install-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.install-wordmark {
+  display: flex;
+  align-items: flex-start;
+  opacity: 0;
+  animation: ev-rise 1s cubic-bezier(.2,.7,.2,1) .1s forwards;
+}
+.install-word {
+  font-size: 172px;
+  font-weight: 300;
+  letter-spacing: -2px;
+  color: #f2f0ea;
+  line-height: 1;
+}
+.install-word-gap { margin-left: 44px; }
+.install-reg {
+  font-size: 40px;
+  font-weight: 400;
+  color: #cfe0ea;
+  margin-top: 20px;
+  margin-left: 6px;
+}
+
+.install-tag {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 36px;
+  opacity: 0;
+  animation: ev-rise 1s cubic-bezier(.2,.7,.2,1) .35s forwards;
+}
+.install-rule {
+  width: 56px;
+  height: 1px;
+}
+.install-rule-l { background: linear-gradient(90deg, rgba(226,238,246,0), rgba(226,238,246,0.7)); }
+.install-rule-r { background: linear-gradient(90deg, rgba(226,238,246,0.7), rgba(226,238,246,0)); }
+.install-tag-text {
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 7px;
+  color: #d6e6ef;
+  text-transform: uppercase;
+}
+
+.install-badges {
+  display: flex;
+  gap: 34px;
+  margin-top: 74px;
+}
+.install-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  opacity: 0;
+  animation: ev-rise .85s cubic-bezier(.2,.7,.2,1) forwards;
+}
+.install-badge-tile {
+  width: 116px;
+  height: 116px;
+  border-radius: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 40px -12px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.install-badge-tile img {
+  position: relative;
+  z-index: 1;
+  object-fit: contain;
+}
+.install-badge-gloss {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%);
+}
+.install-badge-name {
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  color: #dbe9f1;
+}
+
+.install-progress {
+  width: 560px;
+  margin-top: 86px;
+  opacity: 0;
+  animation: ev-rise 1s cubic-bezier(.2,.7,.2,1) .9s forwards;
+}
+.install-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+}
+.install-status {
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: 2px;
+  color: #cfe0ea;
+  text-transform: uppercase;
+}
+.install-pct {
+  font-size: 18px;
+  font-weight: 400;
+  color: #eef5f9;
+  font-variant-numeric: tabular-nums;
+}
+.install-track {
+  position: relative;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.14);
+  overflow: hidden;
+}
+.install-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #7fc7e6, #eaf4fa);
+  box-shadow: 0 0 18px rgba(160,210,235,0.7);
+  transition: width .25s linear;
+}
+.install-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.55), rgba(255,255,255,0));
+  animation: ev-shimmer 1.9s ease-in-out infinite;
+}
+
+.install-footer {
+  position: absolute;
+  bottom: 46px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  animation: ev-rise 1s ease 1.3s forwards;
+}
+.install-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9fd0e8;
+  animation: ev-pulse 1.6s ease-in-out infinite;
+}
+.install-footer-text {
+  font-size: 16px;
+  font-weight: 300;
+  letter-spacing: 1.5px;
+  color: rgba(214,230,239,0.8);
+}

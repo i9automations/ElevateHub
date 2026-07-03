@@ -4,9 +4,82 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ElevateHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+  <div class="install-screen" id="installScreen">
+    <div class="install-stage" id="installStage">
+      <div class="install-orb install-orb-a"></div>
+      <div class="install-orb install-orb-b"></div>
+      <div class="install-vignette"></div>
+
+      <div class="install-center">
+        <div class="install-wordmark">
+          <span class="install-word">Elevate</span>
+          <span class="install-word install-word-gap">Hub</span>
+          <span class="install-word">.</span>
+          <span class="install-reg">&reg;</span>
+        </div>
+
+        <div class="install-tag">
+          <span class="install-rule install-rule-l"></span>
+          <span class="install-tag-text">Central de Marketplaces</span>
+          <span class="install-rule install-rule-r"></span>
+        </div>
+
+        <div class="install-badges" id="installBadges">
+          <div class="install-badge" style="animation-delay:.55s">
+            <div class="install-badge-tile" style="background:linear-gradient(150deg,#ff6a3d,#ee4d2d)">
+              <span class="install-badge-gloss"></span>
+              <img src="./assets/marketplaces/shopee.svg" alt="Shopee" style="width:58px;height:58px">
+            </div>
+            <span class="install-badge-name">Shopee</span>
+          </div>
+          <div class="install-badge" style="animation-delay:.68s">
+            <div class="install-badge-tile" style="background:linear-gradient(150deg,#ffffff,#f1f4f8)">
+              <span class="install-badge-gloss"></span>
+              <img src="./assets/marketplaces/mercadolivre.svg" alt="Mercado Livre" style="width:82px;height:82px">
+            </div>
+            <span class="install-badge-name">Mercado Livre</span>
+          </div>
+          <div class="install-badge" style="animation-delay:.81s">
+            <div class="install-badge-tile" style="background:linear-gradient(150deg,#ffffff,#f1f4f8)">
+              <span class="install-badge-gloss"></span>
+              <img src="./assets/marketplaces/amazon.jpg" alt="Amazon" style="width:82px;height:82px">
+            </div>
+            <span class="install-badge-name">Amazon</span>
+          </div>
+          <div class="install-badge" style="animation-delay:.94s">
+            <div class="install-badge-tile" style="background:linear-gradient(150deg,#232323,#050505)">
+              <span class="install-badge-gloss"></span>
+              <img src="./assets/marketplaces/tiktok.svg" alt="TikTok Shop" style="width:60px;height:60px">
+            </div>
+            <span class="install-badge-name">TikTok Shop</span>
+          </div>
+        </div>
+
+        <div class="install-progress">
+          <div class="install-progress-head">
+            <span class="install-status" id="installStatus">Iniciando</span>
+            <span class="install-pct" id="installPct">0%</span>
+          </div>
+          <div class="install-track">
+            <div class="install-fill" id="installBar"></div>
+            <div class="install-shimmer"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-footer">
+        <span class="install-dot"></span>
+        <span class="install-footer-text" id="installFooter">Sincronizando seus canais de venda</span>
+      </div>
+    </div>
+  </div>
+
   <div class="app-shell auth-mode" id="appShell">
     <aside class="sidebar">
       <div class="brand">

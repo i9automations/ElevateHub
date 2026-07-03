@@ -15,7 +15,15 @@ function installerFileName(name, url) {
   return "ElevateHub.Setup.exe";
 }
 
-async function downloadInstaller(info) {
+async function downloadInstaller(info, onProgress) {
+  const report = (data) => {
+    try {
+      if (typeof onProgress === "function") onProgress(data);
+    } catch {
+      // Progresso e apenas visual; nunca deve quebrar o download.
+    }
+  };
+
   const parsed = new URL(String(info?.url || ""));
   if (parsed.protocol !== "https:" || !UPDATE_HOSTS.has(parsed.hostname)) {
     throw new Error("Link de atualizacao invalido.");
@@ -26,20 +34,38 @@ async function downloadInstaller(info) {
   const expectedSize = Number(info?.size) || 0;
   const existing = await fs.stat(filePath).catch(() => null);
   if (existing?.isFile() && ((expectedSize && existing.size === expectedSize) || (!expectedSize && existing.size > 10 * 1024 * 1024))) {
+    report({ received: existing.size, total: existing.size, pct: 100, reused: true });
     return filePath;
   }
 
   const response = await fetch(parsed.toString(), {
     headers: { "User-Agent": `${APP_NAME}/${app.getVersion()}` }
   });
-  if (!response.ok) throw new Error("Nao foi possivel baixar a atualizacao.");
+  if (!response.ok || !response.body) throw new Error("Nao foi possivel baixar a atualizacao.");
 
   const finalUrl = new URL(response.url);
   if (finalUrl.protocol !== "https:" || !UPDATE_HOSTS.has(finalUrl.hostname)) {
     throw new Error("Origem da atualizacao invalida.");
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const headerTotal = Number(response.headers.get("content-length")) || 0;
+  const total = expectedSize || headerTotal || 0;
+  const chunks = [];
+  let received = 0;
+  report({ received: 0, total, pct: 0 });
+
+  const reader = response.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = Buffer.from(value);
+    chunks.push(chunk);
+    received += chunk.byteLength;
+    const pct = total ? Math.min(99, Math.round((received / total) * 100)) : 0;
+    report({ received, total, pct });
+  }
+
+  const buffer = Buffer.concat(chunks, received);
   if (expectedSize && buffer.byteLength !== expectedSize) {
     throw new Error("Download incompleto. Tente novamente.");
   }
@@ -49,6 +75,7 @@ async function downloadInstaller(info) {
   await fs.writeFile(tempPath, buffer);
   await fs.rm(filePath, { force: true });
   await fs.rename(tempPath, filePath);
+  report({ received: buffer.byteLength, total: buffer.byteLength, pct: 100 });
   return filePath;
 }
 
@@ -93,11 +120,14 @@ app.whenReady().then(() => {
     return true;
   });
 
-  ipcMain.handle("download-update", async (_event, info) => {
-    const filePath = await downloadInstaller(info);
+  ipcMain.handle("download-update", async (event, info) => {
+    const send = (data) => {
+      if (!event.sender.isDestroyed()) event.sender.send("update-progress", data);
+    };
+    const filePath = await downloadInstaller(info, send);
     const error = await shell.openPath(filePath);
     if (error) throw new Error(error);
-    setTimeout(() => app.quit(), 900);
+    setTimeout(() => app.quit(), 1600);
     return true;
   });
 
