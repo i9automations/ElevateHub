@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld("elevate", {
   apiBase,
   appName: "elevatehub",
   appVersion,
+  downloadUpdate: (info) => ipcRenderer.invoke("download-update", info),
   openExternal: (url) => ipcRenderer.invoke("open-external", url)
 });

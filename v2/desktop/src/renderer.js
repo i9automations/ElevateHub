@@ -793,20 +793,29 @@ function dismissUpdate() {
 
 async function installUpdate() {
   const url = state.updateInfo?.url;
+  const name = state.updateInfo?.name || `elevatehub.Setup.${state.updateInfo?.version || "latest"}.exe`;
   if (!url) return;
   $("installUpdateBtn").disabled = true;
+  $("installUpdateBtn").textContent = "Baixando...";
   try {
-    if (window.elevate?.openExternal) {
+    if (window.elevate?.downloadUpdate) {
+      await window.elevate.downloadUpdate({ url, name });
+      $("updateDialog").close();
+      toast("Atualizador aberto. O app vai fechar para concluir.", "success");
+    } else if (window.elevate?.openExternal) {
       await window.elevate.openExternal(url);
+      $("updateDialog").close();
+      toast("Instalador aberto. Rode por cima da versao atual.", "success");
     } else {
       window.open(url, "_blank", "noopener,noreferrer");
+      $("updateDialog").close();
+      toast("Instalador aberto. Rode por cima da versao atual.", "success");
     }
-    $("updateDialog").close();
-    toast("Instalador aberto. Feche o app antes de concluir a atualizacao.", "success");
   } catch {
     toast("Nao consegui abrir a atualizacao agora.", "danger");
   } finally {
     $("installUpdateBtn").disabled = false;
+    $("installUpdateBtn").textContent = "Atualizar";
   }
 }
 
