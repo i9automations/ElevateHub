@@ -1,5 +1,5 @@
 const state = {
-  token: localStorage.getItem("ctv2.token") || "",
+  token: localStorage.getItem("ctv2.token") || sessionStorage.getItem("ctv2.token") || "",
   user: null,
   profiles: [],
   users: [],
@@ -19,6 +19,29 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+
+function storeToken(token, remember) {
+  try {
+    if (remember) {
+      localStorage.setItem("ctv2.token", token);
+      sessionStorage.removeItem("ctv2.token");
+    } else {
+      sessionStorage.setItem("ctv2.token", token);
+      localStorage.removeItem("ctv2.token");
+    }
+  } catch {
+    // Armazenamento indisponivel nao deve impedir o login na sessao atual.
+  }
+}
+
+function clearToken() {
+  try {
+    localStorage.removeItem("ctv2.token");
+    sessionStorage.removeItem("ctv2.token");
+  } catch {
+    // Ignorar falha ao limpar; a sessao ja foi encerrada em memoria.
+  }
+}
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
 const appVersion = window.elevate?.appVersion || "0.0.0";
 const updateReleaseUrl = "https://api.github.com/repos/i9automations/ElevateHub/releases/tags/app-v2";
@@ -369,7 +392,7 @@ async function login() {
     });
     state.token = data.token;
     state.user = data.user;
-    localStorage.setItem("ctv2.token", state.token);
+    storeToken(state.token, $("remember")?.checked !== false);
     setServer("conectado", true);
     showApp();
     await loadProfiles();
@@ -392,7 +415,7 @@ async function restoreSession() {
     checkForUpdates();
     return true;
   } catch {
-    localStorage.removeItem("ctv2.token");
+    clearToken();
     state.token = "";
     state.user = null;
     return false;
@@ -934,6 +957,15 @@ async function boot() {
 $("loginBtn").addEventListener("click", login);
 $("password").addEventListener("keydown", (event) => {
   if (event.key === "Enter") login();
+});
+$("email").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") login();
+});
+$("togglePw")?.addEventListener("click", () => {
+  const input = $("password");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  $("togglePw").textContent = show ? "Ocultar" : "Mostrar";
 });
 $("refreshBtn").addEventListener("click", refreshCurrentView);
 $("search").addEventListener("input", renderProfiles);

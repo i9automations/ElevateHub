@@ -333,34 +333,7 @@ body:not(.admin-mode) .admin-only {
 .login {
   position: relative;
   height: 100%;
-  display: grid;
-  place-items: center;
   overflow: hidden;
-  padding: 36px;
-}
-
-.login::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, .026) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
-  opacity: .34;
-  pointer-events: none;
-}
-
-.login-panel {
-  position: relative;
-  z-index: 1;
-  width: 410px;
-  border: 1px solid rgba(255, 255, 255, .09);
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(18, 23, 29, .98), rgba(12, 15, 19, .98));
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .42);
-  padding: 32px;
 }
 
 .login-brand-row {
@@ -407,34 +380,12 @@ body:not(.admin-mode) .admin-only {
   box-shadow: 0 10px 28px rgba(0, 0, 0, .24);
 }
 
-.login-panel h2,
 .topbar h2,
 .view-panel h3,
 .dialog-form h3 {
   margin: 0;
   font-size: 22px;
   line-height: 1.18;
-}
-
-.login-panel p {
-  margin: 8px 0 24px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.login-panel input {
-  height: 48px;
-  background: #080b0f;
-  border-color: #303846;
-  font-size: 14px;
-}
-
-.login-panel .primary.wide {
-  min-height: 50px;
-  margin-top: 18px;
-  font-size: 15px;
-  box-shadow: 0 12px 28px rgba(37, 244, 238, .14);
 }
 
 label {
@@ -1243,4 +1194,245 @@ dialog::backdrop {
   font-weight: 300;
   letter-spacing: 1.5px;
   color: rgba(214,230,239,0.8);
+}
+
+/* ============================================================
+   ElevateHub — Tela de login (v2)
+   Cole este bloco no FINAL do styles.css.
+   Usa as variáveis já existentes (--primary, --text, --muted...)
+   e a fonte Jost já carregada no index.html.
+   ============================================================ */
+
+/* Anula o layout centralizado antigo do #loginView */
+.login.login-v2 {
+  display: block;
+  place-items: initial;
+  padding: 0;
+}
+.login.login-v2::before { display: none; }
+
+.login-v2 .lg-split {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------- Painel da marca (esquerda) ---------- */
+.login-v2 .lg-brand {
+  position: relative;
+  width: 46%;
+  min-width: 420px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 60px 56px;
+  color: #eef4f8;
+  background: linear-gradient(158deg, #05121b 0%, #08202f 46%, #0b2c3d 82%, #0d3547 100%);
+}
+.login-v2 .lg-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .5;
+  background-image:
+    linear-gradient(rgba(37,244,238,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,244,238,.05) 1px, transparent 1px);
+  background-size: 66px 66px;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
+}
+.login-v2 .lg-glow {
+  position: absolute;
+  right: -190px; top: -150px;
+  width: 540px; height: 540px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(37,244,238,.16) 0%, rgba(37,244,238,0) 68%);
+  animation: lg-orb 17s ease-in-out infinite;
+}
+@keyframes lg-orb {
+  0%   { transform: translate(0,0) scale(1); }
+  50%  { transform: translate(30px,-24px) scale(1.1); }
+  100% { transform: translate(0,0) scale(1); }
+}
+
+.login-v2 .lg-brand-top { position: relative; }
+.login-v2 .lg-wordmark {
+  display: flex;
+  align-items: baseline;
+  font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+  line-height: 1;
+}
+.login-v2 .lg-w1 { font-size: 52px; font-weight: 300; letter-spacing: -.5px; color: #f4f2ec; }
+.login-v2 .lg-w2 { font-size: 52px; font-weight: 500; letter-spacing: -.5px; color: #f4f2ec; margin-left: 14px; }
+.login-v2 .lg-tag {
+  margin-top: 14px;
+  font-size: 14px; font-weight: 400; letter-spacing: 3px;
+  text-transform: uppercase; color: #6fd8d4;
+}
+.login-v2 .lg-statement {
+  position: relative;
+  margin: 40px 0 0;
+  max-width: 400px;
+  font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+  font-size: 26px; font-weight: 300; line-height: 1.5; color: #cfe0ea;
+}
+
+.login-v2 .lg-integr { position: relative; margin-top: auto; }
+.login-v2 .lg-integr-label {
+  display: block;
+  margin-bottom: 18px;
+  font-size: 12px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: #7f9aab;
+}
+.login-v2 .lg-badges { display: flex; gap: 14px; }
+.login-v2 .lg-badge {
+  width: 54px; height: 54px;
+  border-radius: 15px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 22px -8px rgba(0,0,0,.6);
+}
+.login-v2 .lg-badge img { object-fit: contain; }
+
+/* ---------- Painel do formulário (direita) ---------- */
+.login-v2 .lg-form-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px;
+  background:
+    radial-gradient(130% 100% at 82% 12%, rgba(37,244,238,.10), transparent 46%),
+    radial-gradient(120% 110% at 100% 100%, rgba(254,44,85,.05), transparent 42%),
+    linear-gradient(155deg, #0a2534 0%, #08202e 52%, #061826 100%);
+  box-shadow: inset 70px 0 90px -60px rgba(0,0,0,.6);
+}
+
+/* Card de vidro do formulário */
+.login-v2 .lg-form {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  padding: 44px 44px 40px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(24,33,44,.66), rgba(13,19,27,.72));
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 34px 74px -26px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.login-v2 .lg-brand-row {
+  display: flex; align-items: center; gap: 13px;
+  margin-bottom: 30px;
+}
+.login-v2 .lg-mark {
+  width: 46px; height: 46px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.08);
+  object-fit: cover;
+  box-shadow: 0 8px 20px rgba(37,244,238,.14);
+}
+.login-v2 .lg-brand-row strong { display: block; font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.15; }
+.login-v2 .lg-brand-row span   { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
+
+.login-v2 h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.2px; color: var(--text); }
+.login-v2 .lg-sub { margin: 8px 0 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
+
+.login-v2 label {
+  display: block;
+  margin: 20px 0 7px;
+  font-size: 12px; font-weight: 800; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .02em;
+}
+.login-v2 .lg-pw-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+.login-v2 .lg-pw-head label { margin-bottom: 7px; }
+
+.login-v2 input[type="email"],
+.login-v2 input[type="password"],
+.login-v2 input#password {
+  height: 48px;
+  border: 1px solid #303846;
+  border-radius: 8px;
+  background: #080b0f;
+  color: var(--text);
+  font-size: 14px;
+  padding: 0 14px;
+}
+.login-v2 input:focus {
+  border-color: rgba(37,244,238,.78);
+  box-shadow: 0 0 0 3px rgba(37,244,238,.12);
+}
+
+.login-v2 .lg-linkbtn {
+  min-height: 0; padding: 0;
+  border: 0; background: none;
+  font-size: 12px; font-weight: 700; color: var(--primary);
+  cursor: pointer;
+}
+.login-v2 .lg-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 14px;
+}
+.login-v2 .lg-row .lg-linkbtn { font-size: 13px; }
+
+.login-v2 .lg-check {
+  display: inline-flex; align-items: center; gap: 9px;
+  margin: 0; cursor: pointer; user-select: none;
+  text-transform: none; letter-spacing: 0;
+}
+.login-v2 .lg-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+.login-v2 .lg-check-box {
+  width: 18px; height: 18px;
+  border: 1.5px solid #3d4652; border-radius: 5px;
+  background: transparent;
+  display: grid; place-items: center;
+  transition: all .15s ease;
+}
+.login-v2 .lg-check-box::after {
+  content: "";
+  width: 10px; height: 10px;
+  background: #061516;
+  clip-path: polygon(16% 52%, 40% 76%, 86% 24%, 96% 34%, 40% 94%, 6% 60%);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.login-v2 .lg-check input:checked + .lg-check-box {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.login-v2 .lg-check input:checked + .lg-check-box::after { opacity: 1; }
+.login-v2 .lg-check-label { font-size: 13px; font-weight: 400; color: var(--muted); }
+
+.login-v2 .primary.wide {
+  min-height: 50px;
+  margin-top: 22px;
+  font-size: 15px;
+  box-shadow: 0 12px 28px rgba(37,244,238,.18);
+}
+
+.login-v2 .form-note { text-align: center; margin-top: 12px; }
+.login-v2 .lg-help {
+  margin-top: 8px;
+  font-size: 12px; color: var(--muted); text-align: center; line-height: 1.45;
+}
+
+.login-v2 .lg-footer {
+  position: absolute;
+  bottom: 20px; left: 0; right: 0;
+  text-align: center;
+  font-size: 11.5px; color: var(--faint); letter-spacing: .3px;
+}
+
+/* Responsivo: empilha em janelas estreitas */
+@media (max-width: 980px) {
+  .login-v2 .lg-split { flex-direction: column; overflow: auto; }
+  .login-v2 .lg-brand { width: 100%; min-width: 0; min-height: 240px; }
+  .login-v2 .lg-form-wrap { padding: 40px 24px 64px; }
 }
