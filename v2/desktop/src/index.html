@@ -46,15 +46,21 @@
     <main class="workspace">
       <section class="login" id="loginView">
         <div class="login-panel">
-          <img class="login-logo" src="./assets/elevatehub-logo.png" alt="elevatehub">
-          <h2>Entrar no aplicativo</h2>
-          <p>Acesse os perfis compartilhados da empresa.</p>
+          <div class="login-brand-row">
+            <img class="login-brand-mark" src="./assets/elevatehub-mark.png" alt="elevatehub">
+            <div>
+              <strong>elevatehub</strong>
+              <span>Elevate Ecom</span>
+            </div>
+          </div>
+          <h2>Entrar</h2>
+          <p>Use seu acesso da equipe para continuar.</p>
           <label for="email">E-mail</label>
           <input id="email" type="email" autocomplete="username" placeholder="seu@email.com.br">
           <label for="password">Senha</label>
           <input id="password" type="password" autocomplete="current-password">
           <button class="primary wide" id="loginBtn" type="button">Entrar</button>
-          <div class="form-note" id="loginMsg">Preparando acesso...</div>
+          <div class="form-note" id="loginMsg" aria-live="polite"></div>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu } = require("electron");
 const path = require("node:path");
 
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
@@ -12,6 +12,7 @@ function createWindow() {
     minHeight: 720,
     title: APP_NAME,
     icon: path.join(__dirname, "assets", "elevatehub-mark.png"),
+    autoHideMenuBar: true,
     backgroundColor: "#0b0f14",
     show: false,
     webPreferences: {
@@ -23,6 +24,8 @@ function createWindow() {
     }
   });
 
+  win.setMenu(null);
+  win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -32,6 +35,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  app.setName(APP_NAME);
+  Menu.setApplicationMenu(null);
+
   ipcMain.handle("open-external", async (_event, url) => {
     const parsed = new URL(String(url));
     if (parsed.protocol !== "https:") return false;
