@@ -3,16 +3,16 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
-const APP_NAME = "elevatehub";
+const APP_NAME = "ElevateHub";
 const UPDATE_HOSTS = new Set(["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]);
 
 function installerFileName(name, url) {
   const fromName = path.basename(String(name || ""));
   const fromUrl = path.basename(new URL(String(url)).pathname);
-  const candidate = fromName || fromUrl || "elevatehub.Setup.exe";
+  const candidate = fromName || fromUrl || "ElevateHub.Setup.exe";
   const clean = candidate.replace(/[^a-z0-9._ -]/gi, "_");
   if (/\.exe$/i.test(clean)) return clean;
-  return "elevatehub.Setup.exe";
+  return "ElevateHub.Setup.exe";
 }
 
 async function downloadInstaller(info) {

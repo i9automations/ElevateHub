@@ -1,8 +1,8 @@
 {
   "name": "@contas-tiktok-v2/desktop",
   "private": true,
-  "version": "0.1.8",
-  "description": "Aplicativo desktop do elevatehub.",
+  "version": "0.1.9",
+  "description": "Aplicativo desktop do ElevateHub.",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "br.com.elevateecom.contas-tiktok-v2",
-    "productName": "elevatehub",
+    "productName": "ElevateHub",
     "directories": {
       "output": "dist"
     },
@@ -40,7 +40,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "elevatehub"
+      "shortcutName": "ElevateHub"
     }
   }
 }

@@ -764,7 +764,7 @@ function latestInstaller(assets = []) {
 
 function showUpdateDialog(info) {
   state.updateInfo = info;
-  $("updateCopy").textContent = "Existe uma versao mais nova do elevatehub. Voce pode atualizar agora ou continuar usando por enquanto.";
+  $("updateCopy").textContent = "Existe uma versao mais nova do ElevateHub. Voce pode atualizar agora ou continuar usando por enquanto.";
   $("updateMeta").textContent = `Instalada: ${appVersion} | Disponivel: ${info.version}`;
   if (!$("updateDialog").open) $("updateDialog").showModal();
 }
@@ -794,7 +794,7 @@ function dismissUpdate() {
 
 async function installUpdate() {
   const url = state.updateInfo?.url;
-  const name = state.updateInfo?.name || `elevatehub.Setup.${state.updateInfo?.version || "latest"}.exe`;
+  const name = state.updateInfo?.name || `ElevateHub.Setup.${state.updateInfo?.version || "latest"}.exe`;
   if (!url) return;
   $("installUpdateBtn").disabled = true;
   $("installUpdateBtn").textContent = "Baixando...";
