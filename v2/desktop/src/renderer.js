@@ -13,11 +13,14 @@ const state = {
   frameLoading: false,
   wheelTimer: null,
   wheelDeltaX: 0,
-  wheelDeltaY: 0
+  wheelDeltaY: 0,
+  updateInfo: null
 };
 
 const $ = (id) => document.getElementById(id);
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
+const appVersion = window.elevate?.appVersion || "0.0.0";
+const updateReleaseUrl = "https://api.github.com/repos/i9automations/contas-tiktok/releases/tags/app-v2";
 
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
@@ -39,6 +42,38 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
+}
+
+function isAdmin() {
+  return state.user?.role === "admin";
+}
+
+function roleLabel(role) {
+  return role === "admin" ? "Admin" : "";
+}
+
+function canAccessView(view) {
+  return view === "profiles" || isAdmin();
+}
+
+function compareVersions(left, right) {
+  const a = String(left || "0").split(".").map((part) => Number(part) || 0);
+  const b = String(right || "0").split(".").map((part) => Number(part) || 0);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (a[index] || 0) - (b[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function friendlyError(error) {
+  const message = error?.message || "Nao foi possivel concluir agora.";
+  if (isAdmin()) return message;
+  if (/sess[aã]o|remot|servidor|api|playwright|chrome|driver|vps|limite/i.test(message)) {
+    return "Nao foi possivel abrir essa conta agora. Tente novamente em instantes.";
+  }
+  return message;
 }
 
 function setServer(text, ok = false) {
@@ -71,21 +106,28 @@ async function api(path, options = {}) {
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Falha na API");
+  if (!res.ok) throw new Error(data.error || "Nao foi possivel concluir agora.");
   return data;
 }
 
 function showApp() {
   $("appShell").classList.remove("auth-mode");
+  $("appShell").classList.toggle("admin-mode", isAdmin());
+  document.body.classList.toggle("admin-mode", isAdmin());
   $("loginView").classList.add("hidden");
   $("dashboardView").classList.remove("hidden");
   $("appUserName").textContent = state.user?.name || "Equipe";
-  $("appUserRole").textContent = state.user?.role || "operador";
-  renderSettings();
+  $("appUserRole").textContent = roleLabel(state.user?.role);
+  $("appUserRole").classList.toggle("hidden", !isAdmin());
+  if (!canAccessView(state.view)) state.view = "profiles";
+  setView(state.view);
+  if (isAdmin()) renderSettings();
 }
 
 function showLogin() {
   $("appShell").classList.add("auth-mode");
+  $("appShell").classList.remove("admin-mode");
+  document.body.classList.remove("admin-mode");
   $("loginView").classList.remove("hidden");
   $("dashboardView").classList.add("hidden");
 }
@@ -96,6 +138,16 @@ function requireAuth(action) {
     return;
   }
   action();
+}
+
+function requireAdminAction(action) {
+  requireAuth(() => {
+    if (!isAdmin()) {
+      toast("Acesso exclusivo do admin.", "warning");
+      return;
+    }
+    action();
+  });
 }
 
 function selectedProfile() {
@@ -110,8 +162,8 @@ function canControl(profile) {
 function profileStatus(profile) {
   if (profile.lockedBy) return { text: "em uso", cls: "busy" };
   if (profile.sessionState === "ready") return { text: "logada", cls: "ready" };
-  if (profile.sessionState === "queued") return { text: "fila", cls: "queued" };
-  return { text: "sem sessao", cls: "empty" };
+  if (profile.sessionState === "queued") return { text: "abrindo", cls: "queued" };
+  return { text: "disponivel", cls: "empty" };
 }
 
 function profileMatchesFilter(profile) {
@@ -129,7 +181,11 @@ function renderMetrics() {
   $("metricReady").textContent = ready;
   $("metricBusy").textContent = busy;
   $("metricFree").textContent = Math.max(total - busy, 0);
-  $("viewSubtitle").textContent = `${total} perfis cadastrados`;
+  if (state.view === "profiles") {
+    $("viewSubtitle").textContent = isAdmin()
+      ? `${total} perfis cadastrados`
+      : "Escolha um cliente para abrir a conta";
+  }
 }
 
 function renderProfiles() {
@@ -153,7 +209,13 @@ function renderProfiles() {
     const owner = profile.lockedByName || "livre";
     const tags = (profile.tags || []).slice(0, 3).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
     const openDisabled = canControl(profile) ? "" : " disabled";
-    const releaseDisabled = profile.lockedBy && canControl(profile) ? "" : " disabled";
+    const canRelease = !!profile.lockedBy && canControl(profile);
+    const editButton = isAdmin()
+      ? `<button class="secondary compact" type="button" data-action="edit" data-id="${profile.id}">Editar</button>`
+      : "";
+    const releaseButton = canRelease
+      ? `<button class="secondary compact" type="button" data-action="release" data-id="${profile.id}">${isAdmin() ? "Liberar" : "Fechar"}</button>`
+      : "";
     return `
       <div class="profile-row${selected}" data-profile-id="${profile.id}">
         <div class="profile-title">
@@ -165,8 +227,8 @@ function renderProfiles() {
         <span class="muted-text">${escapeHtml(owner)}</span>
         <span class="muted-text">${formatDate(profile.lastOpenedAt)}</span>
         <div class="row-actions">
-          <button class="secondary compact" type="button" data-action="edit" data-id="${profile.id}">Editar</button>
-          <button class="secondary compact" type="button" data-action="release" data-id="${profile.id}"${releaseDisabled}>Liberar</button>
+          ${editButton}
+          ${releaseButton}
           <button class="primary compact" type="button" data-action="open" data-id="${profile.id}"${openDisabled}>Abrir</button>
         </div>
       </div>`;
@@ -177,21 +239,21 @@ function renderProfiles() {
 
 function renderSessionPane() {
   const profile = selectedProfile();
-  const status = profile ? profileStatus(profile) : { text: "sem sessao", cls: "empty" };
+  const status = profile ? profileStatus(profile) : { text: "nenhum", cls: "empty" };
   const hasSession = !!state.currentSession && state.currentSession.profileId === state.selectedId;
   const profileCanControl = canControl(profile);
   const canRelease = !!profile?.lockedBy && profileCanControl;
 
   $("selectedName").textContent = profile ? profile.name : "Nenhum perfil";
   $("selectedEmail").textContent = profile
-    ? `${profile.tiktokEmail || "sem e-mail"}${profile.mailboxEmail ? ` | caixa ${profile.mailboxEmail}` : ""}`
-    : "Selecione um cliente para abrir o browser.";
+    ? `${profile.tiktokEmail || "sem e-mail"}${isAdmin() && profile.mailboxEmail ? ` | caixa ${profile.mailboxEmail}` : ""}`
+    : "Selecione um cliente para abrir a conta.";
 
   $("selectedStatusPill").className = `badge ${status.cls}`;
   $("selectedStatusPill").textContent = status.text;
   $("lockLine").textContent = profile?.lockedBy
-    ? `Travado por ${profile.lockedByName || "outro usuario"}.`
-    : "Perfil livre para uso.";
+    ? `Em uso por ${profile.lockedByName || "outro usuario"}.`
+    : "Perfil disponivel.";
 
   const browserButtons = [
     "browserBackBtn",
@@ -214,16 +276,16 @@ function renderSessionPane() {
   }
 
   if (!profile) {
-    $("activityLog").textContent = "Selecione um perfil para abrir uma sessao remota.";
+    $("activityLog").textContent = "Selecione um perfil para iniciar.";
     return;
   }
 
   const savedText = profile.sessionState === "ready"
-    ? "Sessao persistida no servidor."
-    : "Sessao ainda nao inicializada.";
+    ? "Conta pronta para abrir."
+    : "Conta ainda nao aberta neste app.";
   const remoteText = hasSession
-    ? `Browser ${state.currentSession.mode}: ${state.currentSession.message || state.currentSession.state}.`
-    : "Browser fechado neste computador.";
+    ? "Navegador aberto."
+    : "Navegador fechado.";
   $("activityLog").textContent = `${savedText} ${remoteText}`;
 }
 
@@ -238,12 +300,14 @@ async function loadProfiles() {
 }
 
 async function loadAudit() {
+  if (!isAdmin()) return;
   const data = await api("/api/audit");
   state.audit = data.audit || [];
   renderAudit();
 }
 
 async function loadUsers() {
+  if (!isAdmin()) return;
   const data = await api("/api/users");
   state.users = data.users || [];
   renderUsers();
@@ -265,9 +329,10 @@ async function login() {
     setServer("conectado", true);
     showApp();
     await loadProfiles();
+    checkForUpdates();
     toast("Login realizado.", "success");
   } catch (error) {
-    $("loginMsg").textContent = error.message;
+    $("loginMsg").textContent = friendlyError(error);
     setServer("erro de login");
   }
 }
@@ -280,6 +345,7 @@ async function restoreSession() {
     setServer("conectado", true);
     showApp();
     await loadProfiles();
+    checkForUpdates();
     return true;
   } catch {
     localStorage.removeItem("ctv2.token");
@@ -290,6 +356,10 @@ async function restoreSession() {
 }
 
 function openProfileDialog(profile = null) {
+  if (!isAdmin()) {
+    toast("Acesso exclusivo do admin.", "warning");
+    return;
+  }
   state.editProfileId = profile?.id || null;
   $("profileDialogTitle").textContent = profile ? "Editar perfil" : "Novo perfil";
   $("profileName").value = profile?.name || "";
@@ -302,6 +372,7 @@ function openProfileDialog(profile = null) {
 
 async function saveProfile(event) {
   event.preventDefault();
+  if (!isAdmin()) return;
   const body = {
     name: $("profileName").value.trim(),
     tiktokEmail: $("profileEmail").value.trim(),
@@ -345,7 +416,7 @@ async function openRemote(profileId) {
   state.selectedId = profileId;
   const profile = selectedProfile();
   if (!profile || !canControl(profile)) return;
-  $("activityLog").textContent = `Abrindo browser de ${profile.name}...`;
+  $("activityLog").textContent = `Abrindo conta de ${profile.name}...`;
   try {
     const data = await api(`/api/profiles/${profileId}/session/start`, { method: "POST" });
     state.currentSession = data.session || null;
@@ -354,8 +425,9 @@ async function openRemote(profileId) {
     await refreshBrowserFrame(true);
     $("sessionScreen").focus();
   } catch (error) {
-    toast(error.message, "danger");
-    $("activityLog").textContent = error.message;
+    const message = friendlyError(error);
+    toast(message, "danger");
+    $("activityLog").textContent = message;
   }
 }
 
@@ -369,9 +441,9 @@ async function releaseLock(profileId = state.selectedId) {
       resetBrowserFrame();
     }
     await loadProfiles();
-    toast("Perfil liberado.", "success");
+    toast(isAdmin() ? "Perfil liberado." : "Acesso fechado.", "success");
   } catch (error) {
-    toast(error.message, "danger");
+    toast(friendlyError(error), "danger");
   }
 }
 
@@ -391,7 +463,7 @@ async function refreshBrowserFrame(force = false) {
     }
     renderSessionPane();
   } catch (error) {
-    $("activityLog").textContent = error.message;
+    $("activityLog").textContent = friendlyError(error);
   } finally {
     state.frameLoading = false;
   }
@@ -410,7 +482,7 @@ async function browserCommand(action, body = {}, shouldRefresh = true) {
     if (shouldRefresh) await refreshBrowserFrame(true);
     return data.session;
   } catch (error) {
-    toast(error.message, "danger");
+    toast(friendlyError(error), "danger");
     return null;
   }
 }
@@ -509,6 +581,7 @@ async function handleBrowserKeydown(event) {
 }
 
 async function runImport() {
+  if (!isAdmin()) return;
   const text = $("importText").value.trim();
   if (!text) {
     toast("Cole um CSV ou selecione um arquivo.", "warning");
@@ -541,7 +614,7 @@ function renderAudit() {
 }
 
 function renderUsers() {
-  const canCreate = state.user?.role === "admin";
+  const canCreate = isAdmin();
   $("userForm").classList.toggle("disabled-panel", !canCreate);
   $("userForm").querySelectorAll("input, select, button").forEach((control) => {
     control.disabled = !canCreate;
@@ -554,13 +627,14 @@ function renderUsers() {
         <strong>${escapeHtml(user.name)}</strong>
         <span>${escapeHtml(user.email)}</span>
       </div>
-      <span class="badge ${user.role === "admin" ? "ready" : "empty"}">${escapeHtml(user.role)}</span>
+      <span class="badge ${user.role === "admin" ? "ready" : "empty"}">${escapeHtml(user.role === "admin" ? "Admin" : "Operador")}</span>
     </div>
   `).join("");
 }
 
 async function createUser(event) {
   event.preventDefault();
+  if (!isAdmin()) return;
   try {
     const data = await api("/api/users", {
       method: "POST",
@@ -586,6 +660,7 @@ function renderSettings() {
 }
 
 async function setView(view) {
+  if (!canAccessView(view)) view = "profiles";
   state.view = view;
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
@@ -595,7 +670,7 @@ async function setView(view) {
   });
 
   const titles = {
-    profiles: ["Perfis compartilhados", `${state.profiles.length} perfis cadastrados`],
+    profiles: ["Perfis compartilhados", isAdmin() ? `${state.profiles.length} perfis cadastrados` : "Escolha um cliente para abrir a conta"],
     audit: ["Auditoria", "Historico recente de acessos"],
     team: ["Equipe", "Usuarios do aplicativo"],
     settings: ["Configuracao", "Servidor e operacao"]
@@ -611,9 +686,75 @@ async function setView(view) {
 async function refreshCurrentView() {
   if (!state.token) return boot();
   if (state.view === "profiles") await loadProfiles();
-  if (state.view === "audit") await loadAudit();
-  if (state.view === "team") await loadUsers();
-  if (state.view === "settings") renderSettings();
+  if (isAdmin() && state.view === "audit") await loadAudit();
+  if (isAdmin() && state.view === "team") await loadUsers();
+  if (isAdmin() && state.view === "settings") renderSettings();
+}
+
+function installerFromAsset(asset) {
+  const match = String(asset.name || "").match(/Contas(?:\.| )TikTok(?:\.| )V2(?:\.| )Setup(?:\.| )(\d+\.\d+\.\d+)\.exe$/i);
+  if (!match) return null;
+  return {
+    version: match[1],
+    url: asset.browser_download_url,
+    name: asset.name
+  };
+}
+
+function latestInstaller(assets = []) {
+  return assets
+    .map(installerFromAsset)
+    .filter(Boolean)
+    .sort((left, right) => compareVersions(right.version, left.version))[0] || null;
+}
+
+function showUpdateDialog(info) {
+  state.updateInfo = info;
+  $("updateCopy").textContent = "Existe uma versao mais nova do Contas TikTok. Voce pode atualizar agora ou continuar usando por enquanto.";
+  $("updateMeta").textContent = `Instalada: ${appVersion} | Disponivel: ${info.version}`;
+  if (!$("updateDialog").open) $("updateDialog").showModal();
+}
+
+async function checkForUpdates() {
+  try {
+    const response = await fetch(updateReleaseUrl, {
+      headers: { Accept: "application/vnd.github+json" }
+    });
+    if (!response.ok) return;
+    const release = await response.json();
+    const latest = latestInstaller(release.assets || []);
+    if (!latest || compareVersions(latest.version, appVersion) <= 0) return;
+    if (localStorage.getItem("ctv2.dismissedUpdate") === latest.version) return;
+    showUpdateDialog(latest);
+  } catch {
+    // Atualizacao nao deve atrapalhar o uso do app.
+  }
+}
+
+function dismissUpdate() {
+  if (state.updateInfo?.version) {
+    localStorage.setItem("ctv2.dismissedUpdate", state.updateInfo.version);
+  }
+  $("updateDialog").close();
+}
+
+async function installUpdate() {
+  const url = state.updateInfo?.url;
+  if (!url) return;
+  $("installUpdateBtn").disabled = true;
+  try {
+    if (window.elevate?.openExternal) {
+      await window.elevate.openExternal(url);
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    $("updateDialog").close();
+    toast("Instalador aberto. Feche o app antes de concluir a atualizacao.", "success");
+  } catch {
+    toast("Nao consegui abrir a atualizacao agora.", "danger");
+  } finally {
+    $("installUpdateBtn").disabled = false;
+  }
 }
 
 async function boot() {
@@ -626,6 +767,7 @@ async function boot() {
   }
   const restored = await restoreSession();
   if (!restored) showLogin();
+  checkForUpdates();
 }
 
 $("loginBtn").addEventListener("click", login);
@@ -634,10 +776,12 @@ $("password").addEventListener("keydown", (event) => {
 });
 $("refreshBtn").addEventListener("click", refreshCurrentView);
 $("search").addEventListener("input", renderProfiles);
-$("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
-$("importBtn").addEventListener("click", () => requireAuth(() => $("importDialog").showModal()));
+$("newProfileBtn").addEventListener("click", () => requireAdminAction(() => openProfileDialog()));
+$("importBtn").addEventListener("click", () => requireAdminAction(() => $("importDialog").showModal()));
 $("cancelProfileBtn").addEventListener("click", () => $("profileDialog").close());
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
+$("cancelUpdateBtn").addEventListener("click", dismissUpdate);
+$("installUpdateBtn").addEventListener("click", installUpdate);
 $("profileDialog").addEventListener("submit", saveProfile);
 $("runImportBtn").addEventListener("click", runImport);
 $("importFile").addEventListener("change", async (event) => {
@@ -669,7 +813,7 @@ $("profileList").addEventListener("click", (event) => {
     resetBrowserFrame();
   }
   if (button?.dataset.action === "open") openRemote(id);
-  else if (button?.dataset.action === "edit") openProfileDialog(profile);
+  else if (button?.dataset.action === "edit") requireAdminAction(() => openProfileDialog(profile));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
 });

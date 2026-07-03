@@ -66,18 +66,25 @@ async function requireUser(req, res) {
   return user;
 }
 
+function requireAdmin(user, res) {
+  if (user.role === "admin") return true;
+  send(res, 403, { error: "Acesso exclusivo do admin" });
+  return false;
+}
+
 async function handleProfileRoute(req, res, parts, user) {
   const profile = await store.getProfile(parts[2]);
   if (!profile) return send(res, 404, { error: "Perfil nao encontrado" });
 
   if (req.method === "PATCH" && parts.length === 3) {
+    if (!requireAdmin(user, res)) return;
     const body = await readBody(req);
     const updated = await store.updateProfile(user, profile.id, body);
     return send(res, 200, { profile: updated });
   }
 
   if (req.method === "DELETE" && parts.length === 3) {
-    if (user.role !== "admin") return send(res, 403, { error: "Apenas admin pode remover perfis" });
+    if (!requireAdmin(user, res)) return;
     await browserWorker.stopBrowserSession(profile.id);
     await store.deleteProfile(user, profile.id);
     return send(res, 200, { ok: true });
@@ -192,11 +199,12 @@ async function handle(req, res) {
     }
 
     if (req.method === "GET" && parts.join("/") === "api/users") {
+      if (!requireAdmin(user, res)) return;
       return send(res, 200, { users: await store.listUsers() });
     }
 
     if (req.method === "POST" && parts.join("/") === "api/users") {
-      if (user.role !== "admin") return send(res, 403, { error: "Apenas admin pode criar usuarios" });
+      if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const created = await store.createUser(user, body);
       return send(res, 201, created);
@@ -207,12 +215,14 @@ async function handle(req, res) {
     }
 
     if (req.method === "POST" && parts.join("/") === "api/profiles") {
+      if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const profile = await store.createProfile(user, body);
       return send(res, 201, { profile });
     }
 
     if (req.method === "POST" && parts.join("/") === "api/profiles/import") {
+      if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const rows = Array.isArray(body.rows) ? body.rows : parseCsv(body.csvText);
       return send(res, 200, await store.importProfiles(user, rows));
@@ -223,6 +233,7 @@ async function handle(req, res) {
     }
 
     if (req.method === "GET" && parts.join("/") === "api/audit") {
+      if (!requireAdmin(user, res)) return;
       return send(res, 200, { audit: await store.listAudit() });
     }
 

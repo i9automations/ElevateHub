@@ -83,6 +83,10 @@ select:focus,
   display: none !important;
 }
 
+body:not(.admin-mode) .admin-only {
+  display: none !important;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
@@ -280,6 +284,18 @@ select:focus,
   width: 46px;
   height: 46px;
   margin-bottom: 18px;
+}
+
+.update-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--pink));
+  color: #071014;
+  font-weight: 900;
 }
 
 .login-panel h2,
@@ -765,6 +781,25 @@ dialog::backdrop {
 
 .dialog-copy {
   margin: 8px 0 4px;
+  line-height: 1.45;
+}
+
+.update-dialog {
+  width: min(460px, calc(100vw - 40px));
+}
+
+.update-panel {
+  padding: 24px;
+}
+
+.update-meta {
+  margin-top: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: #0d1014;
+  color: var(--muted);
+  padding: 10px 12px;
+  font-size: 12px;
   line-height: 1.45;
 }
 

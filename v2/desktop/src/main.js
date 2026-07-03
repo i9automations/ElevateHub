@@ -1,7 +1,8 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("node:path");
 
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
+const APP_NAME = "Contas TikTok";
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -9,7 +10,7 @@ function createWindow() {
     height: 860,
     minWidth: 1120,
     minHeight: 720,
-    title: "Contas TikTok V2",
+    title: APP_NAME,
     backgroundColor: "#0b0f14",
     show: false,
     webPreferences: {
@@ -17,7 +18,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: [`--api-url=${API_URL}`]
+      additionalArguments: [`--api-url=${API_URL}`, `--app-version=${app.getVersion()}`]
     }
   });
 
@@ -30,6 +31,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle("open-external", async (_event, url) => {
+    const parsed = new URL(String(url));
+    if (parsed.protocol !== "https:") return false;
+    await shell.openExternal(parsed.toString());
+    return true;
+  });
+
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
