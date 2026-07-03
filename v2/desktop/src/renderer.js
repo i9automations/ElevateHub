@@ -743,12 +743,14 @@ async function refreshCurrentView() {
 }
 
 function installerFromAsset(asset) {
-  const match = String(asset.name || "").match(/(?:elevatehub|Elevate(?:\.| )Hub|Contas(?:\.| )TikTok(?:\.| )V2)(?:\.| )Setup(?:\.| )(\d+\.\d+\.\d+)\.exe$/i);
+  const assetName = String(asset.name || "");
+  const match = assetName.match(/(?:elevatehub|Elevate(?:\.| )Hub|Contas(?:\.| )TikTok(?:\.| )V2)(?:\.| )Setup(?:\.| )(\d+\.\d+\.\d+)\.exe$/i);
   if (!match) return null;
   return {
     version: match[1],
     url: asset.browser_download_url,
-    name: asset.name
+    name: asset.name,
+    priority: /^elevatehub/i.test(assetName) ? 0 : 1
   };
 }
 
@@ -756,7 +758,7 @@ function latestInstaller(assets = []) {
   return assets
     .map(installerFromAsset)
     .filter(Boolean)
-    .sort((left, right) => compareVersions(right.version, left.version))[0] || null;
+    .sort((left, right) => compareVersions(right.version, left.version) || left.priority - right.priority)[0] || null;
 }
 
 function showUpdateDialog(info) {
