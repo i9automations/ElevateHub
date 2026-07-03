@@ -202,7 +202,7 @@ class SupabaseStore {
 
   async listProfiles() {
     const [{ data, error }, users] = await Promise.all([
-      this.admin.from("profiles").select("*").order("squad", { ascending: true }).order("name", { ascending: true }),
+      this.admin.from("profiles").select("*").order("name", { ascending: true }),
       this.usersForProfiles()
     ]);
     if (error) throw error;

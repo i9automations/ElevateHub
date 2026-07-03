@@ -23,7 +23,8 @@ function send(res, status, payload) {
 }
 
 function errorStatus(error) {
-  return Number(error.status || error.statusCode || error.code) || 500;
+  const code = Number(error.status || error.statusCode) || 500;
+  return code >= 100 && code <= 599 ? code : 500;
 }
 
 function readBody(req) {
