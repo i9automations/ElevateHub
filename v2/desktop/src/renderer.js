@@ -76,6 +76,7 @@ async function api(path, options = {}) {
 }
 
 function showApp() {
+  $("appShell").classList.remove("auth-mode");
   $("loginView").classList.add("hidden");
   $("dashboardView").classList.remove("hidden");
   $("appUserName").textContent = state.user?.name || "Equipe";
@@ -84,6 +85,7 @@ function showApp() {
 }
 
 function showLogin() {
+  $("appShell").classList.add("auth-mode");
   $("loginView").classList.remove("hidden");
   $("dashboardView").classList.add("hidden");
 }

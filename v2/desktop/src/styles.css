@@ -89,6 +89,22 @@ select:focus,
   height: 100vh;
 }
 
+.app-shell.auth-mode {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell.auth-mode .sidebar {
+  display: none;
+}
+
+.app-shell.auth-mode .workspace {
+  background: #070809;
+}
+
+.app-shell.auth-mode .login {
+  min-height: 100vh;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
