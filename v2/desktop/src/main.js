@@ -15,10 +15,18 @@ function installerFileName(name, url) {
   return "elevatehub.Setup.exe";
 }
 
-async function downloadInstaller(url, name) {
-  const parsed = new URL(String(url));
+async function downloadInstaller(info) {
+  const parsed = new URL(String(info?.url || ""));
   if (parsed.protocol !== "https:" || !UPDATE_HOSTS.has(parsed.hostname)) {
     throw new Error("Link de atualizacao invalido.");
+  }
+
+  const updatesDir = path.join(app.getPath("temp"), "elevatehub-updates");
+  const filePath = path.join(updatesDir, installerFileName(info?.name, parsed.toString()));
+  const expectedSize = Number(info?.size) || 0;
+  const existing = await fs.stat(filePath).catch(() => null);
+  if (existing?.isFile() && ((expectedSize && existing.size === expectedSize) || (!expectedSize && existing.size > 10 * 1024 * 1024))) {
+    return filePath;
   }
 
   const response = await fetch(parsed.toString(), {
@@ -31,11 +39,16 @@ async function downloadInstaller(url, name) {
     throw new Error("Origem da atualizacao invalida.");
   }
 
-  const updatesDir = path.join(app.getPath("temp"), "elevatehub-updates");
-  const filePath = path.join(updatesDir, installerFileName(name, url));
   const buffer = Buffer.from(await response.arrayBuffer());
+  if (expectedSize && buffer.byteLength !== expectedSize) {
+    throw new Error("Download incompleto. Tente novamente.");
+  }
+
+  const tempPath = `${filePath}.download`;
   await fs.mkdir(updatesDir, { recursive: true });
-  await fs.writeFile(filePath, buffer);
+  await fs.writeFile(tempPath, buffer);
+  await fs.rm(filePath, { force: true });
+  await fs.rename(tempPath, filePath);
   return filePath;
 }
 
@@ -81,7 +94,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("download-update", async (_event, info) => {
-    const filePath = await downloadInstaller(info?.url, info?.name);
+    const filePath = await downloadInstaller(info);
     const error = await shell.openPath(filePath);
     if (error) throw new Error(error);
     setTimeout(() => app.quit(), 900);

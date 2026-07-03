@@ -750,6 +750,7 @@ function installerFromAsset(asset) {
     version: match[1],
     url: asset.browser_download_url,
     name: asset.name,
+    size: asset.size,
     priority: /^elevatehub/i.test(assetName) ? 0 : 1
   };
 }
@@ -799,7 +800,7 @@ async function installUpdate() {
   $("installUpdateBtn").textContent = "Baixando...";
   try {
     if (window.elevate?.downloadUpdate) {
-      await window.elevate.downloadUpdate({ url, name });
+      await window.elevate.downloadUpdate({ url, name, size: state.updateInfo?.size });
       $("updateDialog").close();
       toast("Atualizador aberto. O app vai fechar para concluir.", "success");
     } else if (window.elevate?.openExternal) {
