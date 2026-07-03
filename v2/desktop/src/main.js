@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell, Menu } = require("electron");
 const fs = require("node:fs/promises");
+const fss = require("node:fs");
 const path = require("node:path");
+const { spawn } = require("node:child_process");
 
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
 const APP_NAME = "ElevateHub";
@@ -79,6 +81,63 @@ async function downloadInstaller(info, onProgress) {
   return filePath;
 }
 
+// ===== Navegador local por perfil (modelo Dolphin) =====
+const openBrowsers = new Map(); // profileId -> child process
+
+function resolveChromePath() {
+  const candidates = [];
+  if (app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, "chrome", "chrome.exe"));
+  }
+  candidates.push(path.join(__dirname, "..", "chrome", "chrome.exe")); // v2/desktop/chrome
+  candidates.push(path.join(__dirname, "..", "..", "..", "chrome", "chrome.exe")); // app antigo (dev)
+  for (const candidate of candidates) {
+    try {
+      if (fss.existsSync(candidate)) return candidate;
+    } catch {
+      // segue tentando os proximos caminhos
+    }
+  }
+  return null;
+}
+
+function profileDataDir(profileId) {
+  const safe = String(profileId || "").replace(/[^a-z0-9._-]/gi, "_") || "perfil";
+  return path.join(app.getPath("userData"), "profiles", safe);
+}
+
+async function openBrowserProfile(info, sender) {
+  const profileId = String(info?.id || "");
+  if (!profileId) return { ok: false, error: "no-id" };
+  if (openBrowsers.has(profileId)) return { ok: true, already: true };
+
+  const chrome = resolveChromePath();
+  if (!chrome) return { ok: false, error: "no-chrome" };
+
+  const dir = profileDataDir(profileId);
+  await fs.mkdir(dir, { recursive: true });
+  const url = /^https?:/i.test(String(info?.url || "")) ? String(info.url) : "about:blank";
+
+  const child = spawn(chrome, [
+    `--user-data-dir=${dir}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--test-type",
+    "--disable-infobars",
+    url
+  ], { detached: false, windowsHide: false });
+
+  openBrowsers.set(profileId, child);
+  child.on("exit", () => {
+    openBrowsers.delete(profileId);
+    if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
+  });
+  child.on("error", () => {
+    openBrowsers.delete(profileId);
+  });
+  return { ok: true };
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1360,
@@ -118,6 +177,10 @@ app.whenReady().then(() => {
     if (parsed.protocol !== "https:") return false;
     await shell.openExternal(parsed.toString());
     return true;
+  });
+
+  ipcMain.handle("open-browser-profile", async (event, info) => {
+    return openBrowserProfile(info, event.sender);
   });
 
   ipcMain.handle("download-update", async (event, info) => {

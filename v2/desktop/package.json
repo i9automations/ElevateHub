@@ -23,6 +23,12 @@
       "src/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "chrome",
+        "to": "chrome"
+      }
+    ],
     "win": {
       "target": [
         {

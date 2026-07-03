@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld("elevate", {
   appVersion,
   downloadUpdate: (info) => ipcRenderer.invoke("download-update", info),
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
+  openBrowserProfile: (info) => ipcRenderer.invoke("open-browser-profile", info),
+  onBrowserProfileClosed: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("browser-profile-closed", handler);
+    return () => ipcRenderer.removeListener("browser-profile-closed", handler);
+  },
   onUpdateProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("update-progress", handler);

@@ -517,6 +517,42 @@ async function openRemote(profileId) {
   }
 }
 
+// Modelo Dolphin: abre o Chrome PROPRIO do app, no PC, com pasta isolada por conta.
+async function openLocalBrowser(profileId) {
+  state.selectedId = profileId;
+  const profile = selectedProfile();
+  if (!profile || !canControl(profile)) return;
+  if (!window.elevate?.openBrowserProfile) {
+    toast("Esta versao do app ainda nao abre o navegador local. Atualize o app.", "warning");
+    return;
+  }
+  try {
+    await api(`/api/profiles/${profileId}/lock`, { method: "POST" });
+  } catch {
+    toast("Esta conta ja esta em uso por outra pessoa.", "warning");
+    return;
+  }
+  try {
+    const startUrl = selectedSquad().startUrl || profile.startUrl;
+    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl });
+    if (!result?.ok) {
+      const reason = result?.error === "no-chrome"
+        ? "Navegador do app nao encontrado."
+        : "Nao consegui abrir o navegador.";
+      toast(reason, "danger");
+      await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
+      await loadProfiles();
+      return;
+    }
+    await loadProfiles();
+    toast(result.already ? `${profile.name} ja esta aberto.` : `Abrindo ${profile.name}...`, "success");
+  } catch (error) {
+    toast(friendlyError(error), "danger");
+    await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
+    await loadProfiles();
+  }
+}
+
 async function releaseLock(profileId = state.selectedId) {
   if (!profileId) return;
   try {
@@ -1035,7 +1071,7 @@ $("profileList").addEventListener("click", (event) => {
     state.currentSession = null;
     resetBrowserFrame();
   }
-  if (button?.dataset.action === "open") openRemote(id);
+  if (button?.dataset.action === "open") openLocalBrowser(id);
   else if (button?.dataset.action === "edit") requireAdminAction(() => openProfileDialog(profile));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
@@ -1075,6 +1111,17 @@ if (window.elevate?.onUpdateProgress) {
     const pct = Number(data?.pct) || 0;
     const label = data?.reused ? "Preparando instalador" : downloadLabelForPct(pct);
     installScreen.render(pct, label);
+  });
+}
+
+if (window.elevate?.onBrowserProfileClosed) {
+  window.elevate.onBrowserProfileClosed(async ({ id }) => {
+    try {
+      await api(`/api/profiles/${id}/release`, { method: "POST" });
+    } catch {
+      // Se a liberacao falhar, o proximo refresh/abertura resolve.
+    }
+    await loadProfiles().catch(() => {});
   });
 }
 
