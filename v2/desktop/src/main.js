@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("node:path");
 
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
-const APP_NAME = "Elevate Hub";
+const APP_NAME = "elevatehub";
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -11,6 +11,7 @@ function createWindow() {
     minWidth: 1120,
     minHeight: 720,
     title: APP_NAME,
+    icon: path.join(__dirname, "assets", "elevatehub-mark.png"),
     backgroundColor: "#0b0f14",
     show: false,
     webPreferences: {
