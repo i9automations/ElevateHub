@@ -207,12 +207,7 @@
         </header>
 
         <section class="view active" id="profilesView">
-          <div class="metrics">
-            <div class="metric"><strong id="metricTotal">0</strong><span>Total</span></div>
-            <div class="metric"><strong id="metricReady">0</strong><span>Logadas</span></div>
-            <div class="metric"><strong id="metricBusy">0</strong><span>Em uso</span></div>
-            <div class="metric"><strong id="metricFree">0</strong><span>Livres</span></div>
-          </div>
+          <div class="metrics hidden"><strong id="metricTotal">0</strong><strong id="metricReady">0</strong><strong id="metricBusy">0</strong><strong id="metricFree">0</strong></div>
 
           <div class="profile-toolbar">
             <div class="filter-tabs" role="tablist" aria-label="Filtro de perfis">
@@ -224,23 +219,27 @@
             <input id="search" type="search" placeholder="Buscar cliente, e-mail ou responsavel">
           </div>
 
-          <div class="content-grid">
-            <section class="profiles-pane">
-              <div class="table-head">
-                <span>Perfil</span>
-                <span>Status</span>
-                <span>Responsavel</span>
-                <span>Ultimo acesso</span>
-                <span>Acoes</span>
-              </div>
-              <div id="profileList" class="profile-list"></div>
-              <div id="emptyProfiles" class="empty-state hidden">
-                <strong>Nenhum perfil encontrado</strong>
-                <span>Crie o primeiro perfil nesta pasta.</span>
-              </div>
-            </section>
+          <section class="profiles-pane">
+            <div class="table-head">
+              <span>Perfil</span>
+              <span>E-mail</span>
+              <span>Status</span>
+              <span>Responsavel</span>
+              <span>Ultimo acesso</span>
+              <span>Acoes</span>
+            </div>
+            <div id="profileList" class="profile-list"></div>
+            <div id="emptyProfiles" class="empty-state hidden">
+              <strong>Nenhum perfil encontrado</strong>
+              <span>Crie o primeiro perfil nesta pasta.</span>
+            </div>
+          </section>
+        </section>
 
-            <aside class="session-pane">
+        <aside class="session-pane" id="browserOverlay">
+          <div class="browser-topbar">
+            <button class="ghost" type="button" id="browserBackToList">&#8249; Voltar a lista</button>
+          </div>
               <div class="session-header">
                 <span>Area de trabalho</span>
                 <strong id="selectedName">Nenhum perfil</strong>
@@ -286,9 +285,7 @@
               </div>
 
               <div class="activity" id="activityLog">Selecione um perfil para iniciar.</div>
-            </aside>
-          </div>
-        </section>
+        </aside>
 
         <section class="view admin-only" id="auditView">
           <div class="view-panel">

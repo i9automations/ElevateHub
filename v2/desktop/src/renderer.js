@@ -205,10 +205,15 @@ function renderSquads() {
     const key = profileSquad(profile);
     counts[key] = (counts[key] || 0) + 1;
   });
+  const squadColors = { fox: "#25f4ee", crown: "#ffd21e", jaguar: "#ee4d2d", monkey: "#ffd21e", sphynx: "#ff9900" };
   $("squadNav").innerHTML = squads.map((squad) => `
     <button class="squad-item ${state.selectedSquad === squad.key ? "active" : ""}" type="button" data-squad="${squad.key}">
-      <strong>${escapeHtml(squad.name)}</strong>
-      <span>${escapeHtml(squad.label)} - ${counts[squad.key] || 0}</span>
+      <span class="squad-dot" style="background:${squadColors[squad.key] || "#25f4ee"}"></span>
+      <span class="squad-txt">
+        <strong>${escapeHtml(squad.name)}</strong>
+        <span>${escapeHtml(squad.label)}</span>
+      </span>
+      <span class="squad-count">${counts[squad.key] || 0}</span>
     </button>
   `).join("");
 }
@@ -271,35 +276,41 @@ function renderProfiles() {
   $("profileList").innerHTML = visible.map((profile) => {
     const status = profileStatus(profile);
     const selected = profile.id === state.selectedId ? " selected" : "";
-    const owner = profile.lockedByName || "livre";
-    const tags = (profile.tags || []).slice(0, 3).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
-    const openDisabled = canControl(profile) ? "" : " disabled";
-    const canRelease = !!profile.lockedBy && canControl(profile);
+    const owner = profile.lockedByName || "—";
+    const control = canControl(profile);
+    const canRelease = !!profile.lockedBy && control;
     const editButton = isAdmin()
-      ? `<button class="secondary compact" type="button" data-action="edit" data-id="${profile.id}">Editar</button>`
+      ? `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`
       : "";
     const releaseButton = canRelease
-      ? `<button class="secondary compact" type="button" data-action="release" data-id="${profile.id}">${isAdmin() ? "Liberar" : "Fechar"}</button>`
+      ? `<button class="ghost compact" type="button" data-action="release" data-id="${profile.id}">${isAdmin() ? "Liberar" : "Fechar"}</button>`
       : "";
+    const openLabel = profile.lockedBy && control ? "Assumir" : "Abrir";
+    const openCls = profile.lockedBy && control ? "run run-amber" : "run";
+    const openBtn = control
+      ? `<button class="${openCls}" type="button" data-action="open" data-id="${profile.id}">${openLabel}</button>`
+      : `<button class="run" type="button" disabled>Em uso</button>`;
     return `
       <div class="profile-row${selected}" data-profile-id="${profile.id}">
-        <div class="profile-title">
-          <strong>${escapeHtml(profile.name)}</strong>
-          <small>${escapeHtml(profile.tiktokEmail || selectedSquad().label)}</small>
-          <div class="tag-row">${tags}</div>
-        </div>
-        <span class="badge ${status.cls}">${status.text}</span>
-        <span class="muted-text">${escapeHtml(owner)}</span>
-        <span class="muted-text">${formatDate(profile.lastOpenedAt)}</span>
-        <div class="row-actions">
-          ${editButton}
-          ${releaseButton}
-          <button class="primary compact" type="button" data-action="open" data-id="${profile.id}"${openDisabled}>Abrir</button>
-        </div>
+        <div class="pr-name" title="${escapeHtml(profile.name)}"><strong>${escapeHtml(profile.name)}</strong></div>
+        <div class="pr-email" title="${escapeHtml(profile.tiktokEmail || "")}">${escapeHtml(profile.tiktokEmail || "—")}</div>
+        <div class="pr-status"><span class="st st-${status.cls}"><i></i>${status.text}</span></div>
+        <div class="pr-resp">${escapeHtml(owner)}</div>
+        <div class="pr-last">${formatDate(profile.lastOpenedAt)}</div>
+        <div class="pr-act">${editButton}${releaseButton}${openBtn}</div>
       </div>`;
   }).join("");
 
   renderSessionPane();
+}
+
+function syncBrowserOverlay() {
+  const overlay = $("browserOverlay");
+  if (!overlay) return;
+  const active = !!state.currentSession
+    && state.currentSession.profileId === state.selectedId
+    && !state.browserHidden;
+  overlay.classList.toggle("open", active);
 }
 
 function renderSessionPane() {
@@ -308,6 +319,7 @@ function renderSessionPane() {
   const hasSession = !!state.currentSession && state.currentSession.profileId === state.selectedId;
   const profileCanControl = canControl(profile);
   const canRelease = !!profile?.lockedBy && profileCanControl;
+  syncBrowserOverlay();
 
   $("selectedName").textContent = profile ? profile.name : "Nenhum perfil";
   $("selectedEmail").textContent = profile
@@ -492,6 +504,8 @@ async function openRemote(profileId) {
   try {
     const data = await api(`/api/profiles/${profileId}/session/start`, { method: "POST" });
     state.currentSession = data.session || null;
+    state.browserHidden = false;
+    syncBrowserOverlay();
     startBrowserPolling();
     await loadProfiles();
     await refreshBrowserFrame(true);
@@ -1032,6 +1046,10 @@ $("openRemoteBtn").addEventListener("click", () => {
   if (profile) openRemote(profile.id);
 });
 $("releaseBtn").addEventListener("click", () => releaseLock());
+$("browserBackToList")?.addEventListener("click", () => {
+  state.browserHidden = true;
+  syncBrowserOverlay();
+});
 $("browserRefreshBtn").addEventListener("click", () => browserCommand("reload"));
 $("browserBackBtn").addEventListener("click", () => browserCommand("back"));
 $("browserForwardBtn").addEventListener("click", () => browserCommand("forward"));

@@ -1436,3 +1436,157 @@ dialog::backdrop {
   .login-v2 .lg-brand { width: 100%; min-width: 0; min-height: 240px; }
   .login-v2 .lg-form-wrap { padding: 40px 24px 64px; }
 }
+
+/* ===================================================================
+   Painel v2 — layout limpo estilo Dolphin (sobrescreve o antigo)
+   =================================================================== */
+
+/* Pastas (sidebar) com marcador colorido */
+.squad-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+.squad-item:hover { background: var(--surface); }
+.squad-item.active { background: var(--surface-2); }
+.squad-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.squad-txt { flex: 1; min-width: 0; line-height: 1.25; }
+.squad-txt strong { display: block; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.squad-txt span { display: block; font-size: 11.5px; color: var(--muted); }
+.squad-count { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.squad-item.active .squad-count { color: var(--primary); }
+
+/* Tela de perfis ocupa toda a altura */
+#profilesView {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  gap: 12px;
+}
+
+/* Tabela em tela cheia, chapada */
+.profiles-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.table-head,
+.profile-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.6fr) minmax(170px, 1.3fr) 130px 140px 150px minmax(150px, auto);
+  align-items: center;
+  gap: 12px;
+}
+.table-head {
+  min-height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.profile-list {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+}
+.profile-row {
+  min-height: 0;
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid #23272e;
+  cursor: pointer;
+}
+.profile-row:nth-child(even) { background: rgba(255, 255, 255, .018); }
+.profile-row:hover,
+.profile-row.selected { background: var(--surface-2); }
+
+.pr-name, .pr-email, .pr-resp, .pr-last { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-name strong { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.pr-email, .pr-resp, .pr-last { color: var(--muted); font-size: 12.5px; }
+.pr-last { font-variant-numeric: tabular-nums; }
+
+.pr-status .st { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text); }
+.pr-status .st i { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--faint); }
+.st-ready i { background: var(--primary); }
+.st-busy i { background: var(--warning); }
+.st-queued i { background: #7db3f0; }
+.st-empty { color: var(--muted); }
+.st-empty i { background: #4a525c; }
+
+.pr-act { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+/* Botao "rodar" (Abrir/Assumir) e botoes discretos */
+.run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(51, 214, 159, .42);
+  background: transparent;
+  color: #7fe3ac;
+  font-weight: 700;
+  font-size: 12px;
+}
+.run:hover:not(:disabled) { background: var(--success); color: #04170d; }
+.run:disabled { opacity: .5; cursor: not-allowed; border-color: var(--line); color: var(--muted); }
+.run-amber { border-color: rgba(246, 196, 83, .42); color: #f0cf8a; }
+.run-amber:hover:not(:disabled) { background: var(--warning); color: #211a04; }
+.ghost {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+}
+.ghost:hover { color: var(--text); border-color: var(--faint); }
+
+/* Navegador como tela sobreposta (abre so no "Abrir") */
+#browserOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+  padding: 0;
+  background: var(--bg);
+  border: 0;
+  border-radius: 0;
+}
+#browserOverlay.open { display: flex; }
+.browser-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+#browserOverlay .session-header { padding: 10px 16px 0; margin: 0; }
+#browserOverlay .status-strip { padding: 6px 16px; }
+#browserOverlay .browserbar { padding: 8px 16px; }
+#browserOverlay .screen-placeholder { flex: 1; min-height: 0; margin: 0; border-radius: 0; }
+#browserOverlay .typebar,
+#browserOverlay .keybar,
+#browserOverlay .session-actions { padding: 8px 16px; }
+#browserOverlay .activity { padding: 6px 16px 12px; }
