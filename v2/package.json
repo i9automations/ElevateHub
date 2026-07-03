@@ -1,7 +1,7 @@
 {
   "name": "contas-tiktok-v2",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Contas TikTok V2 - aplicativo desktop com backend central compartilhado.",
   "scripts": {
     "server": "node server/src/index.js",
