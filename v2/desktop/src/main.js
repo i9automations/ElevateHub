@@ -106,6 +106,111 @@ function profileDataDir(profileId) {
   return path.join(app.getPath("userData"), "profiles", safe);
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function connectCdp(wsUrl) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const ws = new WebSocket(wsUrl);
+    let nextId = 1;
+    const pending = new Map();
+    const client = {
+      send(method, params = {}) {
+        return new Promise((res, rej) => {
+          const id = nextId++;
+          pending.set(id, { res, rej });
+          try {
+            ws.send(JSON.stringify({ id, method, params }));
+          } catch (err) {
+            pending.delete(id);
+            rej(err);
+          }
+        });
+      },
+      close() {
+        try { ws.close(); } catch { /* ja fechado */ }
+      }
+    };
+    ws.addEventListener("open", () => { settled = true; resolve(client); });
+    ws.addEventListener("error", () => { if (!settled) reject(new Error("cdp-ws-error")); });
+    ws.addEventListener("message", (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch { return; }
+      if (msg.id && pending.has(msg.id)) {
+        const p = pending.get(msg.id);
+        pending.delete(msg.id);
+        if (msg.error) p.rej(new Error(msg.error.message || "cdp-error"));
+        else p.res(msg.result);
+      }
+    });
+  });
+}
+
+async function waitDevToolsPort(dir) {
+  const file = path.join(dir, "DevToolsActivePort");
+  for (let i = 0; i < 80; i++) {
+    try {
+      const content = await fs.readFile(file, "utf8");
+      const port = parseInt(content.split("\n")[0], 10);
+      if (port) return port;
+    } catch { /* arquivo ainda nao criado */ }
+    await sleep(250);
+  }
+  throw new Error("sem-devtools-port");
+}
+
+function toCookieParams(cookies) {
+  return (Array.isArray(cookies) ? cookies : [])
+    .filter((c) => c && c.name && c.domain)
+    .map((c) => {
+      const out = {
+        name: String(c.name),
+        value: String(c.value == null ? "" : c.value),
+        domain: String(c.domain),
+        path: c.path || "/",
+        secure: !!c.secure,
+        httpOnly: !!c.httpOnly
+      };
+      if (c.sameSite === "Strict" || c.sameSite === "Lax" || c.sameSite === "None") out.sameSite = c.sameSite;
+      if (typeof c.expires === "number" && c.expires > 0) out.expires = c.expires;
+      return out;
+    });
+}
+
+async function startCookieSync(profileId, dir, url, cookies, sender) {
+  const port = await waitDevToolsPort(dir);
+  const version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+  const client = await connectCdp(version.webSocketDebuggerUrl);
+
+  const params = toCookieParams(cookies);
+  if (params.length) {
+    try { await client.send("Storage.setCookies", { cookies: params }); } catch { /* abre mesmo sem cookies */ }
+  }
+
+  let createdId = null;
+  try { createdId = (await client.send("Target.createTarget", { url })).targetId; } catch { /* abre sem navegar */ }
+  try {
+    const { targetInfos } = await client.send("Target.getTargets", {});
+    for (const t of targetInfos || []) {
+      if (t.type === "page" && t.targetId !== createdId && (t.url === "about:blank" || t.url === "" || t.url.startsWith("chrome://newtab"))) {
+        await client.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
+      }
+    }
+  } catch { /* deixa a aba em branco se nao der pra fechar */ }
+
+  const entry = openBrowsers.get(profileId);
+  if (!entry) { client.close(); return; }
+  entry.client = client;
+  entry.interval = setInterval(async () => {
+    try {
+      const result = await client.send("Storage.getCookies", {});
+      if (sender && !sender.isDestroyed()) {
+        sender.send("browser-profile-cookies", { id: profileId, cookies: result.cookies || [] });
+      }
+    } catch { /* proxima rodada tenta de novo */ }
+  }, 20000);
+}
+
 async function openBrowserProfile(info, sender) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, error: "no-id" };
@@ -116,6 +221,7 @@ async function openBrowserProfile(info, sender) {
 
   const dir = profileDataDir(profileId);
   await fs.mkdir(dir, { recursive: true });
+  await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
   const url = /^https?:/i.test(String(info?.url || "")) ? String(info.url) : "about:blank";
 
   const child = spawn(chrome, [
@@ -124,17 +230,32 @@ async function openBrowserProfile(info, sender) {
     "--no-default-browser-check",
     "--test-type",
     "--disable-infobars",
-    url
+    "--remote-debugging-port=0",
+    "about:blank"
   ], { detached: false, windowsHide: false });
 
-  openBrowsers.set(profileId, child);
+  const entry = { child, client: null, interval: null };
+  openBrowsers.set(profileId, entry);
+
   child.on("exit", () => {
+    const e = openBrowsers.get(profileId);
+    if (e) {
+      if (e.interval) clearInterval(e.interval);
+      if (e.client) e.client.close();
+    }
     openBrowsers.delete(profileId);
     if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
   });
   child.on("error", () => {
+    const e = openBrowsers.get(profileId);
+    if (e && e.interval) clearInterval(e.interval);
     openBrowsers.delete(profileId);
   });
+
+  startCookieSync(profileId, dir, url, info?.cookies || [], sender).catch(() => {
+    // Se a sincronizacao falhar, o Chrome ja abriu; o usuario navega manual.
+  });
+
   return { ok: true };
 }
 

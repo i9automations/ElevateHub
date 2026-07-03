@@ -534,7 +534,15 @@ async function openLocalBrowser(profileId) {
   }
   try {
     const startUrl = selectedSquad().startUrl || profile.startUrl;
-    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl });
+    // Etapa 2: baixa a sessao (cookies) do servidor pra ja abrir logado
+    let cookies = [];
+    try {
+      const data = await api(`/api/profiles/${profileId}/cookies`);
+      cookies = data.cookies || [];
+    } catch {
+      // sem sessao salva ainda: abre pra logar do zero (a 1a vez)
+    }
+    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl, cookies });
     if (!result?.ok) {
       const reason = result?.error === "no-chrome"
         ? "Navegador do app nao encontrado."
@@ -1122,6 +1130,17 @@ if (window.elevate?.onBrowserProfileClosed) {
       // Se a liberacao falhar, o proximo refresh/abertura resolve.
     }
     await loadProfiles().catch(() => {});
+  });
+}
+
+if (window.elevate?.onBrowserProfileCookies) {
+  window.elevate.onBrowserProfileCookies(async ({ id, cookies }) => {
+    // Etapa 2: sobe a sessao (cookies) pro servidor -> aparece pros outros PCs
+    try {
+      await api(`/api/profiles/${id}/cookies`, { method: "PUT", body: { cookies } });
+    } catch {
+      // proxima sincronizacao (a cada ~20s) tenta de novo
+    }
   });
 }
 

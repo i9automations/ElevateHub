@@ -1,4 +1,6 @@
 const http = require("node:http");
+const fsp = require("node:fs/promises");
+const path = require("node:path");
 const browserWorker = require("./browser-worker");
 const { createStore } = require("./store");
 const {
@@ -10,6 +12,15 @@ const {
 const PORT = Number(process.env.PORT || 8787);
 const store = createStore();
 
+// Etapa 2 (modelo Dolphin): sessao compartilhada — cookies por perfil em disco.
+const COOKIES_DIR = process.env.V2_COOKIES_DIR
+  || path.join(process.env.V2_DATA_DIR || "/opt/contas-tiktok-v2/shared/data", "cookies");
+
+function cookiesFile(profileId) {
+  const safe = String(profileId || "").replace(/[^a-z0-9._-]/gi, "_");
+  return path.join(COOKIES_DIR, `${safe}.json`);
+}
+
 function send(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -17,7 +28,7 @@ function send(res, status, payload) {
     "Content-Length": Buffer.byteLength(body),
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
   });
   res.end(body);
 }
@@ -89,6 +100,27 @@ async function handleProfileRoute(req, res, parts, user) {
     await browserWorker.stopBrowserSession(profile.id);
     await store.deleteProfile(user, profile.id);
     return send(res, 200, { ok: true });
+  }
+
+  if (req.method === "GET" && parts[3] === "cookies") {
+    try {
+      const raw = await fsp.readFile(cookiesFile(profile.id), "utf8");
+      const parsed = JSON.parse(raw);
+      return send(res, 200, { cookies: Array.isArray(parsed.cookies) ? parsed.cookies : [] });
+    } catch {
+      return send(res, 200, { cookies: [] });
+    }
+  }
+
+  if (req.method === "PUT" && parts[3] === "cookies") {
+    if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
+      return send(res, 409, { error: "Perfil em uso por outro usuario" });
+    }
+    const body = await readBody(req);
+    const cookies = Array.isArray(body.cookies) ? body.cookies : [];
+    await fsp.mkdir(COOKIES_DIR, { recursive: true });
+    await fsp.writeFile(cookiesFile(profile.id), JSON.stringify({ cookies, updatedAt: now() }));
+    return send(res, 200, { ok: true, count: cookies.length });
   }
 
   if (req.method === "POST" && parts[3] === "lock") {

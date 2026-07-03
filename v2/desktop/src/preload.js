@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld("elevate", {
     ipcRenderer.on("browser-profile-closed", handler);
     return () => ipcRenderer.removeListener("browser-profile-closed", handler);
   },
+  onBrowserProfileCookies: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("browser-profile-cookies", handler);
+    return () => ipcRenderer.removeListener("browser-profile-cookies", handler);
+  },
   onUpdateProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("update-progress", handler);
