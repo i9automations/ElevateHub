@@ -201,14 +201,16 @@ async function startCookieSync(profileId, dir, url, cookies, sender) {
   const entry = openBrowsers.get(profileId);
   if (!entry) { client.close(); return; }
   entry.client = client;
-  entry.interval = setInterval(async () => {
+  const pushCookies = async () => {
     try {
       const result = await client.send("Storage.getCookies", {});
       if (sender && !sender.isDestroyed()) {
         sender.send("browser-profile-cookies", { id: profileId, cookies: result.cookies || [] });
       }
     } catch { /* proxima rodada tenta de novo */ }
-  }, 20000);
+  };
+  entry.firstSync = setTimeout(pushCookies, 6000);   // salva cedo caso feche rapido
+  entry.interval = setInterval(pushCookies, 8000);   // e mantem sincronizado
 }
 
 async function openBrowserProfile(info, sender) {
@@ -240,6 +242,7 @@ async function openBrowserProfile(info, sender) {
   child.on("exit", () => {
     const e = openBrowsers.get(profileId);
     if (e) {
+      if (e.firstSync) clearTimeout(e.firstSync);
       if (e.interval) clearInterval(e.interval);
       if (e.client) e.client.close();
     }
@@ -248,7 +251,10 @@ async function openBrowserProfile(info, sender) {
   });
   child.on("error", () => {
     const e = openBrowsers.get(profileId);
-    if (e && e.interval) clearInterval(e.interval);
+    if (e) {
+      if (e.firstSync) clearTimeout(e.firstSync);
+      if (e.interval) clearInterval(e.interval);
+    }
     openBrowsers.delete(profileId);
   });
 

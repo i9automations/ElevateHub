@@ -1590,3 +1590,78 @@ dialog::backdrop {
 #browserOverlay .keybar,
 #browserOverlay .session-actions { padding: 8px 16px; }
 #browserOverlay .activity { padding: 6px 16px 12px; }
+
+/* ===================================================================
+   Login v3 — atmosferico (mesma familia da tela de carregamento)
+   sem listras/grid. Substitui visualmente o login v2.
+   =================================================================== */
+.login.login-v3 {
+  display: block;
+  padding: 0;
+  background: linear-gradient(168deg, #04101a 0%, #08202f 42%, #0b2c3d 72%, #103b50 100%);
+}
+@keyframes lg3-orbA { 0%{transform:translate(0,0) scale(1)} 50%{transform:translate(40px,-30px) scale(1.08)} 100%{transform:translate(0,0) scale(1)} }
+@keyframes lg3-orbB { 0%{transform:translate(0,0) scale(1)} 50%{transform:translate(-50px,25px) scale(1.12)} 100%{transform:translate(0,0) scale(1)} }
+@keyframes lg3-rise { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+
+.lg3-orb { position:absolute; border-radius:50%; filter:blur(8px); pointer-events:none; }
+.lg3-orb1 { width:820px; height:820px; left:-200px; top:-260px; background:radial-gradient(circle,rgba(90,170,210,.24) 0%,rgba(90,170,210,0) 68%); animation:lg3-orbA 15s ease-in-out infinite; }
+.lg3-orb2 { width:980px; height:980px; right:-260px; bottom:-340px; background:radial-gradient(circle,rgba(37,244,238,.14) 0%,rgba(37,244,238,0) 66%); animation:lg3-orbB 19s ease-in-out infinite; }
+.lg3-vign { position:absolute; inset:0; pointer-events:none; background:radial-gradient(130% 90% at 50% 6%,rgba(0,0,0,.34) 0%,rgba(0,0,0,0) 55%); }
+
+.lg3-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:auto; padding:24px; }
+
+.lg3-wordmark { display:flex; align-items:flex-start; font-family:"Jost","Segoe UI",system-ui,sans-serif; opacity:0; animation:lg3-rise .9s cubic-bezier(.2,.7,.2,1) .05s forwards; }
+.lg3-w1 { font-size:72px; font-weight:300; letter-spacing:-1px; color:#f4f2ec; line-height:1; }
+.lg3-w2 { font-size:72px; font-weight:500; letter-spacing:-1px; color:#f4f2ec; line-height:1; margin-left:15px; }
+.lg3-reg { font-size:19px; font-weight:400; color:#cfe0ea; margin-top:8px; margin-left:5px; }
+
+.lg3-tag { display:flex; align-items:center; gap:16px; margin-top:20px; opacity:0; animation:lg3-rise .9s cubic-bezier(.2,.7,.2,1) .2s forwards; }
+.lg3-rule { width:44px; height:1px; }
+.lg3-rl { background:linear-gradient(90deg,rgba(226,238,246,0),rgba(226,238,246,.6)); }
+.lg3-rr { background:linear-gradient(90deg,rgba(226,238,246,.6),rgba(226,238,246,0)); }
+.lg3-txt { font-size:13px; font-weight:400; letter-spacing:6px; color:#8fd3d0; text-transform:uppercase; }
+
+.lg3-card { position:relative; width:400px; max-width:100%; margin-top:40px; padding:32px 34px 28px; border-radius:18px;
+  background:linear-gradient(180deg,rgba(20,32,44,.62),rgba(9,17,26,.72));
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 40px 80px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  opacity:0; animation:lg3-rise .9s cubic-bezier(.2,.7,.2,1) .32s forwards; }
+.lg3-brand { display:flex; align-items:center; justify-content:center; gap:11px; margin-bottom:20px; }
+.lg3-brand img { width:38px; height:38px; border-radius:9px; border:1px solid rgba(255,255,255,.1); }
+.lg3-brand strong { display:block; font-size:15px; color:#f3f6f8; }
+.lg3-brand span { display:block; font-size:11px; color:#9fb0bd; margin-top:1px; }
+.lg3-card h2 { margin:0 0 4px; font-size:22px; font-weight:600; color:#f3f6f8; letter-spacing:-.2px; text-align:center; }
+.lg3-sub { margin:0 0 18px; font-size:13px; color:#9fb0bd; text-align:center; }
+.lg3-lab { display:flex; align-items:baseline; justify-content:space-between; margin:14px 0 7px; }
+.lg3-lab label { margin:0; font-size:11px; font-weight:800; letter-spacing:.04em; color:#9fb0bd; text-transform:uppercase; }
+.lg3-toggle { min-height:0; padding:0; border:0; background:none; font-size:12px; font-weight:700; color:#25f4ee; cursor:pointer; }
+.login-v3 input[type=email], .login-v3 input[type=password] {
+  width:100%; height:46px; border-radius:9px; border:1px solid #2b3a44;
+  background:rgba(4,12,18,.6); color:#f3f6f8; font-size:14px; padding:0 14px; transition:border-color .15s,box-shadow .15s; }
+.login-v3 input:focus { border-color:rgba(37,244,238,.7); box-shadow:0 0 0 3px rgba(37,244,238,.13); }
+.lg3-row { display:flex; align-items:center; margin-top:15px; }
+.lg3-check { display:inline-flex; align-items:center; gap:9px; margin:0; cursor:pointer; user-select:none; text-transform:none; letter-spacing:0; }
+.lg3-check input { position:absolute; opacity:0; width:0; height:0; }
+.lg3-box { width:17px; height:17px; border-radius:5px; border:1.5px solid #3d4c56; display:grid; place-items:center; transition:.15s; }
+.lg3-box svg { opacity:0; transition:opacity .15s; }
+.lg3-check input:checked + .lg3-box { background:#25f4ee; border-color:#25f4ee; }
+.lg3-check input:checked + .lg3-box svg { opacity:1; }
+.lg3-cl { font-size:13px; color:#9fb0bd; }
+.lg3-entrar { width:100%; height:48px; margin-top:20px; border:0; border-radius:9px; background:#25f4ee; color:#04191a;
+  font-size:15px; font-weight:800; letter-spacing:.2px; box-shadow:0 14px 30px -8px rgba(37,244,238,.4); }
+.lg3-entrar:hover { background:#1fd8d2; }
+.lg3-help { margin-top:12px; font-size:12px; color:#8698a5; text-align:center; }
+.login-v3 .form-note { text-align:center; margin-top:10px; }
+
+.lg3-badges { display:flex; gap:16px; margin-top:36px; opacity:0; animation:lg3-rise .9s ease .5s forwards; }
+.lg3-badge { display:flex; flex-direction:column; align-items:center; gap:9px; }
+.lg3-tile { width:52px; height:52px; border-radius:14px; display:grid; place-items:center; position:relative; overflow:hidden;
+  box-shadow:0 12px 26px -10px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.15); }
+.lg3-tile::after { content:""; position:absolute; inset:0; background:linear-gradient(160deg,rgba(255,255,255,.2),rgba(255,255,255,0) 55%); }
+.lg3-tile img { position:relative; z-index:1; object-fit:contain; }
+.lg3-badge span { font-size:11px; color:#a9c0cd; letter-spacing:.3px; }
+
+.lg3-foot { position:absolute; bottom:24px; left:0; right:0; text-align:center; font-size:11.5px; color:rgba(180,200,212,.55); letter-spacing:.3px;
+  opacity:0; animation:lg3-rise 1s ease .8s forwards; }

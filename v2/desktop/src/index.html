@@ -117,78 +117,72 @@
     </aside>
 
     <main class="workspace">
-      <section class="login login-v2" id="loginView">
-        <div class="lg-split">
+      <section class="login login-v3" id="loginView">
+        <div class="lg3-orb lg3-orb1"></div>
+        <div class="lg3-orb lg3-orb2"></div>
+        <div class="lg3-vign"></div>
 
-          <!-- Painel da marca -->
-          <div class="lg-brand">
-            <div class="lg-grid"></div>
-            <div class="lg-glow"></div>
-
-            <div class="lg-brand-top">
-              <div class="lg-wordmark">
-                <span class="lg-w1">Elevate</span><span class="lg-w2">Hub</span>
-              </div>
-              <div class="lg-tag">Central de marketplaces</div>
-            </div>
-
-            <p class="lg-statement">Gerencie todos os seus canais de venda em um só lugar.</p>
-
-            <div class="lg-integr">
-              <span class="lg-integr-label">Integrado com</span>
-              <div class="lg-badges">
-                <div class="lg-badge" style="background:linear-gradient(150deg,#ff6a3d,#ee4d2d)" title="Shopee">
-                  <img src="./assets/marketplaces/shopee.svg" alt="Shopee" style="width:27px;height:27px">
-                </div>
-                <div class="lg-badge" style="background:linear-gradient(150deg,#ffffff,#f1f4f8)" title="Mercado Livre">
-                  <img src="./assets/marketplaces/mercadolivre.svg" alt="Mercado Livre" style="width:39px;height:39px">
-                </div>
-                <div class="lg-badge" style="background:linear-gradient(150deg,#ffffff,#f1f4f8)" title="Amazon">
-                  <img src="./assets/marketplaces/amazon.jpg" alt="Amazon" style="width:39px;height:39px">
-                </div>
-                <div class="lg-badge" style="background:linear-gradient(150deg,#232323,#050505)" title="TikTok Shop">
-                  <img src="./assets/marketplaces/tiktok.svg" alt="TikTok Shop" style="width:28px;height:28px">
-                </div>
-              </div>
-            </div>
+        <div class="lg3-center">
+          <div class="lg3-wordmark">
+            <span class="lg3-w1">Elevate</span><span class="lg3-w2">Hub</span><span class="lg3-reg">&reg;</span>
+          </div>
+          <div class="lg3-tag">
+            <span class="lg3-rule lg3-rl"></span>
+            <span class="lg3-txt">Central de Marketplaces</span>
+            <span class="lg3-rule lg3-rr"></span>
           </div>
 
-          <!-- Painel do formulário -->
-          <div class="lg-form-wrap">
-            <div class="lg-form">
-              <div class="lg-brand-row">
-                <img class="lg-mark" src="./assets/elevatehub-mark.png" alt="ElevateHub">
-                <div>
-                  <strong>ElevateHub</strong>
-                  <span>Elevate Ecom</span>
-                </div>
-              </div>
+          <div class="lg3-card">
+            <div class="lg3-brand">
+              <img src="./assets/elevatehub-mark.png" alt="ElevateHub">
+              <div><strong>ElevateHub</strong><span>Elevate Ecom</span></div>
+            </div>
+            <h2>Bem-vindo de volta</h2>
+            <p class="lg3-sub">Use seu acesso da equipe para continuar.</p>
 
-              <h2>Bem-vindo de volta</h2>
-              <p class="lg-sub">Use seu acesso da equipe para continuar.</p>
+            <div class="lg3-lab"><label for="email">E-mail</label></div>
+            <input id="email" type="email" autocomplete="username" placeholder="seu@email.com.br">
 
-              <label for="email">E-mail</label>
-              <input id="email" type="email" autocomplete="username" placeholder="seu@email.com.br">
+            <div class="lg3-lab">
+              <label for="password">Senha</label>
+              <button class="lg3-toggle" type="button" id="togglePw">Mostrar</button>
+            </div>
+            <input id="password" type="password" autocomplete="current-password" placeholder="Sua senha">
 
-              <div class="lg-pw-head">
-                <label for="password">Senha</label>
-                <button class="lg-linkbtn" type="button" id="togglePw">Mostrar</button>
-              </div>
-              <input id="password" type="password" autocomplete="current-password" placeholder="Sua senha">
+            <div class="lg3-row">
+              <label class="lg3-check">
+                <input type="checkbox" id="remember" checked>
+                <span class="lg3-box"><svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6.2l2.6 2.6L10 3.2" stroke="#04191a" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="lg3-cl">Manter conectado</span>
+              </label>
+            </div>
 
-              <div class="lg-row">
-                <label class="lg-check">
-                  <input type="checkbox" id="remember" checked>
-                  <span class="lg-check-box"></span>
-                  <span class="lg-check-label">Manter conectado</span>
-                </label>
-              </div>
+            <button class="primary lg3-entrar" id="loginBtn" type="button">Entrar</button>
+            <div class="form-note" id="loginMsg" aria-live="polite"></div>
+            <div class="lg3-help">Problemas para entrar? Fale com o admin da equipe.</div>
+          </div>
 
-              <button class="primary wide" id="loginBtn" type="button">Entrar</button>
-              <div class="form-note" id="loginMsg" aria-live="polite"></div>
+          <div class="lg3-badges">
+            <div class="lg3-badge">
+              <div class="lg3-tile" style="background:linear-gradient(150deg,#ff6a3d,#ee4d2d)"><img src="./assets/marketplaces/shopee.svg" alt="Shopee" style="width:26px;height:26px"></div>
+              <span>Shopee</span>
+            </div>
+            <div class="lg3-badge">
+              <div class="lg3-tile" style="background:linear-gradient(150deg,#ffffff,#f1f4f8)"><img src="./assets/marketplaces/mercadolivre.svg" alt="Mercado Livre" style="width:38px;height:38px"></div>
+              <span>Mercado Livre</span>
+            </div>
+            <div class="lg3-badge">
+              <div class="lg3-tile" style="background:linear-gradient(150deg,#ffffff,#f1f4f8)"><img src="./assets/marketplaces/amazon.jpg" alt="Amazon" style="width:38px;height:38px"></div>
+              <span>Amazon</span>
+            </div>
+            <div class="lg3-badge">
+              <div class="lg3-tile" style="background:linear-gradient(150deg,#232323,#050505)"><img src="./assets/marketplaces/tiktok.svg" alt="TikTok Shop" style="width:27px;height:27px"></div>
+              <span>TikTok Shop</span>
             </div>
           </div>
         </div>
+
+        <div class="lg3-foot" id="loginFooter"></div>
       </section>
 
       <section class="dashboard hidden" id="dashboardView">
