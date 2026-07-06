@@ -4,6 +4,7 @@ const state = {
   profiles: [],
   users: [],
   audit: [],
+  mailboxes: [],
   selectedId: null,
   selectedSquad: localStorage.getItem("ctv2.squad") || "fox",
   currentSession: null,
@@ -302,6 +303,7 @@ function renderProfiles() {
     const selected = profile.id === state.selectedId ? " selected" : "";
     const owner = profile.responsavel || "—";
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
+    const codeButton = `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`;
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
     const av = profileAvatar(profile.name);
@@ -317,7 +319,7 @@ function renderProfiles() {
         <div class="pr-status"><span class="st st-${status.cls}"><i></i>${status.text}</span></div>
         <div class="pr-resp">${escapeHtml(owner)}</div>
         <div class="pr-last">${formatDate(profile.lastOpenedAt)}</div>
-        <div class="pr-act">${editButton}${releaseButton}${openBtn}</div>
+        <div class="pr-act">${editButton}${codeButton}${releaseButton}${openBtn}</div>
       </div>`;
   }).join("");
 
@@ -872,6 +874,116 @@ async function createUser(event) {
 function renderSettings() {
   $("settingsApiUrl").textContent = apiBase;
   $("serverUrl").textContent = apiBase.replace(/^https?:\/\//, "");
+  loadMailboxes().catch(() => {});
+}
+
+// ---- Caixas de e-mail (Hostinger) para pegar códigos ----
+async function loadMailboxes() {
+  if (!isAdmin()) return;
+  try {
+    const data = await api("/api/mailboxes");
+    state.mailboxes = Array.isArray(data.mailboxes) ? data.mailboxes : [];
+  } catch {
+    state.mailboxes = [];
+  }
+  renderMailboxes();
+}
+
+function mailboxRowHtml(box, i) {
+  const pwPlaceholder = box.hasPassword ? "•••••• (guardada)" : "senha da caixa";
+  return `
+    <div class="mailbox-row" data-idx="${i}">
+      <input class="mbx-label" placeholder="Apelido (ex: clientes1)" value="${escapeHtml(box.label || "")}">
+      <input class="mbx-email" placeholder="email@dominio.com" value="${escapeHtml(box.email || "")}">
+      <input class="mbx-pass" type="password" autocomplete="new-password" placeholder="${escapeHtml(pwPlaceholder)}" value="">
+      <input class="mbx-host" placeholder="imap.hostinger.com" value="${escapeHtml(box.host || "imap.hostinger.com")}">
+      <input class="mbx-port" placeholder="993" value="${escapeHtml(String(box.port || 993))}" style="max-width:70px">
+      <button type="button" class="ghost compact mbx-test" title="Testar acesso">Testar</button>
+      <button type="button" class="ghost compact mbx-del" title="Remover">✕</button>
+      <span class="mbx-status" data-status></span>
+    </div>`;
+}
+
+function renderMailboxes() {
+  const list = $("mailboxList");
+  if (!list) return;
+  const boxes = state.mailboxes || [];
+  list.innerHTML = boxes.length
+    ? boxes.map(mailboxRowHtml).join("")
+    : `<p class="mailbox-empty">Nenhuma caixa cadastrada ainda. Clique em “Adicionar caixa”.</p>`;
+}
+
+function readMailboxRows() {
+  return [...document.querySelectorAll("#mailboxList .mailbox-row")].map((row, i) => {
+    const val = (sel) => row.querySelector(sel)?.value.trim() || "";
+    const existing = (state.mailboxes || [])[i] || {};
+    return {
+      id: existing.id,
+      label: val(".mbx-label"),
+      email: val(".mbx-email").toLowerCase(),
+      password: row.querySelector(".mbx-pass")?.value || "", // vazio = manter a atual
+      host: val(".mbx-host") || "imap.hostinger.com",
+      port: Number(val(".mbx-port")) || 993
+    };
+  });
+}
+
+async function saveMailboxesUI() {
+  const mailboxes = readMailboxRows().filter((b) => b.email);
+  try {
+    const data = await api("/api/mailboxes", { method: "PUT", body: { mailboxes } });
+    state.mailboxes = data.mailboxes || [];
+    renderMailboxes();
+    toast("Caixas salvas com segurança.", "success");
+  } catch (error) {
+    toast(friendlyError(error), "danger");
+  }
+}
+
+async function testMailboxRow(rowEl) {
+  const idx = Number(rowEl.dataset.idx);
+  const statusEl = rowEl.querySelector("[data-status]");
+  const rows = readMailboxRows();
+  const box = rows[idx];
+  if (!box?.email) { toast("Preencha o e-mail da caixa.", "warning"); return; }
+  statusEl.textContent = "testando…";
+  statusEl.className = "mbx-status testing";
+  try {
+    // se a senha do campo está vazia mas a caixa já existe salva, testa pela id
+    const body = box.password ? box : { id: box.id };
+    const result = await api("/api/mailboxes/test", { method: "POST", body });
+    if (result.ok) { statusEl.textContent = "✓ conectou"; statusEl.className = "mbx-status ok"; }
+    else { statusEl.textContent = "✕ " + (result.error || "falhou"); statusEl.className = "mbx-status err"; }
+  } catch (error) {
+    statusEl.textContent = "✕ " + friendlyError(error);
+    statusEl.className = "mbx-status err";
+  }
+}
+
+// ---- Pegar código de verificação de um cliente ----
+async function fetchProfileCode(profile) {
+  if (!profile) return;
+  const dlg = $("codeDialog");
+  $("codeTitle").textContent = `Código — ${profile.name}`;
+  $("codeSub").textContent = "Procurando o código nas caixas…";
+  $("codeBox").classList.add("hidden");
+  $("codeMeta").textContent = "";
+  $("codeRetryBtn").disabled = true;
+  dlg.dataset.profileId = profile.id;
+  if (!dlg.open) dlg.showModal();
+  try {
+    const data = await api(`/api/profiles/${profile.id}/code`, { method: "POST", body: {} });
+    $("codeValue").textContent = data.code;
+    $("codeBox").classList.remove("hidden");
+    $("codeSub").textContent = "Código encontrado:";
+    const when = data.at ? formatDate(data.at) : "";
+    $("codeMeta").textContent = `Caixa: ${data.box || "—"} · ${when}${data.subject ? ` · "${data.subject}"` : ""}`;
+  } catch (error) {
+    $("codeSub").textContent = friendlyError(error);
+    $("codeMeta").textContent = "Dica: o código chega em até alguns minutos. Tente “Procurar de novo”.";
+  } finally {
+    $("codeRetryBtn").disabled = false;
+  }
 }
 
 async function setView(view) {
@@ -1127,8 +1239,44 @@ $("profileList").addEventListener("click", (event) => {
   }
   if (button?.dataset.action === "open") openLocalBrowser(id);
   else if (button?.dataset.action === "edit") requireAuth(() => openProfileDialog(profile));
+  else if (button?.dataset.action === "code") requireAuth(() => fetchProfileCode(profile));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
+});
+
+// Caixas de e-mail (Configuração, admin)
+$("addMailboxBtn")?.addEventListener("click", () => {
+  state.mailboxes = [...(state.mailboxes || []), { label: "", email: "", host: "imap.hostinger.com", port: 993, hasPassword: false }];
+  renderMailboxes();
+});
+$("saveMailboxesBtn")?.addEventListener("click", saveMailboxesUI);
+$("mailboxList")?.addEventListener("click", (event) => {
+  const row = event.target.closest(".mailbox-row");
+  if (!row) return;
+  if (event.target.closest(".mbx-test")) testMailboxRow(row);
+  else if (event.target.closest(".mbx-del")) {
+    const idx = Number(row.dataset.idx);
+    state.mailboxes = (state.mailboxes || []).filter((_, i) => i !== idx);
+    renderMailboxes();
+  }
+});
+
+// Diálogo "Pegar código"
+$("codeCloseBtn")?.addEventListener("click", () => $("codeDialog").close());
+$("codeRetryBtn")?.addEventListener("click", () => {
+  const id = $("codeDialog").dataset.profileId;
+  const profile = (state.profiles || []).find((p) => p.id === id);
+  if (profile) fetchProfileCode(profile);
+});
+$("codeCopyBtn")?.addEventListener("click", async () => {
+  const code = $("codeValue").textContent.trim();
+  try {
+    await navigator.clipboard.writeText(code);
+    $("codeCopyBtn").textContent = "Copiado!";
+    setTimeout(() => { $("codeCopyBtn").textContent = "Copiar"; }, 1500);
+  } catch {
+    toast("Não consegui copiar. Anote: " + code, "warning");
+  }
 });
 
 $("openRemoteBtn").addEventListener("click", () => {

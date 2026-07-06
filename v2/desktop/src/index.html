@@ -352,6 +352,15 @@
               <p>Os perfis ficam salvos no servidor. Ao liberar um perfil, o Chrome fecha, mas a sessão continua persistida para o próximo acesso.</p>
               <p>Se um perfil ficar preso, um admin pode liberar pela lista de perfis.</p>
             </div>
+            <div class="view-panel mailbox-panel" id="mailboxPanel">
+              <h3>Caixas de e-mail (códigos de verificação)</h3>
+              <p class="mailbox-hint">Cadastre as caixas da Hostinger que recebem os códigos. As senhas ficam <strong>criptografadas</strong> no servidor e nunca voltam para a tela. Ao clicar em “Pegar código” num cliente, o app procura o código nessas caixas pelo e-mail/alias dele.</p>
+              <div id="mailboxList" class="mailbox-list"></div>
+              <div class="mailbox-actions">
+                <button type="button" class="ghost compact" id="addMailboxBtn">+ Adicionar caixa</button>
+                <button type="button" class="run" id="saveMailboxesBtn">Salvar caixas</button>
+              </div>
+            </div>
           </div>
         </section>
       </section>
@@ -391,6 +400,22 @@
       <div class="dialog-actions">
         <button class="secondary" type="button" id="confirmCancelBtn">Cancelar</button>
         <button class="danger" type="button" id="confirmOkBtn">Excluir</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="codeDialog" class="code-dialog">
+    <div class="dialog-form">
+      <h3 id="codeTitle">Código de verificação</h3>
+      <p class="dialog-copy" id="codeSub">Procurando o código nas caixas…</p>
+      <div class="code-box hidden" id="codeBox">
+        <span class="code-value" id="codeValue">------</span>
+        <button class="run" type="button" id="codeCopyBtn">Copiar</button>
+      </div>
+      <p class="code-meta" id="codeMeta"></p>
+      <div class="dialog-actions">
+        <button class="secondary" type="button" id="codeRetryBtn">Procurar de novo</button>
+        <button class="ghost" type="button" id="codeCloseBtn">Fechar</button>
       </div>
     </div>
   </dialog>
