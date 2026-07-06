@@ -152,34 +152,32 @@ async function startCookieSync(profileId, dir, url, cookies, sender) {
 
   const params = toCookieParams(cookies);
   if (params.length) {
-    // Injeta uma a uma: um cookie invalido nao derruba a sessao inteira.
-    for (const cookie of params) {
-      try { await client.send("Storage.setCookies", { cookies: [cookie] }); } catch { /* ignora esse cookie */ }
+    // Injeta tudo de uma vez (rapido). Se falhar, cai p/ uma a uma (um cookie
+    // invalido nao derruba a sessao inteira).
+    try {
+      await client.send("Storage.setCookies", { cookies: params });
+    } catch {
+      for (const cookie of params) {
+        try { await client.send("Storage.setCookies", { cookies: [cookie] }); } catch { /* ignora esse cookie */ }
+      }
     }
   }
 
   // Faz o navegador se apresentar como "Google Chrome" (senao o TikTok bloqueia).
-  // Auto-attach em cada aba nova: aplicamos a marca ANTES de a pagina rodar.
+  // Aplica a marca SO na aba principal e ANTES de navegar (abre em branco, aplica,
+  // depois navega). NAO pausa todas as abas/frames — isso deixava o site MUITO lento.
+  // A marca vale tambem p/ os frames internos da propria pagina.
   const uaMeta = buildUaMetadata(version.Browser, version["User-Agent"]);
-  client.on("Target.attachedToTarget", async ({ sessionId, targetInfo }) => {
-    try {
-      if (targetInfo && (targetInfo.type === "page" || targetInfo.type === "iframe")) {
-        // Nunca segura a aba mais que 3s esperando o override.
-        await Promise.race([
-          client.send("Emulation.setUserAgentOverride", uaMeta, sessionId),
-          sleep(3000)
-        ]);
-      }
-    } catch { /* segue mesmo sem override nessa aba */ }
-    // SEMPRE libera a aba pausada, senao ela trava.
-    try { await client.send("Runtime.runIfWaitingForDebugger", {}, sessionId); } catch { /* ja liberada */ }
-  });
-  try {
-    await client.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
-  } catch { /* sem auto-attach: abre normal (pode cair no bloqueio do TikTok) */ }
-
   let createdId = null;
-  try { createdId = (await client.send("Target.createTarget", { url })).targetId; } catch { /* abre sem navegar */ }
+  try {
+    createdId = (await client.send("Target.createTarget", { url: "about:blank" })).targetId;
+    const attached = await client.send("Target.attachToTarget", { targetId: createdId, flatten: true });
+    try { await client.send("Emulation.setUserAgentOverride", uaMeta, attached.sessionId); } catch { /* segue sem a marca */ }
+    await client.send("Page.navigate", { url }, attached.sessionId);
+  } catch {
+    // fallback: abre direto na URL (pode cair no bloqueio, mas abre)
+    try { createdId = (await client.send("Target.createTarget", { url })).targetId; } catch { /* abre sem navegar */ }
+  }
   try {
     const { targetInfos } = await client.send("Target.getTargets", {});
     for (const t of targetInfos || []) {
