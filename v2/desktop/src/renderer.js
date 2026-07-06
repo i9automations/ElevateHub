@@ -103,7 +103,7 @@ function roleLabel(role) {
 }
 
 function canAccessView(view) {
-  return view === "profiles" || view === "mailboxes" || isAdmin();
+  return view === "profiles" || view === "mailboxes" || view === "ads" || isAdmin();
 }
 
 function compareVersions(left, right) {
@@ -303,13 +303,9 @@ function renderProfiles() {
     const selected = profile.id === state.selectedId ? " selected" : "";
     const owner = profile.responsavel || "—";
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
-    // Botões "Código" e "ADS" só no TikTok (fox); os outros marketplaces não precisam.
-    const isTikTok = profileSquad(profile) === "fox";
-    const codeButton = isTikTok
+    // Botão "Código" só no TikTok (fox); os outros marketplaces não precisam.
+    const codeButton = profileSquad(profile) === "fox"
       ? `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`
-      : "";
-    const adsButton = isTikTok
-      ? `<button class="ghost compact" type="button" data-action="ads" data-id="${profile.id}" title="Ler métricas de ADS (teste)">ADS</button>`
       : "";
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
@@ -326,7 +322,7 @@ function renderProfiles() {
         <div class="pr-status"><span class="st st-${status.cls}"><i></i>${status.text}</span></div>
         <div class="pr-resp">${escapeHtml(owner)}</div>
         <div class="pr-last">${formatDate(profile.lastOpenedAt)}</div>
-        <div class="pr-act">${editButton}${codeButton}${adsButton}${releaseButton}${openBtn}</div>
+        <div class="pr-act">${editButton}${codeButton}${releaseButton}${openBtn}</div>
       </div>`;
   }).join("");
 
@@ -1003,41 +999,146 @@ async function fetchProfileCode(profile) {
 }
 
 // Fase 1 do Relatório de ADS: lê as métricas de 1 loja e mostra (pra conferir com o print).
-async function fetchAdsMetrics(profile) {
-  if (!profile) return;
-  if (!window.elevate?.collectAdsMetrics) { toast("Atualize o app para ler o ADS.", "warning"); return; }
-  const dlg = $("adsDialog");
-  $("adsTitle").textContent = `ADS — ${profile.name}`;
-  $("adsSub").textContent = "Abrindo o painel e lendo os números… (pode levar ~30s)";
-  $("adsBox").classList.add("hidden");
-  $("adsErr").textContent = "";
-  $("adsRetryBtn").disabled = true;
-  dlg.dataset.profileId = profile.id;
-  if (!dlg.open) dlg.showModal();
-  let cookies = [];
-  try { const d = await api(`/api/profiles/${profile.id}/cookies`); cookies = d.cookies || []; } catch { /* sem sessão salva */ }
-  try {
-    const res = await window.elevate.collectAdsMetrics({ id: profile.id, name: profile.name, cookies });
-    if (!res?.ok) {
-      $("adsSub").textContent = "Não consegui ler o painel:";
-      $("adsErr").textContent = res?.motivo || "erro desconhecido";
-      return;
-    }
-    const m = res.metrics;
-    const brl = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    $("adsCusto").textContent = brl(m.custo);
-    $("adsPedidos").textContent = (Number(m.pedidos) || 0).toLocaleString("pt-BR");
-    $("adsCpp").textContent = brl(m.cpp);
-    $("adsReceita").textContent = brl(m.receita);
-    $("adsRoi").textContent = (Number(m.roi) || 0).toFixed(2) + "x";
-    $("adsSub").textContent = "Números lidos do painel — confira com o print:";
-    $("adsBox").classList.remove("hidden");
-  } catch (error) {
-    $("adsSub").textContent = "Erro:";
-    $("adsErr").textContent = friendlyError(error);
-  } finally {
-    $("adsRetryBtn").disabled = false;
+const adsBrl = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function renderAdsResults(items) {
+  const el = $("adsResults");
+  if (!el) return;
+  if (!items.length) { el.innerHTML = ""; return; }
+  const rows = items.map((it) => `
+    <tr>
+      <td>${escapeHtml(it.cli)}</td>
+      <td>${it.erro ? `<span class="ads-err">${escapeHtml(it.erro)}</span>` : adsBrl(it.custo)}</td>
+      <td>${it.erro ? "—" : (it.pedidos || 0)}</td>
+      <td>${it.erro ? "—" : adsBrl(it.receita)}</td>
+      <td>${it.erro ? "—" : (Number(it.roi) || 0).toFixed(2) + "x"}</td>
+    </tr>`).join("");
+  el.innerHTML = `<table class="ads-table"><thead><tr><th>Conta</th><th>Custo</th><th>Pedidos</th><th>Receita</th><th>ROI</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function loadPrevAds() { try { return JSON.parse(localStorage.getItem("ctv2.adsLast") || "null"); } catch { return null; } }
+function saveCurrentAds(items) { try { localStorage.setItem("ctv2.adsLast", JSON.stringify({ items })); } catch { /* cheio */ } }
+
+async function generateAdsReport() {
+  if (!window.elevate?.collectAdsMetrics || !window.elevate?.saveOpenReport) {
+    toast("Atualize o app para gerar o relatório de ADS.", "warning"); return;
   }
+  const profiles = state.profiles.filter((p) => profileSquad(p) === "fox");
+  if (!profiles.length) { toast("Nenhuma conta TikTok encontrada.", "warning"); return; }
+  const btn = $("genAdsReportBtn");
+  const prog = $("adsProgress");
+  btn.disabled = true;
+  const items = [];
+  for (let i = 0; i < profiles.length; i++) {
+    const p = profiles[i];
+    prog.textContent = `Lendo ${i + 1}/${profiles.length}: ${p.name}…`;
+    let cookies = [];
+    try { const d = await api(`/api/profiles/${p.id}/cookies`); cookies = d.cookies || []; } catch { /* sem sessão */ }
+    let r;
+    try { r = await window.elevate.collectAdsMetrics({ id: p.id, name: p.name, cookies }); }
+    catch (e) { r = { ok: false, motivo: friendlyError(e) }; }
+    const resp = p.responsavel || "";
+    if (r?.ok) items.push({ cli: p.name, resp, ...r.metrics, erro: null });
+    else items.push({ cli: p.name, resp, custo: 0, pedidos: 0, cpp: 0, receita: 0, roi: 0, erro: r?.motivo || "erro" });
+    renderAdsResults(items);
+  }
+  const erros = items.filter((it) => it.erro).length;
+  prog.textContent = `Concluído: ${items.length} contas${erros ? ` (${erros} com erro)` : ""}.`;
+  btn.disabled = false;
+
+  const prev = loadPrevAds();
+  const html = buildAdsReportHtml(items, prev);
+  saveCurrentAds(items);
+  try {
+    const res = await window.elevate.saveOpenReport(html);
+    if (res?.ok) { state.lastAdsReport = res.path; toast("Relatório gerado e aberto.", "success"); }
+    else toast("Relatório gerado, mas não consegui abrir sozinho.", "warning");
+  } catch (e) { toast(friendlyError(e), "danger"); }
+}
+
+const ADS_REPORT_TEMPLATE = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relatório de ADS — __REF__</title><style>
+:root{--bg:#0f1419;--card:#1a2027;--card2:#222b34;--line:#2c3742;--txt:#e6edf3;--muted:#8b95a3;--teal:#1fb6a6;--teal2:#16d1c0;--green:#2ecc71;--yellow:#f5c451;--red:#ff6b6b;--blue:#5aa9ff}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--txt);padding:30px 20px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto}
+header{border-bottom:2px solid var(--teal);padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
+h1{font-size:25px}h1 span{color:var(--teal2)}.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.btn{background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:9px 15px;border-radius:9px;font-size:13px;cursor:pointer}.btn:hover{border-color:var(--teal)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:24px}
+.kpi{background:linear-gradient(160deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}.kpi .v{font-size:23px;font-weight:800;margin-top:5px}
+.v.y{color:var(--yellow)}.v.g{color:var(--green)}.v.t{color:var(--teal2)}.v.b{color:var(--blue)}
+h2{font-size:17px;margin:8px 0 14px;display:flex;align-items:center;gap:8px}h2::before{content:"";width:4px;height:16px;background:var(--teal);border-radius:2px}
+.respgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:26px}
+.respc{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.respc .nm{font-weight:700;font-size:15px}.respc .s{color:var(--muted);font-size:12px;margin:2px 0 10px}
+.rk{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rk div{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.rk span{color:var(--muted);font-size:10px;text-transform:uppercase;display:block}.rk b{font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px}
+.c.err{border-left:4px solid var(--red)}.c.top{border-left:4px solid var(--green)}.c.zero{opacity:.75}
+.c .h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.c .cli{font-size:16px;font-weight:700}.c .rsp{font-size:11px;color:var(--blue);background:rgba(90,169,255,.12);padding:2px 7px;border-radius:6px;margin-left:6px}
+.roi{font-weight:800;font-size:18px;padding:3px 9px;border-radius:8px}.roi.hi{background:rgba(46,204,113,.15);color:var(--green)}.roi.mid{background:rgba(90,169,255,.15);color:var(--blue)}.roi.low{background:rgba(245,196,81,.15);color:var(--yellow)}.roi.z{background:rgba(139,152,165,.15);color:var(--muted)}
+.mt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.m{background:var(--card2);border-radius:8px;padding:8px 10px}.m .l{color:var(--muted);font-size:10px;text-transform:uppercase}.m .v{font-size:15px;font-weight:700;margin-top:2px}.m .v.g{color:var(--green)}
+.alert{margin-top:10px;font-size:12px;padding:7px 9px;border-radius:8px;background:rgba(255,107,107,.13);color:var(--red)}
+footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center}
+</style></head><body><div class="wrap">
+<header><div><h1>Relatório de <span>ADS</span> — TikTok GMV Max</h1><div class="sub">Referência: __REF__ · valores em BRL</div></div>
+<button class="btn" onclick="exportCSV()">Exportar CSV</button></header>
+<div class="cards">
+<div class="kpi"><div class="l">Investimento</div><div class="v y">__KPI_CUSTO__</div></div>
+<div class="kpi"><div class="l">Receita (GMV)</div><div class="v g">__KPI_RECEITA__</div></div>
+<div class="kpi"><div class="l">ROI geral</div><div class="v t">__KPI_ROI__</div></div>
+<div class="kpi"><div class="l">Pedidos</div><div class="v b">__KPI_PEDIDOS__</div></div>
+<div class="kpi"><div class="l">Contas vendendo</div><div class="v">__KPI_VEND__</div></div>
+</div>
+<h2>Resumo por responsável</h2><div class="respgrid" id="resp"></div>
+<h2>Contas</h2><div class="grid" id="grade"></div>
+<footer>Gerado pelo ElevateHub · Referência __REF__</footer></div>
+<script>
+var dados=__DADOS__, resp=__RESP__;
+function brl(v){return "R$ "+(Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function roiCls(r){if(r>=8)return"hi";if(r>=4)return"mid";if(r>0)return"low";return"z";}
+var rk=Object.keys(resp).sort();
+document.getElementById("resp").innerHTML=rk.map(function(nm){var o=resp[nm];var roi=o.c>0?o.r/o.c:0;
+return '<div class="respc"><div class="nm">'+nm+'</div><div class="s">'+o.l+' contas · '+o.v+' vendendo</div><div class="rk"><div><span>Investido</span><b style="color:var(--yellow)">'+brl(o.c)+'</b></div><div><span>Receita</span><b style="color:var(--green)">'+brl(o.r)+'</b></div><div><span>ROI</span><b style="color:var(--teal2)">'+roi.toFixed(2)+'x</b></div><div><span>Pedidos</span><b style="color:var(--blue)">'+(o.p||0)+'</b></div></div></div>';}).join("");
+var ord=dados.slice().sort(function(a,b){if(a.erro&&!b.erro)return 1;if(b.erro&&!a.erro)return -1;return (b.receita||0)-(a.receita||0);});
+document.getElementById("grade").innerHTML=ord.map(function(d){
+if(d.erro){return '<div class="c err"><div class="h"><div class="cli">'+d.cli+(d.resp?'<span class="rsp">'+d.resp+'</span>':'')+'</div></div><div class="alert">Não foi possível ler: '+d.erro+'</div></div>';}
+var cls="c";if(d.roi>=8)cls+=" top";if((d.pedidos||0)===0)cls+=" zero";
+return '<div class="'+cls+'"><div class="h"><div class="cli">'+d.cli+(d.resp?'<span class="rsp">'+d.resp+'</span>':'')+'</div><div class="roi '+roiCls(d.roi)+'">'+(Number(d.roi)||0).toFixed(2)+'x</div></div><div class="mt"><div class="m"><div class="l">Custo</div><div class="v">'+brl(d.custo)+'</div></div><div class="m"><div class="l">Pedidos</div><div class="v">'+(d.pedidos||0)+'</div></div><div class="m"><div class="l">Custo/Ped.</div><div class="v">'+brl(d.cpp)+'</div></div><div class="m"><div class="l">Receita</div><div class="v g">'+brl(d.receita)+'</div></div></div></div>';}).join("");
+function exportCSV(){var h=["Conta","Responsavel","Custo","Pedidos","Custo por pedido","Receita","ROI","Erro"];
+var ln=dados.map(function(d){return [d.cli,d.resp||"",(d.custo||0).toFixed(2).replace(".",","),(d.pedidos||0),(d.cpp||0).toFixed(2).replace(".",","),(d.receita||0).toFixed(2).replace(".",","),(Number(d.roi)||0).toFixed(2).replace(".",","),d.erro||""];});
+var csv=[h].concat(ln).map(function(r){return r.map(function(c){return '"'+c+'"';}).join(";");}).join("\\r\\n");
+var b=new Blob(["\\ufeff"+csv],{type:"text/csv;charset=utf-8;"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="Relatorio_ADS.csv";a.click();}
+</script></body></html>`;
+
+function buildAdsReportHtml(items, prev) {
+  const ativos = items.filter((it) => !it.erro);
+  const tot = (k) => ativos.reduce((s, it) => s + (Number(it[k]) || 0), 0);
+  const tC = tot("custo"), tR = tot("receita"), tP = tot("pedidos");
+  const roiG = tC > 0 ? tR / tC : 0;
+  const vendendo = ativos.filter((it) => it.pedidos > 0).length;
+  const ref = new Date().toLocaleDateString("pt-BR");
+  // resumo por responsável
+  const porResp = {};
+  items.forEach((it) => {
+    const r = it.resp || "—";
+    const o = porResp[r] || (porResp[r] = { c: 0, r: 0, p: 0, l: 0, v: 0 });
+    o.c += Number(it.custo) || 0; o.r += Number(it.receita) || 0; o.p += Number(it.pedidos) || 0;
+    o.l++; if ((it.pedidos || 0) > 0) o.v++;
+  });
+  const DATA = JSON.stringify(items);
+  return ADS_REPORT_TEMPLATE
+    .replace(/__REF__/g, ref)
+    .replace("__KPI_CUSTO__", adsBrl(tC))
+    .replace("__KPI_RECEITA__", adsBrl(tR))
+    .replace("__KPI_ROI__", roiG.toFixed(2) + "x")
+    .replace("__KPI_PEDIDOS__", tP.toLocaleString("pt-BR"))
+    .replace("__KPI_VEND__", `${vendendo} / ${ativos.length}`)
+    .replace("__RESP__", JSON.stringify(porResp))
+    .replace("__DADOS__", DATA);
 }
 
 async function setView(view) {
@@ -1055,6 +1156,7 @@ async function setView(view) {
   const titles = {
     profiles: [squad.name, `${squad.label} - ${profilesForSelectedSquad().length} perfis`],
     mailboxes: ["Caixas de e-mail", "Códigos de verificação por e-mail"],
+    ads: ["Relatório de ADS", "Métricas de anúncios do TikTok"],
     audit: ["Auditoria", "Histórico recente de acessos"],
     team: ["Equipe", "Usuários do aplicativo"],
     settings: ["Configuração", "Servidor e operação"]
@@ -1302,7 +1404,6 @@ $("profileList").addEventListener("click", (event) => {
   if (button?.dataset.action === "open") openLocalBrowser(id);
   else if (button?.dataset.action === "edit") requireAuth(() => openProfileDialog(profile));
   else if (button?.dataset.action === "code") requireAuth(() => fetchProfileCode(profile));
-  else if (button?.dataset.action === "ads") requireAuth(() => fetchAdsMetrics(profile));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
 });
@@ -1314,6 +1415,13 @@ $("addMailboxBtn")?.addEventListener("click", () => {
   renderMailboxes();
 });
 $("saveMailboxesBtn")?.addEventListener("click", saveMailboxesUI);
+$("genAdsReportBtn")?.addEventListener("click", generateAdsReport);
+$("openLastAdsBtn")?.addEventListener("click", async () => {
+  try {
+    const r = await window.elevate?.openLastReport?.();
+    if (!r?.ok) toast("Nenhum relatório gerado ainda.", "info");
+  } catch { toast("Não consegui abrir o relatório.", "danger"); }
+});
 $("mailboxList")?.addEventListener("click", (event) => {
   const row = event.target.closest(".mailbox-row");
   if (!row) return;
@@ -1332,12 +1440,6 @@ $("codeRetryBtn")?.addEventListener("click", () => {
   const id = $("codeDialog").dataset.profileId;
   const profile = (state.profiles || []).find((p) => p.id === id);
   if (profile) fetchProfileCode(profile);
-});
-$("adsCloseBtn")?.addEventListener("click", () => $("adsDialog").close());
-$("adsRetryBtn")?.addEventListener("click", () => {
-  const id = $("adsDialog").dataset.profileId;
-  const profile = (state.profiles || []).find((p) => p.id === id);
-  if (profile) fetchAdsMetrics(profile);
 });
 $("codeCopyBtn")?.addEventListener("click", async () => {
   const code = $("codeValue").textContent.trim();

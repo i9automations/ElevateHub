@@ -1827,3 +1827,13 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
 .ads-m b { font-size: 19px; font-weight: 800; margin-top: 3px; display: block; }
 .ads-m.ads-roi { grid-column: 1 / -1; }
 .ads-m.ads-roi b { color: var(--primary); }
+
+/* ===== Tela Relatório de ADS ===== */
+.ads-tools-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+.ads-progress { color: var(--muted); font-size: 13px; }
+.ads-results { margin-top: 8px; }
+.ads-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ads-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.ads-table th:not(:first-child), .ads-table td:not(:first-child) { text-align: right; }
+.ads-table td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+.ads-err { color: var(--danger); font-size: 12px; }

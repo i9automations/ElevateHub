@@ -105,6 +105,7 @@
       <nav class="nav" aria-label="Ferramentas">
         <span class="sidebar-label">Ferramentas</span>
         <button class="nav-item" type="button" data-view="mailboxes">Caixas de e-mail</button>
+        <button class="nav-item" type="button" data-view="ads">Relatório de ADS</button>
       </nav>
 
       <nav class="nav admin-only" aria-label="Area admin">
@@ -372,6 +373,21 @@
             </div>
           </div>
         </section>
+
+        <section class="view" id="adsView">
+          <div class="settings-grid">
+            <div class="view-panel mailbox-panel">
+              <h3>Relatório de ADS — TikTok GMV Max</h3>
+              <p class="mailbox-hint">Lê as métricas de anúncios (Custo, Pedidos, Custo/pedido, Receita, ROI) de cada conta <strong>TikTok logada</strong>, referentes a <strong>ontem</strong>, e gera um relatório em HTML. As contas são abertas em segundo plano (fora da tela) — pode levar um tempo com muitas contas.</p>
+              <div class="ads-tools-row">
+                <button type="button" class="run" id="genAdsReportBtn">Gerar relatório de ontem</button>
+                <button type="button" class="ghost" id="openLastAdsBtn">Abrir último relatório</button>
+                <span id="adsProgress" class="ads-progress"></span>
+              </div>
+              <div id="adsResults" class="ads-results"></div>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
   </div>
@@ -425,25 +441,6 @@
       <div class="dialog-actions">
         <button class="secondary" type="button" id="codeRetryBtn">Procurar de novo</button>
         <button class="ghost" type="button" id="codeCloseBtn">Fechar</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog id="adsDialog" class="code-dialog">
-    <div class="dialog-form">
-      <h3 id="adsTitle">ADS</h3>
-      <p class="dialog-copy" id="adsSub">Lendo…</p>
-      <div class="ads-grid hidden" id="adsBox">
-        <div class="ads-m"><span>Custo</span><b id="adsCusto">—</b></div>
-        <div class="ads-m"><span>Pedidos</span><b id="adsPedidos">—</b></div>
-        <div class="ads-m"><span>Custo/Pedido</span><b id="adsCpp">—</b></div>
-        <div class="ads-m"><span>Receita</span><b id="adsReceita">—</b></div>
-        <div class="ads-m ads-roi"><span>ROI</span><b id="adsRoi">—</b></div>
-      </div>
-      <p class="code-meta" id="adsErr"></p>
-      <div class="dialog-actions">
-        <button class="secondary" type="button" id="adsRetryBtn">Ler de novo</button>
-        <button class="ghost" type="button" id="adsCloseBtn">Fechar</button>
       </div>
     </div>
   </dialog>

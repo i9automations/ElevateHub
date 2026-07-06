@@ -260,8 +260,9 @@ async function collectAdsMetrics(info) {
   const child = spawn(chrome, [
     `--user-data-dir=${dir}`, "--no-first-run", "--no-default-browser-check",
     "--test-type", "--disable-infobars", "--remote-debugging-port=0",
+    "--window-position=-32000,-32000", "--window-size=1280,800", // abre fora da tela (coleta em segundo plano)
     "about:blank"
-  ], { detached: false, windowsHide: false });
+  ], { detached: false, windowsHide: true });
 
   let client = null;
   try {
@@ -449,6 +450,35 @@ app.whenReady().then(() => {
 
   ipcMain.handle("collect-ads-metrics", async (_event, info) => {
     return collectAdsMetrics(info);
+  });
+
+  ipcMain.handle("save-open-report", async (_event, html) => {
+    try {
+      const dir = path.join(app.getPath("documents"), "ElevateHub");
+      await fs.mkdir(dir, { recursive: true });
+      const d = new Date();
+      const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const file = path.join(dir, `Relatorio_ADS_${stamp}.html`);
+      await fs.writeFile(file, String(html || ""), "utf8");
+      shell.openPath(file);
+      return { ok: true, path: file };
+    } catch (e) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  ipcMain.handle("open-last-report", async () => {
+    try {
+      const dir = path.join(app.getPath("documents"), "ElevateHub");
+      const files = (await fs.readdir(dir).catch(() => []))
+        .filter((f) => f.startsWith("Relatorio_ADS_") && f.endsWith(".html")).sort();
+      if (!files.length) return { ok: false };
+      const file = path.join(dir, files[files.length - 1]);
+      shell.openPath(file);
+      return { ok: true, path: file };
+    } catch {
+      return { ok: false };
+    }
   });
 
   ipcMain.handle("install-update-now", () => {

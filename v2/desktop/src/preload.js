@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("elevate", {
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
   openBrowserProfile: (info) => ipcRenderer.invoke("open-browser-profile", info),
   collectAdsMetrics: (info) => ipcRenderer.invoke("collect-ads-metrics", info),
+  saveOpenReport: (html) => ipcRenderer.invoke("save-open-report", html),
+  openLastReport: () => ipcRenderer.invoke("open-last-report"),
   onBrowserProfileClosed: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("browser-profile-closed", handler);
