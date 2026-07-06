@@ -528,8 +528,8 @@ async function saveProfile(event) {
     notes: $("profileNotes").value.trim(),
     squad: state.editProfileId ? profileSquad(selectedProfile()) : state.selectedSquad
   };
+  body.mailboxEmail = $("profileMailbox").value.trim();
   if (isAdmin()) {
-    body.mailboxEmail = $("profileMailbox").value.trim();
     body.tags = $("profileTags").value.split(",").map((item) => item.trim()).filter(Boolean);
   }
   if (!body.name) {

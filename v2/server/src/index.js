@@ -169,11 +169,10 @@ async function handleProfileRoute(req, res, parts, user) {
   if (!profile) return send(res, 404, { error: "Perfil nao encontrado" });
 
   if (req.method === "PATCH" && parts.length === 3) {
-    // Equipe (operador) edita nome/email/responsavel/notas. Campos sensiveis
-    // (caixa Hostinger, tags, mover de pasta) so admin.
+    // Equipe (operador) edita nome/email/responsavel/notas + a caixa Hostinger
+    // (alias do cliente, necessario p/ pegar o codigo). Tags e mover de pasta so admin.
     const body = await readBody(req);
     if (user.role !== "admin") {
-      delete body.mailboxEmail;
       delete body.tags;
       delete body.squad;
     }
