@@ -303,8 +303,19 @@ function setupAutoUpdate() {
   autoUpdater.on("download-progress", (p) => broadcast("update-progress", { pct: Math.round(p?.percent || 0) }));
   autoUpdater.on("update-downloaded", (info) => { autoUpdateReady = true; broadcast("update-downloaded", { version: info?.version }); });
   autoUpdater.on("error", () => { /* silencioso: nunca atrapalha o uso */ });
-  autoUpdater.checkForUpdates().catch(() => {});
-  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 60 * 60 * 1000); // checa 1x/hora
+
+  // Checa sem precisar reiniciar: na abertura, a cada 10 min, e quando o usuario
+  // volta pro app (com um limite de 1x/2min pra nao checar demais).
+  let lastCheck = 0;
+  const check = () => {
+    lastCheck = Date.now();
+    autoUpdater.checkForUpdates().catch(() => {});
+  };
+  check();
+  setInterval(check, 10 * 60 * 1000);
+  app.on("browser-window-focus", () => {
+    if (Date.now() - lastCheck > 2 * 60 * 1000) check();
+  });
 }
 
 function createWindow() {
