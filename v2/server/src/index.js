@@ -1,4 +1,5 @@
 const http = require("node:http");
+const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const browserWorker = require("./browser-worker");
@@ -19,6 +20,44 @@ const COOKIES_DIR = process.env.V2_COOKIES_DIR
 function cookiesFile(profileId) {
   const safe = String(profileId || "").replace(/[^a-z0-9._-]/gi, "_");
   return path.join(COOKIES_DIR, `${safe}.json`);
+}
+
+// Sessoes ativas (quem esta com cada perfil aberto AGORA) em memoria.
+// Chaveado por SESSAO (hash do token) e nao por usuario, porque a equipe pode
+// compartilhar a mesma conta -> cada PC/login tem um token proprio.
+// Varias pessoas podem abrir a mesma conta; a UI avisa quem mais esta nela.
+// Expira sozinho (evita "trava presa" se um PC travar/desligar).
+const activeSessions = new Map(); // profileId -> Map(sessionKey -> { name, at })
+const SESSION_TTL_MS = 15 * 60 * 1000;
+
+function sessionKey(req) {
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (!token) return "anon";
+  return crypto.createHash("sha256").update(token).digest("hex").slice(0, 24);
+}
+function touchSession(profileId, key, name) {
+  let sessions = activeSessions.get(profileId);
+  if (!sessions) { sessions = new Map(); activeSessions.set(profileId, sessions); }
+  sessions.set(key, { name: name || "Equipe", at: Date.now() });
+}
+function dropSession(profileId, key) {
+  const sessions = activeSessions.get(profileId);
+  if (sessions) { sessions.delete(key); if (!sessions.size) activeSessions.delete(profileId); }
+}
+function sessionEntries(profileId) {
+  const sessions = activeSessions.get(profileId);
+  if (!sessions) return [];
+  const now = Date.now();
+  const list = [];
+  for (const [key, info] of sessions) {
+    if (now - info.at > SESSION_TTL_MS) sessions.delete(key);
+    else list.push({ key, name: info.name });
+  }
+  if (!sessions.size) activeSessions.delete(profileId);
+  return list;
+}
+function hasSession(profileId, key) {
+  return sessionEntries(profileId).some((entry) => entry.key === key);
 }
 
 function send(res, status, payload) {
@@ -109,10 +148,10 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "GET" && parts[3] === "cookies") {
-    // So quem tem o perfil travado (ou admin) le a sessao. O app trava antes de
-    // abrir, entao o fluxo normal funciona; isso barra varredura em massa.
-    if (user.role !== "admin" && profile.lockedBy !== user.id) {
-      return send(res, 409, { error: "Trave o perfil (Abrir) antes de baixar a sessao." });
+    // So quem esta com o perfil aberto (ou admin) le a sessao. Barra varredura
+    // em massa; o app "abre" (lock) antes de baixar, entao o fluxo normal funciona.
+    if (user.role !== "admin" && !hasSession(profile.id, sessionKey(req))) {
+      return send(res, 409, { error: "Abra o perfil antes de baixar a sessao." });
     }
     await store.audit(user, "profile.cookies.read", profile.id).catch(() => {});
     try {
@@ -125,8 +164,8 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "PUT" && parts[3] === "cookies") {
-    if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
-      return send(res, 409, { error: "Perfil em uso por outro usuario" });
+    if (user.role !== "admin" && !hasSession(profile.id, sessionKey(req))) {
+      return send(res, 409, { error: "Abra o perfil antes de sincronizar." });
     }
     const body = await readBody(req);
     const cookies = Array.isArray(body.cookies) ? body.cookies : [];
@@ -142,26 +181,18 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "POST" && parts[3] === "lock") {
-    if (profile.lockedBy && profile.lockedBy !== user.id) {
-      return send(res, 409, { error: "Perfil ja esta em uso" });
-    }
-    profile.lockedBy = user.id;
-    profile.lockedAt = now();
-    const saved = await store.saveProfile(profile);
-    await store.audit(user, "profile.lock", profile.id);
-    return send(res, 200, { profile: saved });
+    // Nao bloqueia mais: registra que este usuario abriu e avisa quem mais esta.
+    const key = sessionKey(req);
+    touchSession(profile.id, key, user.name);
+    const inUseBy = sessionEntries(profile.id).filter((e) => e.key !== key).map((e) => e.name);
+    await store.audit(user, "profile.open", profile.id).catch(() => {});
+    return send(res, 200, { ok: true, inUseBy });
   }
 
   if (req.method === "POST" && parts[3] === "release") {
-    if (profile.lockedBy && profile.lockedBy !== user.id && user.role !== "admin") {
-      return send(res, 403, { error: "Perfil travado por outro usuario" });
-    }
-    await browserWorker.stopBrowserSession(profile.id);
-    profile.lockedBy = null;
-    profile.lockedAt = null;
-    const saved = await store.saveProfile(profile);
-    await store.audit(user, "profile.release", profile.id);
-    return send(res, 200, { profile: saved });
+    dropSession(profile.id, sessionKey(req));
+    await browserWorker.stopBrowserSession(profile.id).catch(() => {});
+    return send(res, 200, { ok: true });
   }
 
   if (req.method === "POST" && parts[3] === "session" && parts[4] === "start") {
@@ -262,7 +293,13 @@ async function handle(req, res) {
     }
 
     if (req.method === "GET" && parts.join("/") === "api/profiles") {
-      return send(res, 200, { profiles: await store.listProfiles() });
+      const profiles = await store.listProfiles();
+      for (const profile of profiles) {
+        const users = sessionEntries(profile.id);
+        profile.inUse = users.length > 0;
+        profile.inUseBy = users.map((u) => u.name);
+      }
+      return send(res, 200, { profiles });
     }
 
     if (req.method === "POST" && parts.join("/") === "api/profiles") {

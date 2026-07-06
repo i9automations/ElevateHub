@@ -232,21 +232,20 @@ function selectedProfile() {
 }
 
 function canControl(profile) {
-  if (!profile) return false;
-  return !profile.lockedBy || profile.lockedBy === state.user?.id || state.user?.role === "admin";
+  // Acesso simultaneo: qualquer usuario logado pode abrir/gerenciar.
+  return !!profile;
 }
 
 function profileStatus(profile) {
-  if (profile.lockedBy) return { text: "em uso", cls: "busy" };
+  if (profile.inUse) return { text: "em uso", cls: "busy" };
   if (profile.sessionState === "ready") return { text: "logada", cls: "ready" };
-  if (profile.sessionState === "queued") return { text: "abrindo", cls: "queued" };
   return { text: "disponível", cls: "empty" };
 }
 
 function profileMatchesFilter(profile) {
-  if (state.filter === "free") return !profile.lockedBy;
+  if (state.filter === "free") return !profile.inUse;
   if (state.filter === "ready") return profile.sessionState === "ready";
-  if (state.filter === "busy") return !!profile.lockedBy;
+  if (state.filter === "busy") return !!profile.inUse;
   return true;
 }
 
@@ -301,16 +300,11 @@ function renderProfiles() {
   $("profileList").innerHTML = visible.map((profile) => {
     const status = profileStatus(profile);
     const selected = profile.id === state.selectedId ? " selected" : "";
-    const owner = profile.responsavel || profile.lockedByName || "—";
-    const control = canControl(profile);
-    const canRelease = !!profile.lockedBy && control;
+    const inUseNames = Array.isArray(profile.inUseBy) ? profile.inUseBy : [];
+    const owner = profile.responsavel || (inUseNames.length ? inUseNames.join(", ") : "—");
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
-    const releaseButton = canRelease
-      ? `<button class="ghost compact" type="button" data-action="release" data-id="${profile.id}">${isAdmin() ? "Liberar" : "Fechar"}</button>`
-      : "";
-    const openBtn = control
-      ? `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`
-      : `<button class="run" type="button" disabled>Em uso</button>`;
+    const releaseButton = "";
+    const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
     const av = profileAvatar(profile.name);
     return `
       <div class="profile-row${selected} st-row-${status.cls}" data-profile-id="${profile.id}">
@@ -594,16 +588,35 @@ async function openRemote(profileId) {
 async function openLocalBrowser(profileId) {
   state.selectedId = profileId;
   const profile = selectedProfile();
-  if (!profile || !canControl(profile)) return;
+  if (!profile) return;
   if (!window.elevate?.openBrowserProfile) {
     toast("Esta versão do app ainda não abre o navegador local. Atualize o app.", "warning");
     return;
   }
+  let inUseBy = [];
   try {
-    await api(`/api/profiles/${profileId}/lock`, { method: "POST" });
+    const lock = await api(`/api/profiles/${profileId}/lock`, { method: "POST" });
+    inUseBy = Array.isArray(lock?.inUseBy) ? lock.inUseBy : [];
   } catch {
-    toast("Esta conta já está em uso por outra pessoa.", "warning");
+    toast("Não consegui reservar a conta agora.", "danger");
     return;
+  }
+  if (inUseBy.length) {
+    const myName = state.user?.name || "";
+    const others = inUseBy.filter((name) => name && name !== myName);
+    const message = others.length
+      ? `${others.join(", ")} ${others.length > 1 ? "estão" : "está"} nesta conta agora. Abrir mesmo assim?`
+      : `Esta conta já está aberta em outro computador (${inUseBy.length + 1} no total). Abrir mesmo assim?`;
+    const ok = await confirmAction({
+      title: "Conta em uso",
+      message,
+      okLabel: "Abrir mesmo assim"
+    });
+    if (!ok) {
+      await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
+      await loadProfiles().catch(() => {});
+      return;
+    }
   }
   try {
     const startUrl = selectedSquad().startUrl || profile.startUrl;
