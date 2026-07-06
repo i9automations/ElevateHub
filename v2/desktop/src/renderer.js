@@ -103,7 +103,7 @@ function roleLabel(role) {
 }
 
 function canAccessView(view) {
-  return view === "profiles" || isAdmin();
+  return view === "profiles" || view === "mailboxes" || isAdmin();
 }
 
 function compareVersions(left, right) {
@@ -874,12 +874,10 @@ async function createUser(event) {
 function renderSettings() {
   $("settingsApiUrl").textContent = apiBase;
   $("serverUrl").textContent = apiBase.replace(/^https?:\/\//, "");
-  loadMailboxes().catch(() => {});
 }
 
 // ---- Caixas de e-mail (Hostinger) para pegar códigos ----
 async function loadMailboxes() {
-  if (!isAdmin()) return;
   try {
     const data = await api("/api/mailboxes");
     state.mailboxes = Array.isArray(data.mailboxes) ? data.mailboxes : [];
@@ -1011,21 +1009,24 @@ async function setView(view) {
   const squad = selectedSquad();
   const titles = {
     profiles: [squad.name, `${squad.label} - ${profilesForSelectedSquad().length} perfis`],
+    mailboxes: ["Caixas de e-mail", "Códigos de verificação por e-mail"],
     audit: ["Auditoria", "Histórico recente de acessos"],
     team: ["Equipe", "Usuários do aplicativo"],
     settings: ["Configuração", "Servidor e operação"]
   };
-  $("viewTitle").textContent = titles[view][0];
-  $("viewSubtitle").textContent = titles[view][1];
+  $("viewTitle").textContent = (titles[view] || titles.profiles)[0];
+  $("viewSubtitle").textContent = (titles[view] || titles.profiles)[1];
 
   if (view === "audit") await loadAudit();
   if (view === "team") await loadUsers();
+  if (view === "mailboxes") await loadMailboxes();
   if (view === "settings") renderSettings();
 }
 
 async function refreshCurrentView() {
   if (!state.token) return boot();
   if (state.view === "profiles") await loadProfiles();
+  if (state.view === "mailboxes") await loadMailboxes();
   if (isAdmin() && state.view === "audit") await loadAudit();
   if (isAdmin() && state.view === "team") await loadUsers();
   if (isAdmin() && state.view === "settings") renderSettings();

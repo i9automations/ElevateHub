@@ -393,15 +393,15 @@ async function handle(req, res) {
       return send(res, 200, { audit: await store.listAudit() });
     }
 
-    // --- Caixas de e-mail (Hostinger) para pegar codigos. So admin configura. ---
+    // --- Caixas de e-mail (Hostinger) para pegar codigos. ---
+    // Liberado p/ qualquer usuario autenticado (a equipe usa a conta compartilhada,
+    // que nao e admin) - autorizado pelo dono. A senha nunca volta pra tela (mascarada).
     if (req.method === "GET" && parts.join("/") === "api/mailboxes") {
-      if (!requireAdmin(user, res)) return;
       const boxes = await loadMailboxes();
       return send(res, 200, { mailboxes: boxes.map(publicMailbox) });
     }
 
     if (req.method === "PUT" && parts.join("/") === "api/mailboxes") {
-      if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const incoming = Array.isArray(body.mailboxes) ? body.mailboxes : [];
       const existing = await loadMailboxesSafe(); // chave quebrada nao impede recadastro
@@ -415,7 +415,6 @@ async function handle(req, res) {
     }
 
     if (req.method === "POST" && parts.join("/") === "api/mailboxes/test") {
-      if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const existing = await loadMailboxesSafe();
       // testa uma caixa ja salva (por id) ou uma enviada agora (com senha inline)

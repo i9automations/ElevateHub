@@ -102,6 +102,11 @@
         <div class="squad-list" id="squadNav" aria-label="Pastas dos squads"></div>
       </div>
 
+      <nav class="nav" aria-label="Ferramentas">
+        <span class="sidebar-label">Ferramentas</span>
+        <button class="nav-item" type="button" data-view="mailboxes">Caixas de e-mail</button>
+      </nav>
+
       <nav class="nav admin-only" aria-label="Area admin">
         <span class="sidebar-label">Admin</span>
         <button class="nav-item admin-only" type="button" data-view="audit">Auditoria</button>
@@ -352,9 +357,14 @@
               <p>Os perfis ficam salvos no servidor. Ao liberar um perfil, o Chrome fecha, mas a sessão continua persistida para o próximo acesso.</p>
               <p>Se um perfil ficar preso, um admin pode liberar pela lista de perfis.</p>
             </div>
+          </div>
+        </section>
+
+        <section class="view" id="mailboxesView">
+          <div class="settings-grid">
             <div class="view-panel mailbox-panel" id="mailboxPanel">
               <h3>Caixas de e-mail (códigos de verificação)</h3>
-              <p class="mailbox-hint">Cadastre as caixas da Hostinger que recebem os códigos. As senhas ficam <strong>criptografadas</strong> no servidor e nunca voltam para a tela. Ao clicar em “Pegar código” num cliente, o app procura o código nessas caixas pelo e-mail/alias dele.</p>
+              <p class="mailbox-hint">Cadastre as caixas da Hostinger que recebem os códigos. As senhas ficam <strong>criptografadas</strong> no servidor e nunca voltam para a tela. Ao clicar em “Código” num cliente, o app procura o código nessas caixas pelo e-mail/alias dele.</p>
               <div id="mailboxList" class="mailbox-list"></div>
               <div class="mailbox-actions">
                 <button type="button" class="ghost compact" id="addMailboxBtn">+ Adicionar caixa</button>
