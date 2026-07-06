@@ -303,7 +303,10 @@ function renderProfiles() {
     const selected = profile.id === state.selectedId ? " selected" : "";
     const owner = profile.responsavel || "—";
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
-    const codeButton = `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`;
+    // Botao "Código" so no TikTok (fox); os outros marketplaces nao precisam.
+    const codeButton = profileSquad(profile) === "fox"
+      ? `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`
+      : "";
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
     const av = profileAvatar(profile.name);
