@@ -4,6 +4,8 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const browserWorker = require("./browser-worker");
 const { createStore } = require("./store");
+const { loadMailboxes, saveMailboxes, normalizeBox, publicMailbox } = require("./mailboxes");
+const { fetchCode, testMailbox, marketplaceInfo } = require("./imap-code");
 const {
   now,
   parseCsv,
@@ -237,6 +239,31 @@ async function handleProfileRoute(req, res, parts, user) {
     return send(res, 200, { ok: true });
   }
 
+  // Pega o codigo de verificacao (TikTok/ML/Shopee/Amazon) nas caixas Hostinger,
+  // procurando pelo alias do cliente (mailboxEmail do perfil).
+  if (req.method === "POST" && parts[3] === "code") {
+    const body = await readBody(req);
+    const marketplace = String(body.marketplace || "").toLowerCase() || null;
+    if (marketplace && !marketplaceInfo(marketplace)) {
+      return send(res, 400, { error: "Marketplace invalido." });
+    }
+    const alias = String(profile.mailboxEmail || "").trim();
+    if (!alias) {
+      return send(res, 422, { error: "Este perfil nao tem e-mail/alias cadastrado. Preencha em Editar." });
+    }
+    const boxes = await loadMailboxes();
+    if (!boxes.some((b) => b.password)) {
+      return send(res, 409, { error: "Nenhuma caixa de e-mail configurada. Peca ao admin em Ajustes." });
+    }
+    const sinceMinutes = Math.min(Math.max(Number(body.sinceMinutes) || 30, 5), 240);
+    const hit = await fetchCode(boxes, { alias, marketplace, sinceMinutes });
+    await store.audit(user, "profile.code.fetch", profile.id, { marketplace, found: !!hit }).catch(() => {});
+    if (!hit) {
+      return send(res, 404, { error: "Nenhum codigo recente encontrado para esta conta." });
+    }
+    return send(res, 200, { code: hit.code, box: hit.boxLabel, boxEmail: hit.boxEmail, subject: hit.subject, from: hit.from, at: hit.at });
+  }
+
   if (req.method === "POST" && parts[3] === "session" && parts[4] === "start") {
     if (profile.lockedBy && profile.lockedBy !== user.id) {
       return send(res, 409, { error: "Perfil ja esta em uso" });
@@ -364,6 +391,39 @@ async function handle(req, res) {
     if (req.method === "GET" && parts.join("/") === "api/audit") {
       if (!requireAdmin(user, res)) return;
       return send(res, 200, { audit: await store.listAudit() });
+    }
+
+    // --- Caixas de e-mail (Hostinger) para pegar codigos. So admin configura. ---
+    if (req.method === "GET" && parts.join("/") === "api/mailboxes") {
+      if (!requireAdmin(user, res)) return;
+      const boxes = await loadMailboxes();
+      return send(res, 200, { mailboxes: boxes.map(publicMailbox) });
+    }
+
+    if (req.method === "PUT" && parts.join("/") === "api/mailboxes") {
+      if (!requireAdmin(user, res)) return;
+      const body = await readBody(req);
+      const incoming = Array.isArray(body.mailboxes) ? body.mailboxes : [];
+      const existing = await loadMailboxes();
+      const byId = new Map(existing.map((b) => [b.id, b]));
+      const saved = incoming
+        .filter((b) => String(b.email || "").trim())
+        .map((b) => normalizeBox(b, byId.get(b.id)));
+      await saveMailboxes(saved);
+      await store.audit(user, "mailboxes.update", null, { count: saved.length }).catch(() => {});
+      return send(res, 200, { mailboxes: saved.map(publicMailbox) });
+    }
+
+    if (req.method === "POST" && parts.join("/") === "api/mailboxes/test") {
+      if (!requireAdmin(user, res)) return;
+      const body = await readBody(req);
+      const existing = await loadMailboxes();
+      // testa uma caixa ja salva (por id) ou uma enviada agora (com senha inline)
+      let box = body.id ? existing.find((b) => b.id === body.id) : null;
+      if (!box && body.email) box = normalizeBox(body, existing.find((b) => b.id === body.id));
+      if (!box) return send(res, 400, { error: "Caixa nao encontrada para testar." });
+      const result = await testMailbox(box);
+      return send(res, 200, result);
     }
 
     send(res, 404, { error: "Rota nao encontrada" });
