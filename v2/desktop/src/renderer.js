@@ -30,7 +30,7 @@ function storeToken(token, remember) {
       localStorage.removeItem("ctv2.token");
     }
   } catch {
-    // Armazenamento indisponivel nao deve impedir o login na sessao atual.
+    // Armazenamento indisponivel não deve impedir o login na sessão atual.
   }
 }
 
@@ -39,7 +39,7 @@ function clearToken() {
     localStorage.removeItem("ctv2.token");
     sessionStorage.removeItem("ctv2.token");
   } catch {
-    // Ignorar falha ao limpar; a sessao ja foi encerrada em memoria.
+    // Ignorar falha ao limpar; a sessão já foi encerrada em memoria.
   }
 }
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
@@ -116,10 +116,10 @@ function compareVersions(left, right) {
 }
 
 function friendlyError(error) {
-  const message = error?.message || "Nao foi possivel concluir agora.";
+  const message = error?.message || "Não foi possível concluir agora.";
   if (isAdmin()) return message;
   if (/sess|remot|servidor|api|playwright|chrome|driver|vps|limite/i.test(message)) {
-    return "Nao foi possivel abrir essa conta agora. Tente novamente em instantes.";
+    return "Não foi possível abrir essa conta agora. Tente novamente em instantes.";
   }
   return message;
 }
@@ -154,7 +154,7 @@ async function api(path, options = {}) {
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Nao foi possivel concluir agora.");
+  if (!res.ok) throw new Error(data.error || "Não foi possível concluir agora.");
   return data;
 }
 
@@ -239,7 +239,7 @@ function profileStatus(profile) {
   if (profile.lockedBy) return { text: "em uso", cls: "busy" };
   if (profile.sessionState === "ready") return { text: "logada", cls: "ready" };
   if (profile.sessionState === "queued") return { text: "abrindo", cls: "queued" };
-  return { text: "disponivel", cls: "empty" };
+  return { text: "disponível", cls: "empty" };
 }
 
 function profileMatchesFilter(profile) {
@@ -351,8 +351,8 @@ function renderSessionPane() {
   $("selectedStatusPill").className = `badge ${status.cls}`;
   $("selectedStatusPill").textContent = status.text;
   $("lockLine").textContent = profile?.lockedBy
-    ? `Em uso por ${profile.lockedByName || "outro usuario"}.`
-    : "Perfil disponivel.";
+    ? `Em uso por ${profile.lockedByName || "outro usuário"}.`
+    : "Perfil disponível.";
 
   const browserButtons = [
     "browserBackBtn",
@@ -381,7 +381,7 @@ function renderSessionPane() {
 
   const savedText = profile.sessionState === "ready"
     ? "Conta pronta para abrir."
-    : "Conta ainda nao aberta neste app.";
+    : "Conta ainda não aberta neste app.";
   const remoteText = hasSession
     ? "Navegador aberto."
     : "Navegador fechado.";
@@ -545,37 +545,37 @@ async function openLocalBrowser(profileId) {
   const profile = selectedProfile();
   if (!profile || !canControl(profile)) return;
   if (!window.elevate?.openBrowserProfile) {
-    toast("Esta versao do app ainda nao abre o navegador local. Atualize o app.", "warning");
+    toast("Esta versão do app ainda não abre o navegador local. Atualize o app.", "warning");
     return;
   }
   try {
     await api(`/api/profiles/${profileId}/lock`, { method: "POST" });
   } catch {
-    toast("Esta conta ja esta em uso por outra pessoa.", "warning");
+    toast("Esta conta já está em uso por outra pessoa.", "warning");
     return;
   }
   try {
     const startUrl = selectedSquad().startUrl || profile.startUrl;
-    // Etapa 2: baixa a sessao (cookies) do servidor pra ja abrir logado
+    // Etapa 2: baixa a sessão (cookies) do servidor pra já abrir logado
     let cookies = [];
     try {
       const data = await api(`/api/profiles/${profileId}/cookies`);
       cookies = data.cookies || [];
     } catch {
-      // sem sessao salva ainda: abre pra logar do zero (a 1a vez)
+      // sem sessão salva ainda: abre pra logar do zero (a 1a vez)
     }
     const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl, cookies });
     if (!result?.ok) {
       const reason = result?.error === "no-chrome"
-        ? "Navegador do app nao encontrado."
-        : "Nao consegui abrir o navegador.";
+        ? "Navegador do app não encontrado."
+        : "Não consegui abrir o navegador.";
       toast(reason, "danger");
       await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
       await loadProfiles();
       return;
     }
     await loadProfiles();
-    toast(result.already ? `${profile.name} ja esta aberto.` : `Abrindo ${profile.name}...`, "success");
+    toast(result.already ? `${profile.name} já esta aberto.` : `Abrindo ${profile.name}...`, "success");
   } catch (error) {
     toast(friendlyError(error), "danger");
     await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
@@ -748,7 +748,7 @@ async function runImport() {
     const result = data.result || {};
     $("importDialog").close();
     await loadProfiles();
-    toast(`Importacao concluida: ${result.created || 0} novos, ${result.updated || 0} atualizados.`, "success");
+    toast(`Importação concluída: ${result.created || 0} novos, ${result.updated || 0} atualizados.`, "success");
   } catch (error) {
     $("importResult").textContent = error.message;
   }
@@ -762,7 +762,7 @@ function renderAudit() {
       <span>${formatDate(item.at)}</span>
       <small>${escapeHtml(item.targetId || "-")}</small>
     </div>
-  `).join("") : `<div class="empty-state"><strong>Nenhum evento ainda</strong><span>As acoes aparecem aqui conforme o time usa o app.</span></div>`;
+  `).join("") : `<div class="empty-state"><strong>Nenhum evento ainda</strong><span>As ações aparecem aqui conforme o time usa o app.</span></div>`;
 }
 
 function renderUsers() {
@@ -771,7 +771,7 @@ function renderUsers() {
   $("userForm").querySelectorAll("input, select, button").forEach((control) => {
     control.disabled = !canCreate;
   });
-  $("userMsg").textContent = canCreate ? "" : "Somente admin pode criar usuarios.";
+  $("userMsg").textContent = canCreate ? "" : "Somente admin pode criar usuários.";
   $("userList").innerHTML = state.users.map((user) => `
     <div class="user-row">
       <div class="avatar">${escapeHtml(user.name.slice(0, 2).toUpperCase())}</div>
@@ -800,7 +800,7 @@ async function createUser(event) {
     $("userForm").reset();
     $("userMsg").textContent = `Senha inicial: ${data.temporaryPassword}`;
     await loadUsers();
-    toast("Usuario criado.", "success");
+    toast("Usuário criado.", "success");
   } catch (error) {
     $("userMsg").textContent = error.message;
   }
@@ -825,9 +825,9 @@ async function setView(view) {
   const squad = selectedSquad();
   const titles = {
     profiles: [squad.name, `${squad.label} - ${profilesForSelectedSquad().length} perfis`],
-    audit: ["Auditoria", "Historico recente de acessos"],
-    team: ["Equipe", "Usuarios do aplicativo"],
-    settings: ["Configuracao", "Servidor e operacao"]
+    audit: ["Auditoria", "Histórico recente de acessos"],
+    team: ["Equipe", "Usuários do aplicativo"],
+    settings: ["Configuração", "Servidor e operação"]
   };
   $("viewTitle").textContent = titles[view][0];
   $("viewSubtitle").textContent = titles[view][1];
@@ -845,7 +845,7 @@ async function refreshCurrentView() {
   if (isAdmin() && state.view === "settings") renderSettings();
 }
 
-// Atualizacao automatica: o motor (electron-updater no main) checa e baixa
+// Atualização automática: o motor (electron-updater no main) checa e baixa
 // sozinho, em segundo plano, so os pedacos que mudaram (delta). Aqui o
 // renderer so REAGE aos eventos.
 function checkForUpdates() {
@@ -854,15 +854,15 @@ function checkForUpdates() {
 
 function showUpdateReady(info) {
   state.updateInfo = info || {};
-  $("updateCopy").textContent = "Uma nova versao do ElevateHub esta disponivel e pronta. Deseja atualizar agora? (leva poucos segundos)";
-  $("updateMeta").textContent = info?.version ? `Nova versao: ${info.version}` : "";
+  $("updateCopy").textContent = "Uma nova versão do ElevateHub esta disponível e pronta. Deseja atualizar agora? (leva poucos segundos)";
+  $("updateMeta").textContent = info?.version ? `Nova versão: ${info.version}` : "";
   $("installUpdateBtn").textContent = "Atualizar agora";
-  $("cancelUpdateBtn").textContent = "Agora nao";
+  $("cancelUpdateBtn").textContent = "Agora não";
   if (!$("updateDialog").open) $("updateDialog").showModal();
 }
 
 function dismissUpdate() {
-  // "Depois": a atualizacao ja esta baixada e sera aplicada quando fechar o app.
+  // "Depois": a atualização já esta baixada e sera aplicada quando fechar o app.
   $("updateDialog").close();
 }
 
@@ -1087,7 +1087,7 @@ if (window.elevate?.onUpdateAvailable) {
   window.elevate.onUpdateAvailable(() => {
     if (!updateToastShown) {
       updateToastShown = true;
-      toast("Baixando atualizacao em segundo plano...", "info");
+      toast("Baixando atualização em segundo plano...", "info");
     }
   });
 }
@@ -1100,7 +1100,7 @@ if (window.elevate?.onBrowserProfileClosed) {
     try {
       await api(`/api/profiles/${id}/release`, { method: "POST" });
     } catch {
-      // Se a liberacao falhar, o proximo refresh/abertura resolve.
+      // Se a liberacao falhar, o próximo refresh/abertura resolve.
     }
     await loadProfiles().catch(() => {});
   });
@@ -1108,11 +1108,11 @@ if (window.elevate?.onBrowserProfileClosed) {
 
 if (window.elevate?.onBrowserProfileCookies) {
   window.elevate.onBrowserProfileCookies(async ({ id, cookies }) => {
-    // Etapa 2: sobe a sessao (cookies) pro servidor -> aparece pros outros PCs
+    // Etapa 2: sobe a sessão (cookies) pro servidor -> aparece pros outros PCs
     try {
       await api(`/api/profiles/${id}/cookies`, { method: "PUT", body: { cookies } });
     } catch {
-      // proxima sincronizacao (a cada ~20s) tenta de novo
+      // proxima sincronização (a cada ~20s) tenta de novo
     }
   });
 }

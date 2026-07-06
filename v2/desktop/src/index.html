@@ -88,7 +88,7 @@
         </div>
         <div>
           <h1>ElevateHub</h1>
-          <span>Central da operacao</span>
+          <span>Central da operação</span>
         </div>
       </div>
 
@@ -106,7 +106,7 @@
         <span class="sidebar-label">Admin</span>
         <button class="nav-item admin-only" type="button" data-view="audit">Auditoria</button>
         <button class="nav-item admin-only" type="button" data-view="team">Equipe</button>
-        <button class="nav-item admin-only" type="button" data-view="settings">Configuracao</button>
+        <button class="nav-item admin-only" type="button" data-view="settings">Configuração</button>
       </nav>
 
       <div class="server-card admin-only">
@@ -210,16 +210,16 @@
               <button class="filter-tab" type="button" data-filter="ready">Logadas</button>
               <button class="filter-tab" type="button" data-filter="busy">Em uso</button>
             </div>
-            <input id="search" type="search" placeholder="Buscar cliente, e-mail ou responsavel">
+            <input id="search" type="search" placeholder="Buscar cliente, e-mail ou responsável">
           </div>
 
           <section class="profiles-pane">
             <div class="table-head">
               <span>Perfil</span>
               <span>Status</span>
-              <span>Responsavel</span>
-              <span>Ultimo acesso</span>
-              <span style="text-align:right">Acoes</span>
+              <span>Responsável</span>
+              <span>Último acesso</span>
+              <span style="text-align:right">Ações</span>
             </div>
             <div id="profileList" class="profile-list"></div>
             <div id="emptyProfiles" class="empty-state hidden">
@@ -234,7 +234,7 @@
             <button class="ghost" type="button" id="browserBackToList">&#8249; Voltar a lista</button>
           </div>
               <div class="session-header">
-                <span>Area de trabalho</span>
+                <span>Área de trabalho</span>
                 <strong id="selectedName">Nenhum perfil</strong>
                 <small id="selectedEmail">Selecione um cliente para abrir a conta.</small>
               </div>
@@ -285,7 +285,7 @@
             <div class="panel-head">
               <div>
                 <h3>Auditoria</h3>
-                <span>Historico recente de acessos e acoes.</span>
+                <span>Histórico recente de acessos e ações.</span>
               </div>
               <button class="secondary" id="auditRefreshBtn" type="button">Atualizar</button>
             </div>
@@ -299,14 +299,14 @@
               <div class="panel-head">
                 <div>
                   <h3>Equipe</h3>
-                  <span>Usuarios com acesso ao aplicativo.</span>
+                  <span>Usuários com acesso ao aplicativo.</span>
                 </div>
               </div>
               <div id="userList" class="user-list"></div>
             </div>
 
             <form class="view-panel team-form" id="userForm">
-              <h3>Novo usuario</h3>
+              <h3>Novo usuário</h3>
               <label for="userName">Nome</label>
               <input id="userName" autocomplete="off" placeholder="Nome do colaborador">
               <label for="userEmail">E-mail</label>
@@ -318,7 +318,7 @@
               </select>
               <label for="userPassword">Senha inicial</label>
               <input id="userPassword" type="text" autocomplete="off" placeholder="Gerar automaticamente">
-              <button class="primary wide" type="submit">Criar usuario</button>
+              <button class="primary wide" type="submit">Criar usuário</button>
               <div class="form-note" id="userMsg"></div>
             </form>
           </div>
@@ -338,8 +338,8 @@
               </dl>
             </div>
             <div class="view-panel">
-              <h3>Operacao segura</h3>
-              <p>Os perfis ficam salvos no servidor. Ao liberar um perfil, o Chrome fecha, mas a sessao continua persistida para o proximo acesso.</p>
+              <h3>Operação segura</h3>
+              <p>Os perfis ficam salvos no servidor. Ao liberar um perfil, o Chrome fecha, mas a sessão continua persistida para o próximo acesso.</p>
               <p>Se um perfil ficar preso, um admin pode liberar pela lista de perfis.</p>
             </div>
           </div>
@@ -374,7 +374,7 @@
   <dialog id="importDialog">
     <form method="dialog" class="dialog-form">
       <h3>Importar perfis</h3>
-      <p class="dialog-copy">Use colunas como nome, email, tags e caixa_email. O app atualiza perfis pelo e-mail quando ja existir.</p>
+      <p class="dialog-copy">Use colunas como nome, email, tags e caixa_email. O app atualiza perfis pelo e-mail quando já existir.</p>
       <label for="importFile">Arquivo CSV</label>
       <input id="importFile" type="file" accept=".csv,.txt">
       <label for="importText">Ou cole o CSV aqui</label>
@@ -390,8 +390,8 @@
   <dialog id="updateDialog" class="update-dialog">
     <form method="dialog" class="dialog-form update-panel">
       <img class="update-mark" src="./assets/elevatehub-mark.png" alt="ElevateHub">
-      <h3>Atualizacao disponivel</h3>
-      <p class="dialog-copy" id="updateCopy">Existe uma versao mais nova do ElevateHub. Voce pode atualizar agora ou continuar usando por enquanto.</p>
+      <h3>Atualização disponível</h3>
+      <p class="dialog-copy" id="updateCopy">Existe uma versão mais nova do ElevateHub. Você pode atualizar agora ou continuar usando por enquanto.</p>
       <div class="update-meta admin-only" id="updateMeta"></div>
       <div class="dialog-actions">
         <button class="secondary" value="cancel" type="button" id="cancelUpdateBtn">Cancelar</button>
