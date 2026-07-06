@@ -44,6 +44,8 @@ function profileFromRow(row) {
   const rawTags = Array.isArray(row.tags) ? row.tags : [];
   const squadTag = rawTags.find((tag) => /^squad:/i.test(String(tag || "")));
   const squad = normalizeSquad(squadTag ? String(squadTag).split(":")[1] : row.squad);
+  const respTag = rawTags.find((tag) => /^resp:/i.test(String(tag || "")));
+  const responsavel = respTag ? String(respTag).slice(String(respTag).indexOf(":") + 1) : "";
   return {
     id: row.id,
     name: row.name,
@@ -52,7 +54,8 @@ function profileFromRow(row) {
     squad,
     startUrl: row.start_url || startUrlForSquad(squad),
     notes: row.notes || "",
-    tags: rawTags.filter((tag) => !/^squad:/i.test(String(tag || ""))),
+    responsavel,
+    tags: rawTags.filter((tag) => !/^(squad|resp):/i.test(String(tag || ""))),
     sessionState: row.session_state || "empty",
     lockedBy: row.locked_by || null,
     lockedAt: row.locked_at || null,
@@ -64,14 +67,17 @@ function profileFromRow(row) {
 
 function profileToRow(profile) {
   const squad = normalizeSquad(profile.squad);
-  const tags = normalizeTags(profile.tags).filter((tag) => !/^squad:/i.test(String(tag || "")));
+  const tags = normalizeTags(profile.tags).filter((tag) => !/^(squad|resp):/i.test(String(tag || "")));
+  const extra = [`squad:${squad}`];
+  const responsavel = String(profile.responsavel || "").trim();
+  if (responsavel) extra.push(`resp:${responsavel}`);
   return {
     id: profile.id,
     name: profile.name,
     tiktok_email: normalizeEmail(profile.tiktokEmail) || null,
     mailbox_email: normalizeEmail(profile.mailboxEmail) || null,
     notes: String(profile.notes || ""),
-    tags: [...tags, `squad:${squad}`],
+    tags: [...tags, ...extra],
     session_state: profile.sessionState || "empty",
     locked_by: profile.lockedBy || null,
     locked_at: profile.lockedAt || null,
@@ -240,6 +246,7 @@ class SupabaseStore {
       squad: normalizeSquad(body.squad),
       startUrl: startUrlForSquad(body.squad),
       notes: String(body.notes || "").trim(),
+      responsavel: String(body.responsavel || "").trim(),
       tags: normalizeTags(body.tags),
       sessionState: "empty",
       lockedBy: null,

@@ -95,6 +95,7 @@ function applyProfileFields(profile, body) {
   if (body.tiktokEmail !== undefined) profile.tiktokEmail = normalizeEmail(body.tiktokEmail);
   if (body.mailboxEmail !== undefined) profile.mailboxEmail = normalizeEmail(body.mailboxEmail);
   if (body.notes !== undefined) profile.notes = String(body.notes || "").trim();
+  if (body.responsavel !== undefined) profile.responsavel = String(body.responsavel || "").trim();
   if (body.tags !== undefined) profile.tags = normalizeTags(body.tags);
   if (body.squad !== undefined) {
     profile.squad = normalizeSquad(body.squad);

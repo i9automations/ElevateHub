@@ -120,6 +120,12 @@ async function handleProfileRoute(req, res, parts, user) {
     const cookies = Array.isArray(body.cookies) ? body.cookies : [];
     await fsp.mkdir(COOKIES_DIR, { recursive: true });
     await fsp.writeFile(cookiesFile(profile.id), JSON.stringify({ cookies, updatedAt: now() }));
+    // Sessao salva = conta logada. Reflete no status do perfil.
+    const nowReady = cookies.length > 0;
+    if ((profile.sessionState === "ready") !== nowReady) {
+      profile.sessionState = nowReady ? "ready" : "empty";
+      await store.saveProfile(profile);
+    }
     return send(res, 200, { ok: true, count: cookies.length });
   }
 

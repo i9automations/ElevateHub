@@ -282,6 +282,7 @@ function renderProfiles() {
       profile.name,
       profile.tiktokEmail,
       profile.mailboxEmail,
+      profile.responsavel,
       profile.lockedByName,
       profile.notes,
       selectedSquad().label,
@@ -294,7 +295,7 @@ function renderProfiles() {
   $("profileList").innerHTML = visible.map((profile) => {
     const status = profileStatus(profile);
     const selected = profile.id === state.selectedId ? " selected" : "";
-    const owner = profile.lockedByName || "—";
+    const owner = profile.responsavel || profile.lockedByName || "—";
     const control = canControl(profile);
     const canRelease = !!profile.lockedBy && control;
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
@@ -461,6 +462,7 @@ function openProfileDialog(profile = null) {
   $("profileSquadName").textContent = `${squad.name} - ${squad.label}`;
   $("profileName").value = profile?.name || "";
   $("profileEmail").value = profile?.tiktokEmail || "";
+  $("profileResp").value = profile?.responsavel || "";
   $("profileMailbox").value = profile?.mailboxEmail || "";
   $("profileTags").value = (profile?.tags || []).join(", ");
   $("profileNotes").value = profile?.notes || "";
@@ -521,6 +523,7 @@ async function saveProfile(event) {
   const body = {
     name: $("profileName").value.trim(),
     tiktokEmail: $("profileEmail").value.trim(),
+    responsavel: $("profileResp").value.trim(),
     notes: $("profileNotes").value.trim(),
     squad: state.editProfileId ? profileSquad(selectedProfile()) : state.selectedSquad
   };
