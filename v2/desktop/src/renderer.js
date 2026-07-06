@@ -470,7 +470,26 @@ function openProfileDialog(profile = null) {
   $("profileMailbox").value = profile?.mailboxEmail || "";
   $("profileTags").value = (profile?.tags || []).join(", ");
   $("profileNotes").value = profile?.notes || "";
+  // Excluir so aparece ao editar um perfil existente (e so admin)
+  $("deleteProfileBtn").classList.toggle("hidden", !(profile && isAdmin()));
   $("profileDialog").showModal();
+}
+
+async function deleteProfile() {
+  const id = state.editProfileId;
+  const profile = state.profiles.find((item) => item.id === id);
+  if (!id || !isAdmin()) return;
+  const nome = profile?.name || "este perfil";
+  if (!window.confirm(`Excluir "${nome}"? Essa ação não pode ser desfeita.`)) return;
+  try {
+    await api(`/api/profiles/${id}`, { method: "DELETE" });
+    $("profileDialog").close();
+    if (state.selectedId === id) state.selectedId = null;
+    await loadProfiles();
+    toast("Perfil excluído.", "success");
+  } catch (error) {
+    toast(friendlyError(error), "danger");
+  }
 }
 
 async function saveProfile(event) {
@@ -998,6 +1017,7 @@ $("search").addEventListener("input", renderProfiles);
 $("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
 $("importBtn").addEventListener("click", () => requireAdminAction(() => $("importDialog").showModal()));
 $("cancelProfileBtn").addEventListener("click", () => $("profileDialog").close());
+$("deleteProfileBtn").addEventListener("click", deleteProfile);
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
 $("cancelUpdateBtn").addEventListener("click", dismissUpdate);
 $("installUpdateBtn").addEventListener("click", installUpdate);

@@ -1720,3 +1720,14 @@ dialog::backdrop {
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* Botao de acao destrutiva (Excluir) */
+button.danger {
+  border-radius: 8px;
+  font-weight: 700;
+  padding: 0 15px;
+  border: 1px solid rgba(255, 98, 127, .4);
+  background: transparent;
+  color: #ff8ca1;
+}
+button.danger:hover { background: var(--danger); color: #2a0710; border-color: var(--danger); }
