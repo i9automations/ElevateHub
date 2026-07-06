@@ -23,9 +23,17 @@ function getKey() {
   } catch { /* gera abaixo */ }
   const key = crypto.randomBytes(32);
   fs.mkdirSync(path.dirname(KEY_FILE), { recursive: true });
-  fs.writeFileSync(KEY_FILE, key.toString("base64"), { mode: 0o600 });
-  try { fs.chmodSync(KEY_FILE, 0o600); } catch { /* Windows ignora */ }
-  cachedKey = key;
+  try {
+    // flag "wx": falha se o arquivo ja existe -> evita 2 processos gerarem chaves
+    // diferentes (o que tornaria dados ja cifrados indecifraveis).
+    fs.writeFileSync(KEY_FILE, key.toString("base64"), { mode: 0o600, flag: "wx" });
+    try { fs.chmodSync(KEY_FILE, 0o600); } catch { /* Windows ignora */ }
+    cachedKey = key;
+  } catch {
+    // outro processo criou primeiro: usa a chave dele
+    const raw = fs.readFileSync(KEY_FILE, "utf8").trim();
+    cachedKey = Buffer.from(raw, "base64");
+  }
   return cachedKey;
 }
 

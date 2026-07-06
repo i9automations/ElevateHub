@@ -928,6 +928,16 @@ function readMailboxRows() {
   });
 }
 
+// Copia o que está digitado nas linhas para o state (preserva id/hasPassword),
+// pra adicionar/remover uma linha não apagar o que já foi preenchido nas outras.
+function syncMailboxStateFromDom() {
+  const rows = readMailboxRows();
+  state.mailboxes = rows.map((r, i) => ({
+    ...(state.mailboxes || [])[i],
+    label: r.label, email: r.email, host: r.host, port: r.port
+  }));
+}
+
 async function saveMailboxesUI() {
   const mailboxes = readMailboxRows().filter((b) => b.email);
   try {
@@ -946,6 +956,7 @@ async function testMailboxRow(rowEl) {
   const rows = readMailboxRows();
   const box = rows[idx];
   if (!box?.email) { toast("Preencha o e-mail da caixa.", "warning"); return; }
+  if (!box.password && !box.id) { toast("Digite a senha da caixa para testar.", "warning"); return; }
   statusEl.textContent = "testando…";
   statusEl.className = "mbx-status testing";
   try {
@@ -1246,7 +1257,8 @@ $("profileList").addEventListener("click", (event) => {
 
 // Caixas de e-mail (Configuração, admin)
 $("addMailboxBtn")?.addEventListener("click", () => {
-  state.mailboxes = [...(state.mailboxes || []), { label: "", email: "", host: "imap.hostinger.com", port: 993, hasPassword: false }];
+  syncMailboxStateFromDom();
+  state.mailboxes.push({ label: "", email: "", host: "imap.hostinger.com", port: 993, hasPassword: false });
   renderMailboxes();
 });
 $("saveMailboxesBtn")?.addEventListener("click", saveMailboxesUI);
@@ -1256,7 +1268,8 @@ $("mailboxList")?.addEventListener("click", (event) => {
   if (event.target.closest(".mbx-test")) testMailboxRow(row);
   else if (event.target.closest(".mbx-del")) {
     const idx = Number(row.dataset.idx);
-    state.mailboxes = (state.mailboxes || []).filter((_, i) => i !== idx);
+    syncMailboxStateFromDom();
+    state.mailboxes.splice(idx, 1);
     renderMailboxes();
   }
 });

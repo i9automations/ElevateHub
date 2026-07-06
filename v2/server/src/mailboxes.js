@@ -25,13 +25,28 @@ function normalizeBox(input, existing) {
 }
 
 async function loadMailboxes() {
+  let raw;
   try {
-    const raw = await fsp.readFile(FILE, "utf8");
+    raw = await fsp.readFile(FILE, "utf8");
+  } catch {
+    return []; // arquivo ainda nao existe = nenhuma caixa cadastrada
+  }
+  try {
     const list = JSON.parse(decrypt(raw));
     return Array.isArray(list) ? list : [];
   } catch {
-    return [];
+    // Arquivo existe mas nao decifrou (chave mudou/corrompeu). NAO retorna [] em
+    // silencio (o admin veria "sem caixas" e reescreveria por cima, perdendo tudo).
+    const err = new Error("Nao consegui ler as caixas (a chave de seguranca do servidor pode ter mudado). As senhas precisam ser cadastradas de novo.");
+    err.status = 500;
+    err.code = "MAILBOX_DECRYPT";
+    throw err;
   }
+}
+
+// Versao que nunca lanca (para merge no PUT): se nao der pra ler, trata como vazio.
+async function loadMailboxesSafe() {
+  try { return await loadMailboxes(); } catch { return []; }
 }
 
 async function saveMailboxes(list) {
@@ -51,4 +66,4 @@ function publicMailbox(b) {
   };
 }
 
-module.exports = { loadMailboxes, saveMailboxes, normalizeBox, publicMailbox, FILE };
+module.exports = { loadMailboxes, loadMailboxesSafe, saveMailboxes, normalizeBox, publicMailbox, FILE };

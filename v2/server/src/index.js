@@ -4,7 +4,7 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const browserWorker = require("./browser-worker");
 const { createStore } = require("./store");
-const { loadMailboxes, saveMailboxes, normalizeBox, publicMailbox } = require("./mailboxes");
+const { loadMailboxes, loadMailboxesSafe, saveMailboxes, normalizeBox, publicMailbox } = require("./mailboxes");
 const { fetchCode, testMailbox, marketplaceInfo } = require("./imap-code");
 const {
   now,
@@ -404,7 +404,7 @@ async function handle(req, res) {
       if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
       const incoming = Array.isArray(body.mailboxes) ? body.mailboxes : [];
-      const existing = await loadMailboxes();
+      const existing = await loadMailboxesSafe(); // chave quebrada nao impede recadastro
       const byId = new Map(existing.map((b) => [b.id, b]));
       const saved = incoming
         .filter((b) => String(b.email || "").trim())
@@ -417,7 +417,7 @@ async function handle(req, res) {
     if (req.method === "POST" && parts.join("/") === "api/mailboxes/test") {
       if (!requireAdmin(user, res)) return;
       const body = await readBody(req);
-      const existing = await loadMailboxes();
+      const existing = await loadMailboxesSafe();
       // testa uma caixa ja salva (por id) ou uma enviada agora (com senha inline)
       let box = body.id ? existing.find((b) => b.id === body.id) : null;
       if (!box && body.email) box = normalizeBox(body, existing.find((b) => b.id === body.id));

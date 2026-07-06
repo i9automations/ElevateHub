@@ -62,8 +62,12 @@ function connectCdp(wsUrl) {
         try { ws.close(); } catch { /* ja fechado */ }
       }
     };
+    // Se a conexao cair, rejeita TODAS as chamadas pendentes (senao um `await`
+    // de um comando sem resposta fica preso p/ sempre — poderia travar a aba).
+    const failAll = (err) => { for (const [, p] of pending) p.rej(err); pending.clear(); };
     ws.addEventListener("open", () => { settled = true; resolve(client); });
-    ws.addEventListener("error", () => { if (!settled) reject(new Error("cdp-ws-error")); });
+    ws.addEventListener("error", () => { if (!settled) reject(new Error("cdp-ws-error")); else failAll(new Error("cdp-ws-error")); });
+    ws.addEventListener("close", () => { if (!settled) reject(new Error("cdp-ws-closed")); else failAll(new Error("cdp-ws-closed")); });
     ws.addEventListener("message", (event) => {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
@@ -160,7 +164,11 @@ async function startCookieSync(profileId, dir, url, cookies, sender) {
   client.on("Target.attachedToTarget", async ({ sessionId, targetInfo }) => {
     try {
       if (targetInfo && (targetInfo.type === "page" || targetInfo.type === "iframe")) {
-        await client.send("Emulation.setUserAgentOverride", uaMeta, sessionId);
+        // Nunca segura a aba mais que 3s esperando o override.
+        await Promise.race([
+          client.send("Emulation.setUserAgentOverride", uaMeta, sessionId),
+          sleep(3000)
+        ]);
       }
     } catch { /* segue mesmo sem override nessa aba */ }
     // SEMPRE libera a aba pausada, senao ela trava.
