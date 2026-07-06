@@ -253,7 +253,7 @@ function renderMetrics() {
   const profiles = profilesForSelectedSquad();
   const total = profiles.length;
   const ready = profiles.filter((profile) => profile.sessionState === "ready").length;
-  const busy = profiles.filter((profile) => profile.lockedBy).length;
+  const busy = profiles.filter((profile) => profile.inUse).length;
   $("metricTotal").textContent = total;
   $("metricReady").textContent = ready;
   $("metricBusy").textContent = busy;
@@ -300,8 +300,7 @@ function renderProfiles() {
   $("profileList").innerHTML = visible.map((profile) => {
     const status = profileStatus(profile);
     const selected = profile.id === state.selectedId ? " selected" : "";
-    const inUseNames = Array.isArray(profile.inUseBy) ? profile.inUseBy : [];
-    const owner = profile.responsavel || (inUseNames.length ? inUseNames.join(", ") : "—");
+    const owner = profile.responsavel || "—";
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
@@ -1191,7 +1190,7 @@ if (window.elevate?.onBrowserProfileCookies) {
     try {
       await api(`/api/profiles/${id}/cookies`, { method: "PUT", body: { cookies } });
     } catch {
-      // proxima sincronização (a cada ~20s) tenta de novo
+      // proxima sincronização (a cada ~8s) tenta de novo
     }
   });
 }

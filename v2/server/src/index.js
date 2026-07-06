@@ -29,20 +29,59 @@ function cookiesFile(profileId) {
 // Expira sozinho (evita "trava presa" se um PC travar/desligar).
 const activeSessions = new Map(); // profileId -> Map(sessionKey -> { name, at })
 const SESSION_TTL_MS = 15 * 60 * 1000;
+const releasedAt = new Map(); // profileId -> Map(key -> ts): "tombstone" p/ ignorar batida atrasada logo apos fechar
+const RELEASE_GRACE_MS = 8000;
+let cookieTmpSeq = 0; // sufixo unico p/ arquivos temporarios de cookies (escrita atomica)
+
+// Grava de forma atomica (tmp unico + rename). No Windows, rename concorrente p/ o mesmo
+// destino pode dar EPERM/EACCES/EEXIST/EBUSY -> tenta de novo com um pequeno intervalo.
+// No Linux (producao) rename ja e atomico; o retry so ajuda em casos raros.
+async function atomicWriteFile(dest, data) {
+  const tmp = `${dest}.${Date.now()}.${cookieTmpSeq++}.tmp`;
+  await fsp.writeFile(tmp, data);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fsp.rename(tmp, dest);
+      return;
+    } catch (err) {
+      const retryable = ["EPERM", "EACCES", "EEXIST", "EBUSY"].includes(err.code);
+      if (!retryable || attempt >= 6) {
+        await fsp.rm(tmp, { force: true }).catch(() => {});
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 15 * (attempt + 1)));
+    }
+  }
+}
 
 function sessionKey(req) {
   const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!token) return "anon";
   return crypto.createHash("sha256").update(token).digest("hex").slice(0, 24);
 }
-function touchSession(profileId, key, name) {
+function justReleased(profileId, key) {
+  const m = releasedAt.get(profileId);
+  const ts = m && m.get(key);
+  if (!ts) return false;
+  if (Date.now() - ts > RELEASE_GRACE_MS) { m.delete(key); return false; }
+  return true;
+}
+// heartbeat=true: batida automatica da sincronizacao (ignora se o perfil acabou de ser fechado, evita
+// "ressuscitar" a presenca de um navegador ja fechado). Sem heartbeat = abertura explicita, sempre registra.
+function touchSession(profileId, key, name, heartbeat) {
+  if (heartbeat && justReleased(profileId, key)) return;
   let sessions = activeSessions.get(profileId);
   if (!sessions) { sessions = new Map(); activeSessions.set(profileId, sessions); }
   sessions.set(key, { name: name || "Equipe", at: Date.now() });
+  const rm = releasedAt.get(profileId); // abriu de novo -> limpa o tombstone
+  if (rm) rm.delete(key);
 }
 function dropSession(profileId, key) {
   const sessions = activeSessions.get(profileId);
   if (sessions) { sessions.delete(key); if (!sessions.size) activeSessions.delete(profileId); }
+  let m = releasedAt.get(profileId);
+  if (!m) { m = new Map(); releasedAt.set(profileId, m); }
+  m.set(key, Date.now());
 }
 function sessionEntries(profileId) {
   const sessions = activeSessions.get(profileId);
@@ -164,13 +203,16 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "PUT" && parts[3] === "cookies") {
-    if (user.role !== "admin" && !hasSession(profile.id, sessionKey(req))) {
-      return send(res, 409, { error: "Abra o perfil antes de sincronizar." });
-    }
+    // Um PUT so acontece com o navegador aberto no PC. Registrar/renovar a
+    // presenca aqui serve de heartbeat (mantem viva enquanto aberto) e de
+    // auto-recuperacao caso o servidor tenha reiniciado e perdido a memoria.
+    touchSession(profile.id, sessionKey(req), user.name, true);
     const body = await readBody(req);
     const cookies = Array.isArray(body.cookies) ? body.cookies : [];
     await fsp.mkdir(COOKIES_DIR, { recursive: true });
-    await fsp.writeFile(cookiesFile(profile.id), JSON.stringify({ cookies, updatedAt: now() }));
+    // Escrita atomica: 2 pessoas na mesma conta gravam a cada 8s. writeFile direto pode
+    // intercalar e corromper o JSON (-> sessao perdida). tmp unico + rename resolve.
+    await atomicWriteFile(cookiesFile(profile.id), JSON.stringify({ cookies, updatedAt: now() }));
     // Sessao salva = conta logada. Reflete no status do perfil.
     const nowReady = cookies.length > 0;
     if ((profile.sessionState === "ready") !== nowReady) {
