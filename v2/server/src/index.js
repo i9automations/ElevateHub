@@ -246,9 +246,11 @@ async function handleProfileRoute(req, res, parts, user) {
     if (marketplace && !marketplaceInfo(marketplace)) {
       return send(res, 400, { error: "Marketplace invalido." });
     }
-    const alias = String(profile.mailboxEmail || "").trim();
+    // Usa a caixa Hostinger (alias) se preenchida; senao cai pro e-mail de login
+    // do perfil, que normalmente e o MESMO endereco que recebe o codigo.
+    const alias = String(profile.mailboxEmail || profile.tiktokEmail || "").trim();
     if (!alias) {
-      return send(res, 422, { error: "Este perfil nao tem e-mail/alias cadastrado. Preencha em Editar." });
+      return send(res, 422, { error: "Este perfil nao tem e-mail cadastrado. Preencha o e-mail de login em Editar." });
     }
     const boxes = await loadMailboxes();
     if (!boxes.some((b) => b.password)) {
