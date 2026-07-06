@@ -166,6 +166,7 @@ class JsonStore {
       squad: normalizeSquad(body.squad),
       startUrl: startUrlForSquad(body.squad),
       notes: String(body.notes || "").trim(),
+      responsavel: String(body.responsavel || "").trim(),
       tags: normalizeTags(body.tags),
       sessionState: "empty",
       lockedBy: null,

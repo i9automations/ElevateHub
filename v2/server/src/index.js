@@ -267,7 +267,7 @@ async function handle(req, res) {
     }
 
     if (parts[0] === "api" && parts[1] === "profiles" && parts[2]) {
-      return handleProfileRoute(req, res, parts, user);
+      return await handleProfileRoute(req, res, parts, user);
     }
 
     if (req.method === "GET" && parts.join("/") === "api/audit") {
