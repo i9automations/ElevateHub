@@ -89,8 +89,14 @@ async function handleProfileRoute(req, res, parts, user) {
   if (!profile) return send(res, 404, { error: "Perfil nao encontrado" });
 
   if (req.method === "PATCH" && parts.length === 3) {
-    // Equipe (operador) pode editar perfis; areas de admin seguem protegidas.
+    // Equipe (operador) edita nome/email/responsavel/notas. Campos sensiveis
+    // (caixa Hostinger, tags, mover de pasta) so admin.
     const body = await readBody(req);
+    if (user.role !== "admin") {
+      delete body.mailboxEmail;
+      delete body.tags;
+      delete body.squad;
+    }
     const updated = await store.updateProfile(user, profile.id, body);
     return send(res, 200, { profile: updated });
   }
@@ -103,6 +109,12 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "GET" && parts[3] === "cookies") {
+    // So quem tem o perfil travado (ou admin) le a sessao. O app trava antes de
+    // abrir, entao o fluxo normal funciona; isso barra varredura em massa.
+    if (user.role !== "admin" && profile.lockedBy !== user.id) {
+      return send(res, 409, { error: "Trave o perfil (Abrir) antes de baixar a sessao." });
+    }
+    await store.audit(user, "profile.cookies.read", profile.id).catch(() => {});
     try {
       const raw = await fsp.readFile(cookiesFile(profile.id), "utf8");
       const parsed = JSON.parse(raw);

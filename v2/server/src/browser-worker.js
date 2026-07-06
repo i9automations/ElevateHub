@@ -20,11 +20,35 @@ function slug(value) {
     .toLowerCase() || "perfil";
 }
 
+function isBlockedHost(host) {
+  const h = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!h) return true;
+  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal")) return true;
+  if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true;
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (a === 127 || a === 10 || a === 0) return true;               // loopback / privado / invalido
+    if (a === 169 && b === 254) return true;                          // link-local / metadata de nuvem
+    if (a === 172 && b >= 16 && b <= 31) return true;                 // privado
+    if (a === 192 && b === 168) return true;                          // privado
+  }
+  return false;
+}
+
 function safeUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return LOGIN_URL;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  return `https://${raw}`;
+  const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProto);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return LOGIN_URL;
+    if (isBlockedHost(url.hostname)) return LOGIN_URL;               // bloqueia SSRF p/ rede interna
+    return withProto;
+  } catch {
+    return LOGIN_URL;
+  }
 }
 
 function publicSession(session) {
