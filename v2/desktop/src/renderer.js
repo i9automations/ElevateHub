@@ -832,10 +832,10 @@ function checkForUpdates() {
 
 function showUpdateReady(info) {
   state.updateInfo = info || {};
-  $("updateCopy").textContent = "Uma atualizacao foi baixada e esta pronta. Reinicie o app para aplicar (leva poucos segundos).";
+  $("updateCopy").textContent = "Uma nova versao do ElevateHub esta disponivel e pronta. Deseja atualizar agora? (leva poucos segundos)";
   $("updateMeta").textContent = info?.version ? `Nova versao: ${info.version}` : "";
-  $("installUpdateBtn").textContent = "Reiniciar agora";
-  $("cancelUpdateBtn").textContent = "Depois";
+  $("installUpdateBtn").textContent = "Atualizar agora";
+  $("cancelUpdateBtn").textContent = "Agora nao";
   if (!$("updateDialog").open) $("updateDialog").showModal();
 }
 
