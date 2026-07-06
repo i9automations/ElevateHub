@@ -41,19 +41,23 @@ function connectCdp(wsUrl) {
     const ws = new WebSocket(wsUrl);
     let nextId = 1;
     const pending = new Map();
+    const listeners = new Map();
     const client = {
-      send(method, params = {}) {
+      send(method, params = {}, sessionId) {
         return new Promise((res, rej) => {
           const id = nextId++;
           pending.set(id, { res, rej });
+          const msg = { id, method, params };
+          if (sessionId) msg.sessionId = sessionId;
           try {
-            ws.send(JSON.stringify({ id, method, params }));
+            ws.send(JSON.stringify(msg));
           } catch (err) {
             pending.delete(id);
             rej(err);
           }
         });
       },
+      on(method, fn) { listeners.set(method, fn); },
       close() {
         try { ws.close(); } catch { /* ja fechado */ }
       }
@@ -68,9 +72,42 @@ function connectCdp(wsUrl) {
         pending.delete(msg.id);
         if (msg.error) p.rej(new Error(msg.error.message || "cdp-error"));
         else p.res(msg.result);
+      } else if (msg.method && listeners.has(msg.method)) {
+        try { listeners.get(msg.method)(msg.params || {}); } catch { /* handler nao pode derrubar */ }
       }
     });
   });
+}
+
+// O Chrome for Testing se identifica como "Chromium" (nao "Google Chrome") no
+// navigator.userAgentData.brands. Alguns sites (ex: TikTok Shop) checam isso e
+// bloqueiam com "atualize o app". Aqui montamos os metadados de um Chrome normal.
+function buildUaMetadata(browserStr, ua) {
+  const full = String(browserStr || "").split("/")[1]?.trim() || "150.0.0.0";
+  const major = full.split(".")[0];
+  return {
+    userAgent: ua,
+    userAgentMetadata: {
+      brands: [
+        { brand: "Not;A=Brand", version: "8" },
+        { brand: "Chromium", version: major },
+        { brand: "Google Chrome", version: major }
+      ],
+      fullVersionList: [
+        { brand: "Not;A=Brand", version: "8.0.0.0" },
+        { brand: "Chromium", version: full },
+        { brand: "Google Chrome", version: full }
+      ],
+      fullVersion: full,
+      platform: "Windows",
+      platformVersion: "19.0.0",
+      architecture: "x86",
+      model: "",
+      mobile: false,
+      bitness: "64",
+      wow64: false
+    }
+  };
 }
 
 async function waitDevToolsPort(dir) {
@@ -116,6 +153,22 @@ async function startCookieSync(profileId, dir, url, cookies, sender) {
       try { await client.send("Storage.setCookies", { cookies: [cookie] }); } catch { /* ignora esse cookie */ }
     }
   }
+
+  // Faz o navegador se apresentar como "Google Chrome" (senao o TikTok bloqueia).
+  // Auto-attach em cada aba nova: aplicamos a marca ANTES de a pagina rodar.
+  const uaMeta = buildUaMetadata(version.Browser, version["User-Agent"]);
+  client.on("Target.attachedToTarget", async ({ sessionId, targetInfo }) => {
+    try {
+      if (targetInfo && (targetInfo.type === "page" || targetInfo.type === "iframe")) {
+        await client.send("Emulation.setUserAgentOverride", uaMeta, sessionId);
+      }
+    } catch { /* segue mesmo sem override nessa aba */ }
+    // SEMPRE libera a aba pausada, senao ela trava.
+    try { await client.send("Runtime.runIfWaitingForDebugger", {}, sessionId); } catch { /* ja liberada */ }
+  });
+  try {
+    await client.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+  } catch { /* sem auto-attach: abre normal (pode cair no bloqueio do TikTok) */ }
 
   let createdId = null;
   try { createdId = (await client.send("Target.createTarget", { url })).targetId; } catch { /* abre sem navegar */ }
