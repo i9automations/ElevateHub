@@ -1034,10 +1034,6 @@ $("togglePw")?.addEventListener("click", () => {
   input.type = show ? "text" : "password";
   $("togglePw").textContent = show ? "Ocultar" : "Mostrar";
 });
-if ($("loginFooter")) {
-  const host = apiBase.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  $("loginFooter").textContent = `${host} · v${appVersion}`;
-}
 $("refreshBtn").addEventListener("click", refreshCurrentView);
 $("search").addEventListener("input", renderProfiles);
 $("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
