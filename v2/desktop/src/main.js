@@ -214,6 +214,33 @@ async function startCookieSync(profileId, dir, url, cookies, sender) {
   entry.interval = setInterval(pushCookies, 8000);   // e mantem sincronizado
 }
 
+// Identidade da janela (estilo Dolphin): nome do cliente + cor propria no
+// perfil do Chrome -> cada conta aparece com seu nome na barra de tarefas,
+// no lugar de "Test". Mescla no Preferences (nao apaga login/cookies).
+const WINDOW_PALETTE = [0xA78BFA, 0x34D399, 0x60A5FA, 0xFBBF24, 0xFB7185, 0x22D3EE, 0xF472B6, 0x4ADE80, 0x818CF8, 0xF0883E];
+async function markChromeProfile(dir, name) {
+  const clean = String(name || "").trim();
+  if (!clean) return;
+  const defDir = path.join(dir, "Default");
+  const prefsPath = path.join(defDir, "Preferences");
+  await fs.mkdir(defDir, { recursive: true });
+  let prefs = {};
+  try { prefs = JSON.parse(await fs.readFile(prefsPath, "utf8")); } catch { prefs = {}; }
+  let h = 0;
+  for (const ch of clean) h = (h + ch.charCodeAt(0)) >>> 0;
+  const rgb = WINDOW_PALETTE[h % WINDOW_PALETTE.length];
+  prefs.profile = prefs.profile || {};
+  prefs.profile.name = clean;
+  prefs.profile.avatar_index = h % 56;
+  prefs.profile.using_default_avatar = false;
+  prefs.profile.using_default_name = false;
+  prefs.browser = prefs.browser || {};
+  prefs.browser.theme = prefs.browser.theme || {};
+  prefs.browser.theme.user_color = ((0xFF << 24) | rgb) >>> 0;
+  prefs.browser.theme.is_grayscale = false;
+  try { await fs.writeFile(prefsPath, JSON.stringify(prefs)); } catch { /* segue sem a marca */ }
+}
+
 async function openBrowserProfile(info, sender) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, error: "no-id" };
@@ -224,6 +251,7 @@ async function openBrowserProfile(info, sender) {
 
   const dir = profileDataDir(profileId);
   await fs.mkdir(dir, { recursive: true });
+  await markChromeProfile(dir, info?.name);
   await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
   const url = /^https?:/i.test(String(info?.url || "")) ? String(info.url) : "about:blank";
 
