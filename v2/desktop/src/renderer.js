@@ -297,9 +297,7 @@ function renderProfiles() {
     const owner = profile.lockedByName || "—";
     const control = canControl(profile);
     const canRelease = !!profile.lockedBy && control;
-    const editButton = isAdmin()
-      ? `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`
-      : "";
+    const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
     const releaseButton = canRelease
       ? `<button class="ghost compact" type="button" data-action="release" data-id="${profile.id}">${isAdmin() ? "Liberar" : "Fechar"}</button>`
       : "";
@@ -457,10 +455,6 @@ async function restoreSession() {
 }
 
 function openProfileDialog(profile = null) {
-  if (profile && !isAdmin()) {
-    toast("Acesso exclusivo do admin.", "warning");
-    return;
-  }
   const squad = profile ? squads.find((item) => item.key === profileSquad(profile)) || selectedSquad() : selectedSquad();
   state.editProfileId = profile?.id || null;
   $("profileDialogTitle").textContent = profile ? "Editar perfil" : "Novo perfil";
@@ -470,15 +464,15 @@ function openProfileDialog(profile = null) {
   $("profileMailbox").value = profile?.mailboxEmail || "";
   $("profileTags").value = (profile?.tags || []).join(", ");
   $("profileNotes").value = profile?.notes || "";
-  // Excluir so aparece ao editar um perfil existente (e so admin)
-  $("deleteProfileBtn").classList.toggle("hidden", !(profile && isAdmin()));
+  // Excluir so aparece ao editar um perfil existente
+  $("deleteProfileBtn").classList.toggle("hidden", !profile);
   $("profileDialog").showModal();
 }
 
 async function deleteProfile() {
   const id = state.editProfileId;
   const profile = state.profiles.find((item) => item.id === id);
-  if (!id || !isAdmin()) return;
+  if (!id) return;
   const nome = profile?.name || "este perfil";
   if (!window.confirm(`Excluir "${nome}"? Essa ação não pode ser desfeita.`)) return;
   try {
@@ -494,7 +488,6 @@ async function deleteProfile() {
 
 async function saveProfile(event) {
   event.preventDefault();
-  if (state.editProfileId && !isAdmin()) return;
   const body = {
     name: $("profileName").value.trim(),
     tiktokEmail: $("profileEmail").value.trim(),
@@ -1068,7 +1061,7 @@ $("profileList").addEventListener("click", (event) => {
     resetBrowserFrame();
   }
   if (button?.dataset.action === "open") openLocalBrowser(id);
-  else if (button?.dataset.action === "edit") requireAdminAction(() => openProfileDialog(profile));
+  else if (button?.dataset.action === "edit") requireAuth(() => openProfileDialog(profile));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
 });

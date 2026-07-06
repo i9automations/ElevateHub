@@ -89,14 +89,14 @@ async function handleProfileRoute(req, res, parts, user) {
   if (!profile) return send(res, 404, { error: "Perfil nao encontrado" });
 
   if (req.method === "PATCH" && parts.length === 3) {
-    if (!requireAdmin(user, res)) return;
+    // Equipe (operador) pode editar perfis; areas de admin seguem protegidas.
     const body = await readBody(req);
     const updated = await store.updateProfile(user, profile.id, body);
     return send(res, 200, { profile: updated });
   }
 
   if (req.method === "DELETE" && parts.length === 3) {
-    if (!requireAdmin(user, res)) return;
+    // Equipe (operador) pode excluir perfis; areas de admin seguem protegidas.
     await browserWorker.stopBrowserSession(profile.id);
     await store.deleteProfile(user, profile.id);
     return send(res, 200, { ok: true });
