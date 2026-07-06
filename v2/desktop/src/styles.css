@@ -1705,3 +1705,18 @@ dialog::backdrop {
 .pr-status .st-empty i { background:#5b6470; }
 
 .pr-act .run svg { flex-shrink:0; }
+
+/* ===== Barra de rolagem fina e escura (no lugar da padrao do Windows) ===== */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #2c333d;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4450;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
