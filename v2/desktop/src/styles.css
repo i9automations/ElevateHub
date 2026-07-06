@@ -1731,3 +1731,5 @@ button.danger {
   color: #ff8ca1;
 }
 button.danger:hover { background: var(--danger); color: #2a0710; border-color: var(--danger); }
+
+.confirm-dialog { width: min(420px, calc(100vw - 40px)); }

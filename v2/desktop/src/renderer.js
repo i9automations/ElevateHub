@@ -469,12 +469,42 @@ function openProfileDialog(profile = null) {
   $("profileDialog").showModal();
 }
 
+function confirmAction({ title = "Confirmar", message = "", okLabel = "Confirmar", danger = false } = {}) {
+  return new Promise((resolve) => {
+    const dlg = $("confirmDialog");
+    const okBtn = $("confirmOkBtn");
+    const cancelBtn = $("confirmCancelBtn");
+    $("confirmTitle").textContent = title;
+    $("confirmMsg").textContent = message;
+    okBtn.textContent = okLabel;
+    okBtn.className = danger ? "danger" : "primary";
+    const cleanup = () => {
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      dlg.removeEventListener("cancel", onCancel);
+    };
+    const onOk = () => { cleanup(); dlg.close(); resolve(true); };
+    const onCancel = () => { cleanup(); dlg.close(); resolve(false); };
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    dlg.addEventListener("cancel", onCancel);
+    dlg.showModal();
+    cancelBtn.focus();
+  });
+}
+
 async function deleteProfile() {
   const id = state.editProfileId;
   const profile = state.profiles.find((item) => item.id === id);
   if (!id) return;
   const nome = profile?.name || "este perfil";
-  if (!window.confirm(`Excluir "${nome}"? Essa ação não pode ser desfeita.`)) return;
+  const ok = await confirmAction({
+    title: "Excluir perfil",
+    message: `Excluir "${nome}"? Essa ação não pode ser desfeita.`,
+    okLabel: "Excluir",
+    danger: true
+  });
+  if (!ok) return;
   try {
     await api(`/api/profiles/${id}`, { method: "DELETE" });
     $("profileDialog").close();
