@@ -1,13 +1,16 @@
 {
   "name": "@contas-tiktok-v2/desktop",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Aplicativo desktop do ElevateHub.",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
     "dist": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^43.0.0",
@@ -19,6 +22,13 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "i9automations",
+        "repo": "ElevateHub"
+      }
+    ],
     "files": [
       "src/**/*",
       "package.json"

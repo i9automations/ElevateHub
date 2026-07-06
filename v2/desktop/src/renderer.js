@@ -823,93 +823,35 @@ async function refreshCurrentView() {
   if (isAdmin() && state.view === "settings") renderSettings();
 }
 
-function installerFromAsset(asset) {
-  const assetName = String(asset.name || "");
-  const match = assetName.match(/(?:elevatehub|Elevate(?:\.| )Hub|Contas(?:\.| )TikTok(?:\.| )V2)(?:\.| )Setup(?:\.| )(\d+\.\d+\.\d+)\.exe$/i);
-  if (!match) return null;
-  return {
-    version: match[1],
-    url: asset.browser_download_url,
-    name: asset.name,
-    size: asset.size,
-    priority: /^elevatehub/i.test(assetName) ? 0 : 1
-  };
+// Atualizacao automatica: o motor (electron-updater no main) checa e baixa
+// sozinho, em segundo plano, so os pedacos que mudaram (delta). Aqui o
+// renderer so REAGE aos eventos.
+function checkForUpdates() {
+  // Sem acao: o main verifica ao abrir e de hora em hora automaticamente.
 }
 
-function latestInstaller(assets = []) {
-  return assets
-    .map(installerFromAsset)
-    .filter(Boolean)
-    .sort((left, right) => compareVersions(right.version, left.version) || left.priority - right.priority)[0] || null;
-}
-
-function showUpdateDialog(info) {
-  state.updateInfo = info;
-  $("updateCopy").textContent = "Existe uma versao mais nova do ElevateHub. Voce pode atualizar agora ou continuar usando por enquanto.";
-  $("updateMeta").textContent = `Instalada: ${appVersion} | Disponivel: ${info.version}`;
+function showUpdateReady(info) {
+  state.updateInfo = info || {};
+  $("updateCopy").textContent = "Uma atualizacao foi baixada e esta pronta. Reinicie o app para aplicar (leva poucos segundos).";
+  $("updateMeta").textContent = info?.version ? `Nova versao: ${info.version}` : "";
+  $("installUpdateBtn").textContent = "Reiniciar agora";
+  $("cancelUpdateBtn").textContent = "Depois";
   if (!$("updateDialog").open) $("updateDialog").showModal();
 }
 
-async function checkForUpdates() {
-  try {
-    const response = await fetch(updateReleaseUrl, {
-      headers: { Accept: "application/vnd.github+json" }
-    });
-    if (!response.ok) return;
-    const release = await response.json();
-    const latest = latestInstaller(release.assets || []);
-    if (!latest || compareVersions(latest.version, appVersion) <= 0) return;
-    if (localStorage.getItem("ctv2.dismissedUpdate") === latest.version) return;
-    showUpdateDialog(latest);
-  } catch {
-    // Atualizacao nao deve atrapalhar o uso do app.
-  }
-}
-
 function dismissUpdate() {
-  if (state.updateInfo?.version) {
-    localStorage.setItem("ctv2.dismissedUpdate", state.updateInfo.version);
-  }
+  // "Depois": a atualizacao ja esta baixada e sera aplicada quando fechar o app.
   $("updateDialog").close();
-}
-
-function downloadLabelForPct(pct) {
-  if (pct >= 100) return "Instalando";
-  if (pct >= 90) return "Finalizando download";
-  return "Baixando atualizacao";
 }
 
 async function installUpdate() {
-  const url = state.updateInfo?.url;
-  const name = state.updateInfo?.name || `ElevateHub.Setup.${state.updateInfo?.version || "latest"}.exe`;
-  if (!url) return;
   $("installUpdateBtn").disabled = true;
-  $("installUpdateBtn").textContent = "Baixando...";
-  $("updateDialog").close();
-  installScreen.show("Baixando a nova versao do ElevateHub");
-  installScreen.render(0, "Baixando atualizacao");
+  $("installUpdateBtn").textContent = "Reiniciando...";
   try {
-    if (window.elevate?.downloadUpdate) {
-      await window.elevate.downloadUpdate({ url, name, size: state.updateInfo?.size });
-      installScreen.render(100, "Instalacao concluida");
-      // O app fecha sozinho (main.js) para o instalador assumir.
-    } else if (window.elevate?.openExternal) {
-      await window.elevate.openExternal(url);
-      installScreen.render(100, "Instalador aberto");
-      toast("Instalador aberto. Rode por cima da versao atual.", "success");
-      setTimeout(() => installScreen.hide(), 1800);
-    } else {
-      window.open(url, "_blank", "noopener,noreferrer");
-      installScreen.render(100, "Instalador aberto");
-      toast("Instalador aberto. Rode por cima da versao atual.", "success");
-      setTimeout(() => installScreen.hide(), 1800);
-    }
+    if (window.elevate?.installUpdateNow) await window.elevate.installUpdateNow();
   } catch {
-    installScreen.hide();
-    toast("Nao consegui abrir a atualizacao agora.", "danger");
-  } finally {
     $("installUpdateBtn").disabled = false;
-    $("installUpdateBtn").textContent = "Atualizar";
+    $("installUpdateBtn").textContent = "Reiniciar agora";
   }
 }
 
@@ -1118,12 +1060,17 @@ $("sessionScreen").addEventListener("keydown", handleBrowserKeydown);
 $("auditRefreshBtn").addEventListener("click", loadAudit);
 $("userForm").addEventListener("submit", createUser);
 
-if (window.elevate?.onUpdateProgress) {
-  window.elevate.onUpdateProgress((data) => {
-    const pct = Number(data?.pct) || 0;
-    const label = data?.reused ? "Preparando instalador" : downloadLabelForPct(pct);
-    installScreen.render(pct, label);
+let updateToastShown = false;
+if (window.elevate?.onUpdateAvailable) {
+  window.elevate.onUpdateAvailable(() => {
+    if (!updateToastShown) {
+      updateToastShown = true;
+      toast("Baixando atualizacao em segundo plano...", "info");
+    }
   });
+}
+if (window.elevate?.onUpdateDownloaded) {
+  window.elevate.onUpdateDownloaded((info) => showUpdateReady(info));
 }
 
 if (window.elevate?.onBrowserProfileClosed) {

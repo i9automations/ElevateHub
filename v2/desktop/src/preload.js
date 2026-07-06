@@ -22,6 +22,17 @@ contextBridge.exposeInMainWorld("elevate", {
     ipcRenderer.on("browser-profile-cookies", handler);
     return () => ipcRenderer.removeListener("browser-profile-cookies", handler);
   },
+  installUpdateNow: () => ipcRenderer.invoke("install-update-now"),
+  onUpdateAvailable: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("update-available", handler);
+    return () => ipcRenderer.removeListener("update-available", handler);
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("update-downloaded", handler);
+    return () => ipcRenderer.removeListener("update-downloaded", handler);
+  },
   onUpdateProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("update-progress", handler);

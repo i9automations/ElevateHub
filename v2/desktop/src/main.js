@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, Menu } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const fss = require("node:fs");
 const path = require("node:path");
@@ -265,6 +266,26 @@ async function openBrowserProfile(info, sender) {
   return { ok: true };
 }
 
+// ===== Atualizacao automatica (delta, sem reinstalar) =====
+let autoUpdateReady = false;
+
+function broadcast(channel, data) {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send(channel, data);
+  }
+}
+
+function setupAutoUpdate() {
+  autoUpdater.autoDownload = true;            // baixa em segundo plano
+  autoUpdater.autoInstallOnAppQuit = true;    // aplica ao fechar o app
+  autoUpdater.on("update-available", (info) => broadcast("update-available", { version: info?.version }));
+  autoUpdater.on("download-progress", (p) => broadcast("update-progress", { pct: Math.round(p?.percent || 0) }));
+  autoUpdater.on("update-downloaded", (info) => { autoUpdateReady = true; broadcast("update-downloaded", { version: info?.version }); });
+  autoUpdater.on("error", () => { /* silencioso: nunca atrapalha o uso */ });
+  autoUpdater.checkForUpdates().catch(() => {});
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 60 * 60 * 1000); // checa 1x/hora
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1360,
@@ -310,18 +331,14 @@ app.whenReady().then(() => {
     return openBrowserProfile(info, event.sender);
   });
 
-  ipcMain.handle("download-update", async (event, info) => {
-    const send = (data) => {
-      if (!event.sender.isDestroyed()) event.sender.send("update-progress", data);
-    };
-    const filePath = await downloadInstaller(info, send);
-    const error = await shell.openPath(filePath);
-    if (error) throw new Error(error);
-    setTimeout(() => app.quit(), 1600);
+  ipcMain.handle("install-update-now", () => {
+    if (!autoUpdateReady) return false;
+    setImmediate(() => autoUpdater.quitAndInstall());
     return true;
   });
 
   createWindow();
+  if (app.isPackaged) setupAutoUpdate();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
