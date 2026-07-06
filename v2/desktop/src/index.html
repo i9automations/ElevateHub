@@ -429,6 +429,25 @@
     </div>
   </dialog>
 
+  <dialog id="adsDialog" class="code-dialog">
+    <div class="dialog-form">
+      <h3 id="adsTitle">ADS</h3>
+      <p class="dialog-copy" id="adsSub">Lendo…</p>
+      <div class="ads-grid hidden" id="adsBox">
+        <div class="ads-m"><span>Custo</span><b id="adsCusto">—</b></div>
+        <div class="ads-m"><span>Pedidos</span><b id="adsPedidos">—</b></div>
+        <div class="ads-m"><span>Custo/Pedido</span><b id="adsCpp">—</b></div>
+        <div class="ads-m"><span>Receita</span><b id="adsReceita">—</b></div>
+        <div class="ads-m ads-roi"><span>ROI</span><b id="adsRoi">—</b></div>
+      </div>
+      <p class="code-meta" id="adsErr"></p>
+      <div class="dialog-actions">
+        <button class="secondary" type="button" id="adsRetryBtn">Ler de novo</button>
+        <button class="ghost" type="button" id="adsCloseBtn">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="importDialog">
     <form method="dialog" class="dialog-form">
       <h3>Importar perfis</h3>

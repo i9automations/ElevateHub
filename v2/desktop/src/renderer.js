@@ -303,9 +303,13 @@ function renderProfiles() {
     const selected = profile.id === state.selectedId ? " selected" : "";
     const owner = profile.responsavel || "—";
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
-    // Botao "Código" so no TikTok (fox); os outros marketplaces nao precisam.
-    const codeButton = profileSquad(profile) === "fox"
+    // Botões "Código" e "ADS" só no TikTok (fox); os outros marketplaces não precisam.
+    const isTikTok = profileSquad(profile) === "fox";
+    const codeButton = isTikTok
       ? `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`
+      : "";
+    const adsButton = isTikTok
+      ? `<button class="ghost compact" type="button" data-action="ads" data-id="${profile.id}" title="Ler métricas de ADS (teste)">ADS</button>`
       : "";
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
@@ -322,7 +326,7 @@ function renderProfiles() {
         <div class="pr-status"><span class="st st-${status.cls}"><i></i>${status.text}</span></div>
         <div class="pr-resp">${escapeHtml(owner)}</div>
         <div class="pr-last">${formatDate(profile.lastOpenedAt)}</div>
-        <div class="pr-act">${editButton}${codeButton}${releaseButton}${openBtn}</div>
+        <div class="pr-act">${editButton}${codeButton}${adsButton}${releaseButton}${openBtn}</div>
       </div>`;
   }).join("");
 
@@ -998,6 +1002,44 @@ async function fetchProfileCode(profile) {
   }
 }
 
+// Fase 1 do Relatório de ADS: lê as métricas de 1 loja e mostra (pra conferir com o print).
+async function fetchAdsMetrics(profile) {
+  if (!profile) return;
+  if (!window.elevate?.collectAdsMetrics) { toast("Atualize o app para ler o ADS.", "warning"); return; }
+  const dlg = $("adsDialog");
+  $("adsTitle").textContent = `ADS — ${profile.name}`;
+  $("adsSub").textContent = "Abrindo o painel e lendo os números… (pode levar ~30s)";
+  $("adsBox").classList.add("hidden");
+  $("adsErr").textContent = "";
+  $("adsRetryBtn").disabled = true;
+  dlg.dataset.profileId = profile.id;
+  if (!dlg.open) dlg.showModal();
+  let cookies = [];
+  try { const d = await api(`/api/profiles/${profile.id}/cookies`); cookies = d.cookies || []; } catch { /* sem sessão salva */ }
+  try {
+    const res = await window.elevate.collectAdsMetrics({ id: profile.id, name: profile.name, cookies });
+    if (!res?.ok) {
+      $("adsSub").textContent = "Não consegui ler o painel:";
+      $("adsErr").textContent = res?.motivo || "erro desconhecido";
+      return;
+    }
+    const m = res.metrics;
+    const brl = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    $("adsCusto").textContent = brl(m.custo);
+    $("adsPedidos").textContent = (Number(m.pedidos) || 0).toLocaleString("pt-BR");
+    $("adsCpp").textContent = brl(m.cpp);
+    $("adsReceita").textContent = brl(m.receita);
+    $("adsRoi").textContent = (Number(m.roi) || 0).toFixed(2) + "x";
+    $("adsSub").textContent = "Números lidos do painel — confira com o print:";
+    $("adsBox").classList.remove("hidden");
+  } catch (error) {
+    $("adsSub").textContent = "Erro:";
+    $("adsErr").textContent = friendlyError(error);
+  } finally {
+    $("adsRetryBtn").disabled = false;
+  }
+}
+
 async function setView(view) {
   if (!canAccessView(view)) view = "profiles";
   state.view = view;
@@ -1260,6 +1302,7 @@ $("profileList").addEventListener("click", (event) => {
   if (button?.dataset.action === "open") openLocalBrowser(id);
   else if (button?.dataset.action === "edit") requireAuth(() => openProfileDialog(profile));
   else if (button?.dataset.action === "code") requireAuth(() => fetchProfileCode(profile));
+  else if (button?.dataset.action === "ads") requireAuth(() => fetchAdsMetrics(profile));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
 });
@@ -1289,6 +1332,12 @@ $("codeRetryBtn")?.addEventListener("click", () => {
   const id = $("codeDialog").dataset.profileId;
   const profile = (state.profiles || []).find((p) => p.id === id);
   if (profile) fetchProfileCode(profile);
+});
+$("adsCloseBtn")?.addEventListener("click", () => $("adsDialog").close());
+$("adsRetryBtn")?.addEventListener("click", () => {
+  const id = $("adsDialog").dataset.profileId;
+  const profile = (state.profiles || []).find((p) => p.id === id);
+  if (profile) fetchAdsMetrics(profile);
 });
 $("codeCopyBtn")?.addEventListener("click", async () => {
   const code = $("codeValue").textContent.trim();

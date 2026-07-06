@@ -1818,3 +1818,12 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
   50%     { box-shadow: 0 6px 24px rgba(37,244,238,.5); }
 }
 .update-pill.hidden { display: none; }
+
+/* ===== Diálogo de ADS (métricas) ===== */
+.ads-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 4px; }
+.ads-grid.hidden { display: none; }
+.ads-m { background: var(--surface-3); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; }
+.ads-m span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.ads-m b { font-size: 19px; font-weight: 800; margin-top: 3px; display: block; }
+.ads-m.ads-roi { grid-column: 1 / -1; }
+.ads-m.ads-roi b { color: var(--primary); }

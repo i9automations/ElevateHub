@@ -229,6 +229,92 @@ async function markChromeProfile(dir, name) {
   try { await fs.writeFile(prefsPath, JSON.stringify(prefs)); } catch { /* segue sem a marca */ }
 }
 
+// URL do painel de ADS filtrada no DIA ANTERIOR (data nos parametros, fuso -03:00).
+function adsUrlForYesterday() {
+  const now = new Date();
+  const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const ms = Date.UTC(y.getFullYear(), y.getMonth(), y.getDate(), 3, 0, 0); // meia-noite -3 em UTC (ms)
+  const base = "https://seller-br.tiktok.com/ads-creation/dashboard?mpa=1";
+  return `${base}&activated_tab_id=0&list_start_date=${ms}&list_end_date=${ms}`;
+}
+
+function killChrome(child) {
+  try { spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }); } catch { /* ignora */ }
+  try { child.kill(); } catch { /* ja morreu */ }
+}
+
+// Fase 1 do "Relatorio de ADS": abre a conta, entra no painel de anuncios do dia
+// anterior, LE as metricas do DOM (via ads-metrics) e fecha. Retorna os numeros.
+async function collectAdsMetrics(info) {
+  const profileId = String(info?.id || "");
+  if (!profileId) return { ok: false, motivo: "perfil invalido" };
+  if (openBrowsers.has(profileId)) {
+    return { ok: false, motivo: "Feche o navegador desta conta antes de ler o ADS." };
+  }
+  const chrome = resolveChromePath();
+  if (!chrome) return { ok: false, motivo: "Navegador do app nao encontrado." };
+
+  const dir = profileDataDir(profileId);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
+  const child = spawn(chrome, [
+    `--user-data-dir=${dir}`, "--no-first-run", "--no-default-browser-check",
+    "--test-type", "--disable-infobars", "--remote-debugging-port=0",
+    "about:blank"
+  ], { detached: false, windowsHide: false });
+
+  let client = null;
+  try {
+    const port = await waitDevToolsPort(dir);
+    const version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+    client = await connectCdp(version.webSocketDebuggerUrl);
+
+    const params = toCookieParams(info?.cookies || []);
+    if (params.length) {
+      try { await client.send("Storage.setCookies", { cookies: params }); }
+      catch { for (const c of params) { try { await client.send("Storage.setCookies", { cookies: [c] }); } catch { /* ignora */ } } }
+    }
+
+    const uaMeta = buildUaMetadata(version.Browser, version["User-Agent"]);
+    const { targetId } = await client.send("Target.createTarget", { url: "about:blank" });
+    const { sessionId } = await client.send("Target.attachToTarget", { targetId, flatten: true });
+    try { await client.send("Emulation.setUserAgentOverride", uaMeta, sessionId); } catch { /* segue */ }
+    await client.send("Page.navigate", { url: adsUrlForYesterday() }, sessionId);
+
+    const readText = async () => {
+      try {
+        const r = await client.send("Runtime.evaluate",
+          { expression: "document.body ? document.body.innerText : ''", returnByValue: true }, sessionId);
+        return String(r?.result?.value || "");
+      } catch { return ""; }
+    };
+
+    // espera o painel ("Visao geral") aparecer, ate ~45s; detecta login
+    const deadline = Date.now() + 45000;
+    let text = "";
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      text = await readText();
+      const low = text.toLowerCase();
+      if (low.includes("visao geral") || low.includes("visão geral")) break;
+      if (low.includes("fazer login") || low.includes("iniciar sess")) {
+        return { ok: false, motivo: "conta nao esta logada (abra e faca login primeiro)" };
+      }
+    }
+    await sleep(5000); // deixa os numeros/grafico assentarem
+    text = await readText();
+    const { extractAdsMetrics } = require("./ads-metrics");
+    const m = extractAdsMetrics(text);
+    if (!m.ok) return { ok: false, motivo: m.motivo };
+    return { ok: true, metrics: { custo: m.custo, pedidos: m.pedidos, cpp: m.cpp, receita: m.receita, roi: m.roi } };
+  } catch (e) {
+    return { ok: false, motivo: String(e?.message || e || "falha ao ler o ADS") };
+  } finally {
+    try { if (client) client.close(); } catch { /* ja fechado */ }
+    killChrome(child);
+  }
+}
+
 async function openBrowserProfile(info, sender) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, error: "no-id" };
@@ -359,6 +445,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle("open-browser-profile", async (event, info) => {
     return openBrowserProfile(info, event.sender);
+  });
+
+  ipcMain.handle("collect-ads-metrics", async (_event, info) => {
+    return collectAdsMetrics(info);
   });
 
   ipcMain.handle("install-update-now", () => {
