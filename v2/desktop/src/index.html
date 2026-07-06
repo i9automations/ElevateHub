@@ -202,11 +202,23 @@
           <div class="metrics hidden"><strong id="metricTotal">0</strong><strong id="metricReady">0</strong><strong id="metricBusy">0</strong><strong id="metricFree">0</strong></div>
 
           <div class="profile-toolbar">
-            <div class="filter-tabs" role="tablist" aria-label="Filtro de perfis">
-              <button class="filter-tab active" type="button" data-filter="all">Todos</button>
-              <button class="filter-tab" type="button" data-filter="free">Livres</button>
-              <button class="filter-tab" type="button" data-filter="ready">Logadas</button>
-              <button class="filter-tab" type="button" data-filter="busy">Em uso</button>
+            <div class="filter-wrap">
+              <button class="filter-btn" id="filterBtn" type="button" aria-haspopup="true" title="Filtros e ordenação">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 3.5h12M4 8h8M6.5 12.5h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span id="filterBtnLabel">Todos</span>
+                <svg class="chev" width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="filter-pop hidden" id="filterPop" role="menu">
+                <div class="fp-label">Mostrar</div>
+                <button class="fp-item active" type="button" data-filter="all">Todos</button>
+                <button class="fp-item" type="button" data-filter="free">Livres</button>
+                <button class="fp-item" type="button" data-filter="ready">Logadas</button>
+                <button class="fp-item" type="button" data-filter="busy">Em uso</button>
+                <div class="fp-sep"></div>
+                <div class="fp-label">Ordenar</div>
+                <button class="fp-item active" type="button" data-sort="az">A → Z</button>
+                <button class="fp-item" type="button" data-sort="za">Z → A</button>
+              </div>
             </div>
             <input id="search" type="search" placeholder="Buscar cliente, e-mail ou responsável">
           </div>

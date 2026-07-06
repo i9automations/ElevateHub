@@ -10,6 +10,7 @@ const state = {
   browserPoll: null,
   view: "profiles",
   filter: "all",
+  sort: "az",
   editProfileId: null,
   frameLoading: false,
   wheelTimer: null,
@@ -289,6 +290,11 @@ function renderProfiles() {
       ...(profile.tags || [])
     ].join(" ").toLowerCase();
     return profileMatchesFilter(profile) && haystack.includes(term);
+  });
+
+  visible.sort((a, b) => {
+    const cmp = String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
+    return state.sort === "za" ? -cmp : cmp;
   });
 
   $("emptyProfiles").classList.toggle("hidden", visible.length > 0);
@@ -1069,10 +1075,28 @@ $("squadNav").addEventListener("click", (event) => {
     renderProfiles();
   });
 });
-document.querySelectorAll(".filter-tab").forEach((button) => {
+$("filterBtn").addEventListener("click", (event) => {
+  event.stopPropagation();
+  $("filterPop").classList.toggle("hidden");
+});
+document.addEventListener("click", (event) => {
+  if (!$("filterPop").classList.contains("hidden") && !event.target.closest(".filter-wrap")) {
+    $("filterPop").classList.add("hidden");
+  }
+});
+$("filterPop").querySelectorAll("[data-filter]").forEach((button) => {
   button.addEventListener("click", () => {
     state.filter = button.dataset.filter;
-    document.querySelectorAll(".filter-tab").forEach((item) => item.classList.toggle("active", item === button));
+    $("filterPop").querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("active", item === button));
+    $("filterBtnLabel").textContent = button.textContent;
+    $("filterPop").classList.add("hidden");
+    renderProfiles();
+  });
+});
+$("filterPop").querySelectorAll("[data-sort]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.sort = button.dataset.sort;
+    $("filterPop").querySelectorAll("[data-sort]").forEach((item) => item.classList.toggle("active", item === button));
     renderProfiles();
   });
 });
