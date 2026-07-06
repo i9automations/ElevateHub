@@ -1043,17 +1043,21 @@ function checkForUpdates() {
 }
 
 function showUpdateReady(info) {
-  state.updateInfo = info || {};
-  $("updateCopy").textContent = "Uma nova versão do ElevateHub esta disponível e pronta. Deseja atualizar agora? (leva poucos segundos)";
-  $("updateMeta").textContent = info?.version ? `Nova versão: ${info.version}` : "";
+  if (info) state.updateInfo = info;
+  const v = state.updateInfo?.version;
+  $("updateCopy").textContent = "Uma nova versão do ElevateHub está pronta. Você pode atualizar agora (leva poucos segundos) ou deixar para depois — o aviso fica no topo até você atualizar.";
+  $("updateMeta").textContent = v ? `Nova versão: ${v}` : "";
   $("installUpdateBtn").textContent = "Atualizar agora";
-  $("cancelUpdateBtn").textContent = "Agora não";
+  $("cancelUpdateBtn").textContent = "Atualizar depois";
+  // botão fixo no topo: some só quando a pessoa atualizar de fato
+  $("updateAvailableBtn")?.classList.remove("hidden");
   if (!$("updateDialog").open) $("updateDialog").showModal();
 }
 
 function dismissUpdate() {
-  // "Depois": a atualização já esta baixada e sera aplicada quando fechar o app.
+  // "Atualizar depois": fecha o aviso, mas o botão do topo continua ali.
   $("updateDialog").close();
+  toast("Sem problema — quando quiser, é só clicar em “Atualização disponível” no topo.", "info");
 }
 
 async function installUpdate() {
@@ -1188,6 +1192,7 @@ $("deleteProfileBtn").addEventListener("click", deleteProfile);
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
 $("cancelUpdateBtn").addEventListener("click", dismissUpdate);
 $("installUpdateBtn").addEventListener("click", installUpdate);
+$("updateAvailableBtn")?.addEventListener("click", () => showUpdateReady());
 $("profileDialog").addEventListener("submit", saveProfile);
 $("runImportBtn").addEventListener("click", runImport);
 $("importFile").addEventListener("change", async (event) => {
