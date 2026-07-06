@@ -205,17 +205,25 @@ function renderSquads() {
     const key = profileSquad(profile);
     counts[key] = (counts[key] || 0) + 1;
   });
-  const squadColors = { fox: "#25f4ee", crown: "#ffd21e", jaguar: "#ee4d2d", monkey: "#ffd21e", sphynx: "#ff9900" };
-  $("squadNav").innerHTML = squads.map((squad) => `
+  const squadMk = {
+    fox: { icon: "tiktok.svg", bg: "linear-gradient(150deg,#232323,#050505)", sz: 15 },
+    crown: { icon: "mercadolivre.svg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 },
+    jaguar: { icon: "shopee.svg", bg: "linear-gradient(150deg,#ff6a3d,#ee4d2d)", sz: 15 },
+    monkey: { icon: "mercadolivre.svg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 },
+    sphynx: { icon: "amazon.jpg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 }
+  };
+  $("squadNav").innerHTML = squads.map((squad) => {
+    const mk = squadMk[squad.key] || squadMk.fox;
+    return `
     <button class="squad-item ${state.selectedSquad === squad.key ? "active" : ""}" type="button" data-squad="${squad.key}">
-      <span class="squad-dot" style="background:${squadColors[squad.key] || "#25f4ee"}"></span>
+      <span class="squad-tile" style="background:${mk.bg}"><img src="./assets/marketplaces/${mk.icon}" alt="" style="width:${mk.sz}px;height:${mk.sz}px"></span>
       <span class="squad-txt">
         <strong>${escapeHtml(squad.name)}</strong>
         <span>${escapeHtml(squad.label)}</span>
       </span>
       <span class="squad-count">${counts[squad.key] || 0}</span>
-    </button>
-  `).join("");
+    </button>`;
+  }).join("");
 }
 
 function selectedProfile() {
@@ -257,6 +265,16 @@ function renderMetrics() {
   }
 }
 
+const AV_COLORS = ["#7c9cff", "#4fd6a0", "#59b8e5", "#e6a35c", "#e577a6", "#a78bfa", "#5bd1c4", "#f0883e"];
+function profileAvatar(name) {
+  const n = String(name || "").trim();
+  const parts = n.split(/\s+/).filter(Boolean);
+  const ini = ((parts[0]?.[0] || "") + (parts[1]?.[0] || parts[0]?.[1] || "")).toUpperCase() || "?";
+  let h = 0;
+  for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return { ini, col: AV_COLORS[h % AV_COLORS.length] };
+}
+
 function renderProfiles() {
   const term = $("search").value.trim().toLowerCase();
   const visible = profilesForSelectedSquad().filter((profile) => {
@@ -285,15 +303,19 @@ function renderProfiles() {
     const releaseButton = canRelease
       ? `<button class="ghost compact" type="button" data-action="release" data-id="${profile.id}">${isAdmin() ? "Liberar" : "Fechar"}</button>`
       : "";
-    const openLabel = profile.lockedBy && control ? "Assumir" : "Abrir";
-    const openCls = profile.lockedBy && control ? "run run-amber" : "run";
     const openBtn = control
-      ? `<button class="${openCls}" type="button" data-action="open" data-id="${profile.id}">${openLabel}</button>`
+      ? `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`
       : `<button class="run" type="button" disabled>Em uso</button>`;
+    const av = profileAvatar(profile.name);
     return `
-      <div class="profile-row${selected}" data-profile-id="${profile.id}">
-        <div class="pr-name" title="${escapeHtml(profile.name)}"><strong>${escapeHtml(profile.name)}</strong></div>
-        <div class="pr-email" title="${escapeHtml(profile.tiktokEmail || "")}">${escapeHtml(profile.tiktokEmail || "—")}</div>
+      <div class="profile-row${selected} st-row-${status.cls}" data-profile-id="${profile.id}">
+        <div class="c-name">
+          <span class="avatar" style="background:${av.col}1f;color:${av.col}">${av.ini}</span>
+          <span class="ntxt">
+            <span class="nm" title="${escapeHtml(profile.name)}">${escapeHtml(profile.name)}</span>
+            <span class="em" title="${escapeHtml(profile.tiktokEmail || "")}">${escapeHtml(profile.tiktokEmail || "—")}</span>
+          </span>
+        </div>
         <div class="pr-status"><span class="st st-${status.cls}"><i></i>${status.text}</span></div>
         <div class="pr-resp">${escapeHtml(owner)}</div>
         <div class="pr-last">${formatDate(profile.lastOpenedAt)}</div>
