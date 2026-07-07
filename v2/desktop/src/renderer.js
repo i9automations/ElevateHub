@@ -47,13 +47,25 @@ function clearToken() {
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
 const appVersion = window.elevate?.appVersion || "0.0.0";
 const updateReleaseUrl = "https://api.github.com/repos/i9automations/ElevateHub/releases/tags/app-v2";
+const MKT_URL = {
+  tiktok: "https://seller-br.tiktok.com/account/login",
+  ml: "https://www.mercadolivre.com.br/",
+  shopee: "https://seller.shopee.com.br/",
+  amazon: "https://sellercentral.amazon.com.br/"
+};
 const squads = [
-  { key: "fox", name: "Fox", label: "TikTok Seller", startUrl: "https://seller-br.tiktok.com/account/login" },
-  { key: "crown", name: "Crown", label: "Mercado Livre", startUrl: "https://www.mercadolivre.com.br/" },
-  { key: "jaguar", name: "Jaguar", label: "Shopee Seller", startUrl: "https://seller.shopee.com.br/" },
-  { key: "monkey", name: "Monkey", label: "Mercado Livre", startUrl: "https://www.mercadolivre.com.br/" },
-  { key: "sphynx", name: "Sphynx", label: "Amazon Seller", startUrl: "https://sellercentral.amazon.com.br/" }
+  { key: "fox", name: "Fox", label: "TikTok Seller", startUrl: MKT_URL.tiktok, hub: "Elevate", mkt: "tiktok" },
+  { key: "crown", name: "Crown", label: "Mercado Livre", startUrl: MKT_URL.ml, hub: "Elevate", mkt: "ml" },
+  { key: "jaguar", name: "Jaguar", label: "Shopee Seller", startUrl: MKT_URL.shopee, hub: "Elevate", mkt: "shopee" },
+  { key: "monkey", name: "Monkey", label: "Mercado Livre", startUrl: MKT_URL.ml, hub: "Elevate", mkt: "ml" },
+  { key: "sphynx", name: "Sphynx", label: "Amazon Seller", startUrl: MKT_URL.amazon, hub: "Elevate", mkt: "amazon" },
+  { key: "manalinda-tiktok", name: "TikTok", label: "TikTok Seller", startUrl: MKT_URL.tiktok, hub: "ManalindaHub", mkt: "tiktok" },
+  { key: "manalinda-ml", name: "Mercado Livre", label: "Mercado Livre", startUrl: MKT_URL.ml, hub: "ManalindaHub", mkt: "ml" },
+  { key: "manalinda-shopee", name: "Shopee", label: "Shopee Seller", startUrl: MKT_URL.shopee, hub: "ManalindaHub", mkt: "shopee" },
+  { key: "manalinda-amazon", name: "Amazon", label: "Amazon Seller", startUrl: MKT_URL.amazon, hub: "ManalindaHub", mkt: "amazon" }
 ];
+function squadOf(key) { return squads.find((s) => s.key === key) || squads[0]; }
+function isTikTokProfile(profile) { return squadOf(profileSquad(profile)).mkt === "tiktok"; }
 
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
@@ -207,24 +219,28 @@ function renderSquads() {
     const key = profileSquad(profile);
     counts[key] = (counts[key] || 0) + 1;
   });
-  const squadMk = {
-    fox: { icon: "tiktok.svg", bg: "linear-gradient(150deg,#232323,#050505)", sz: 15 },
-    crown: { icon: "mercadolivre.svg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 },
-    jaguar: { icon: "shopee.svg", bg: "linear-gradient(150deg,#ff6a3d,#ee4d2d)", sz: 15 },
-    monkey: { icon: "mercadolivre.svg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 },
-    sphynx: { icon: "amazon.jpg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 }
+  const mktIcon = {
+    tiktok: { icon: "tiktok.svg", bg: "linear-gradient(150deg,#232323,#050505)", sz: 15 },
+    ml: { icon: "mercadolivre.svg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 },
+    shopee: { icon: "shopee.svg", bg: "linear-gradient(150deg,#ff6a3d,#ee4d2d)", sz: 15 },
+    amazon: { icon: "amazon.jpg", bg: "linear-gradient(150deg,#ffffff,#f1f4f8)", sz: 20 }
   };
-  $("squadNav").innerHTML = squads.map((squad) => {
-    const mk = squadMk[squad.key] || squadMk.fox;
-    return `
-    <button class="squad-item ${state.selectedSquad === squad.key ? "active" : ""}" type="button" data-squad="${squad.key}">
-      <span class="squad-tile" style="background:${mk.bg}"><img src="./assets/marketplaces/${mk.icon}" alt="" style="width:${mk.sz}px;height:${mk.sz}px"></span>
-      <span class="squad-txt">
-        <strong>${escapeHtml(squad.name)}</strong>
-        <span>${escapeHtml(squad.label)}</span>
-      </span>
-      <span class="squad-count">${counts[squad.key] || 0}</span>
-    </button>`;
+  const hubs = [];
+  squads.forEach((s) => { if (!hubs.includes(s.hub)) hubs.push(s.hub); });
+  $("squadNav").innerHTML = hubs.map((hub) => {
+    const items = squads.filter((s) => s.hub === hub).map((squad) => {
+      const mk = mktIcon[squad.mkt] || mktIcon.tiktok;
+      return `
+      <button class="squad-item ${state.selectedSquad === squad.key ? "active" : ""}" type="button" data-squad="${squad.key}">
+        <span class="squad-tile" style="background:${mk.bg}"><img src="./assets/marketplaces/${mk.icon}" alt="" style="width:${mk.sz}px;height:${mk.sz}px"></span>
+        <span class="squad-txt">
+          <strong>${escapeHtml(squad.name)}</strong>
+          <span>${escapeHtml(squad.label)}</span>
+        </span>
+        <span class="squad-count">${counts[squad.key] || 0}</span>
+      </button>`;
+    }).join("");
+    return `<div class="hub-group"><div class="hub-label">${escapeHtml(hub)}</div>${items}</div>`;
   }).join("");
 }
 
@@ -303,8 +319,8 @@ function renderProfiles() {
     const selected = profile.id === state.selectedId ? " selected" : "";
     const owner = profile.responsavel || "—";
     const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
-    // Botão "Código" só no TikTok (fox); os outros marketplaces não precisam.
-    const codeButton = profileSquad(profile) === "fox"
+    // Botão "Código" só no TikTok (qualquer hub); os outros marketplaces não precisam.
+    const codeButton = isTikTokProfile(profile)
       ? `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`
       : "";
     const releaseButton = "";
@@ -1028,7 +1044,7 @@ async function generateAdsReport() {
   if (!window.elevate?.collectAdsMetrics || !window.elevate?.saveOpenReport) {
     toast("Atualize o app para gerar o relatório de ADS.", "warning"); return;
   }
-  const profiles = state.profiles.filter((p) => profileSquad(p) === "fox");
+  const profiles = state.profiles.filter(isTikTokProfile);
   if (!profiles.length) { toast("Nenhuma conta TikTok encontrada.", "warning"); return; }
   const btn = $("genAdsReportBtn");
   const prog = $("adsProgress");

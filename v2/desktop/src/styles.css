@@ -1837,3 +1837,11 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
 .ads-table th:not(:first-child), .ads-table td:not(:first-child) { text-align: right; }
 .ads-table td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
 .ads-err { color: var(--danger); font-size: 12px; }
+
+/* ===== Grupos de squads (Hubs) na lateral ===== */
+.hub-group { margin-bottom: 12px; }
+.hub-group + .hub-group { margin-top: 2px; }
+.hub-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--faint); font-weight: 800; padding: 4px 8px 6px;
+}

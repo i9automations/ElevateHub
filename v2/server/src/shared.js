@@ -33,6 +33,26 @@ const SQUADS = Object.freeze({
     key: "sphynx",
     name: "Sphynx",
     startUrl: "https://sellercentral.amazon.com.br/"
+  },
+  "manalinda-tiktok": {
+    key: "manalinda-tiktok",
+    name: "TikTok",
+    startUrl: "https://seller-br.tiktok.com/account/login"
+  },
+  "manalinda-ml": {
+    key: "manalinda-ml",
+    name: "Mercado Livre",
+    startUrl: "https://www.mercadolivre.com.br/"
+  },
+  "manalinda-shopee": {
+    key: "manalinda-shopee",
+    name: "Shopee",
+    startUrl: "https://seller.shopee.com.br/"
+  },
+  "manalinda-amazon": {
+    key: "manalinda-amazon",
+    name: "Amazon",
+    startUrl: "https://sellercentral.amazon.com.br/"
   }
 });
 
