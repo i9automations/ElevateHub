@@ -221,17 +221,20 @@ const WINDOW_PALETTE = [0xA78BFA, 0x34D399, 0x60A5FA, 0xFBBF24, 0xFB7185, 0x22D3
 async function markChromeProfile(dir, name) {
   const clean = String(name || "").trim();
   if (!clean) return;
+  let h = 0;
+  for (const ch of clean) h = (h + ch.charCodeAt(0)) >>> 0;
+  const rgb = WINDOW_PALETTE[h % WINDOW_PALETTE.length];
+  const avatarIdx = h % 56;
+
+  // 1) Preferences (perfil Default): nome + cor/tema
   const defDir = path.join(dir, "Default");
   const prefsPath = path.join(defDir, "Preferences");
   await fs.mkdir(defDir, { recursive: true });
   let prefs = {};
   try { prefs = JSON.parse(await fs.readFile(prefsPath, "utf8")); } catch { prefs = {}; }
-  let h = 0;
-  for (const ch of clean) h = (h + ch.charCodeAt(0)) >>> 0;
-  const rgb = WINDOW_PALETTE[h % WINDOW_PALETTE.length];
   prefs.profile = prefs.profile || {};
   prefs.profile.name = clean;
-  prefs.profile.avatar_index = h % 56;
+  prefs.profile.avatar_index = avatarIdx;
   prefs.profile.using_default_avatar = false;
   prefs.profile.using_default_name = false;
   prefs.browser = prefs.browser || {};
@@ -239,6 +242,25 @@ async function markChromeProfile(dir, name) {
   prefs.browser.theme.user_color = ((0xFF << 24) | rgb) >>> 0;
   prefs.browser.theme.is_grayscale = false;
   try { await fs.writeFile(prefsPath, JSON.stringify(prefs)); } catch { /* segue sem a marca */ }
+
+  // 2) Local State: e DAQUI que o Chrome tira o NOME EXIBIDO (barra/aba/taskbar)
+  // -> era o que faltava (por isso continuava "Test").
+  const lsPath = path.join(dir, "Local State");
+  let ls = {};
+  try { ls = JSON.parse(await fs.readFile(lsPath, "utf8")); } catch { ls = {}; }
+  ls.profile = ls.profile || {};
+  ls.profile.info_cache = ls.profile.info_cache || {};
+  ls.profile.info_cache.Default = {
+    ...(ls.profile.info_cache.Default || {}),
+    name: clean,
+    shortcut_name: clean,
+    is_using_default_name: false,
+    is_using_default_avatar: false,
+    avatar_icon: `chrome://theme/IDR_PROFILE_AVATAR_${avatarIdx}`
+  };
+  if (!Array.isArray(ls.profile.profiles_order)) ls.profile.profiles_order = ["Default"];
+  ls.profile.last_used = "Default";
+  try { await fs.writeFile(lsPath, JSON.stringify(ls)); } catch { /* segue */ }
 }
 
 // URL do painel de ADS filtrada no DIA ANTERIOR (data nos parametros, fuso -03:00).
