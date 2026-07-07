@@ -541,11 +541,16 @@ async function saveProfile(event) {
   }
   const editing = !!state.editProfileId;
   const path = editing ? `/api/profiles/${state.editProfileId}` : "/api/profiles";
-  const data = await api(path, { method: editing ? "PATCH" : "POST", body });
-  state.selectedId = data.profile.id;
-  $("profileDialog").close();
-  await loadProfiles();
-  toast(editing ? "Perfil atualizado." : "Perfil criado.", "success");
+  try {
+    const data = await api(path, { method: editing ? "PATCH" : "POST", body });
+    state.selectedId = data.profile.id;
+    $("profileDialog").close();
+    await loadProfiles();
+    toast(editing ? "Perfil atualizado." : "Perfil criado.", "success");
+  } catch (error) {
+    // ex.: e-mail de login duplicado -> mostra a mensagem clara em vez de falhar em silêncio.
+    toast(friendlyError(error), "danger");
+  }
 }
 
 function resetBrowserFrame() {

@@ -230,7 +230,15 @@ class SupabaseStore {
       .upsert(profileToRow(profile))
       .select("*")
       .single();
-    if (error) throw error;
+    if (error) {
+      // e-mail de login (tiktok_email) e UNICO: duplicado vira mensagem clara, nao 500.
+      if (error.code === "23505") {
+        const e = new Error("Já existe um perfil com esse e-mail de login. Use outro e-mail (ou deixe em branco).");
+        e.status = 409;
+        throw e;
+      }
+      throw error;
+    }
     const users = await this.usersForProfiles();
     return profileDto(users, profileFromRow(data));
   }
