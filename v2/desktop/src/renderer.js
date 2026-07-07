@@ -644,7 +644,7 @@ async function openLocalBrowser(profileId) {
     }
   }
   try {
-    const startUrl = selectedSquad().startUrl || profile.startUrl;
+    const startUrl = squadOf(profileSquad(profile)).startUrl || profile.startUrl;
     // Etapa 2: baixa a sessão (cookies) do servidor pra já abrir logado
     let cookies = [];
     try {
@@ -1120,15 +1120,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);color:v
 <script>
 var dados=__DADOS__, resp=__RESP__;
 function brl(v){return "R$ "+(Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function roiCls(r){if(r>=8)return"hi";if(r>=4)return"mid";if(r>0)return"low";return"z";}
 var rk=Object.keys(resp).sort();
 document.getElementById("resp").innerHTML=rk.map(function(nm){var o=resp[nm];var roi=o.c>0?o.r/o.c:0;
-return '<div class="respc"><div class="nm">'+nm+'</div><div class="s">'+o.l+' contas · '+o.v+' vendendo</div><div class="rk"><div><span>Investido</span><b style="color:var(--yellow)">'+brl(o.c)+'</b></div><div><span>Receita</span><b style="color:var(--green)">'+brl(o.r)+'</b></div><div><span>ROI</span><b style="color:var(--teal2)">'+roi.toFixed(2)+'x</b></div><div><span>Pedidos</span><b style="color:var(--blue)">'+(o.p||0)+'</b></div></div></div>';}).join("");
+return '<div class="respc"><div class="nm">'+esc(nm)+'</div><div class="s">'+o.l+' contas · '+o.v+' vendendo</div><div class="rk"><div><span>Investido</span><b style="color:var(--yellow)">'+brl(o.c)+'</b></div><div><span>Receita</span><b style="color:var(--green)">'+brl(o.r)+'</b></div><div><span>ROI</span><b style="color:var(--teal2)">'+roi.toFixed(2)+'x</b></div><div><span>Pedidos</span><b style="color:var(--blue)">'+(o.p||0)+'</b></div></div></div>';}).join("");
 var ord=dados.slice().sort(function(a,b){if(a.erro&&!b.erro)return 1;if(b.erro&&!a.erro)return -1;return (b.receita||0)-(a.receita||0);});
 document.getElementById("grade").innerHTML=ord.map(function(d){
-if(d.erro){return '<div class="c err"><div class="h"><div class="cli">'+d.cli+(d.resp?'<span class="rsp">'+d.resp+'</span>':'')+'</div></div><div class="alert">Não foi possível ler: '+d.erro+'</div></div>';}
+if(d.erro){return '<div class="c err"><div class="h"><div class="cli">'+esc(d.cli)+(d.resp?'<span class="rsp">'+esc(d.resp)+'</span>':'')+'</div></div><div class="alert">Não foi possível ler: '+esc(d.erro)+'</div></div>';}
 var cls="c";if(d.roi>=8)cls+=" top";if((d.pedidos||0)===0)cls+=" zero";
-return '<div class="'+cls+'"><div class="h"><div class="cli">'+d.cli+(d.resp?'<span class="rsp">'+d.resp+'</span>':'')+'</div><div class="roi '+roiCls(d.roi)+'">'+(Number(d.roi)||0).toFixed(2)+'x</div></div><div class="mt"><div class="m"><div class="l">Custo</div><div class="v">'+brl(d.custo)+'</div></div><div class="m"><div class="l">Pedidos</div><div class="v">'+(d.pedidos||0)+'</div></div><div class="m"><div class="l">Custo/Ped.</div><div class="v">'+brl(d.cpp)+'</div></div><div class="m"><div class="l">Receita</div><div class="v g">'+brl(d.receita)+'</div></div></div></div>';}).join("");
+return '<div class="'+cls+'"><div class="h"><div class="cli">'+esc(d.cli)+(d.resp?'<span class="rsp">'+esc(d.resp)+'</span>':'')+'</div><div class="roi '+roiCls(d.roi)+'">'+(Number(d.roi)||0).toFixed(2)+'x</div></div><div class="mt"><div class="m"><div class="l">Custo</div><div class="v">'+brl(d.custo)+'</div></div><div class="m"><div class="l">Pedidos</div><div class="v">'+(d.pedidos||0)+'</div></div><div class="m"><div class="l">Custo/Ped.</div><div class="v">'+brl(d.cpp)+'</div></div><div class="m"><div class="l">Receita</div><div class="v g">'+brl(d.receita)+'</div></div></div></div>';}).join("");
 function exportCSV(){var h=["Conta","Responsavel","Custo","Pedidos","Custo por pedido","Receita","ROI","Erro"];
 var ln=dados.map(function(d){return [d.cli,d.resp||"",(d.custo||0).toFixed(2).replace(".",","),(d.pedidos||0),(d.cpp||0).toFixed(2).replace(".",","),(d.receita||0).toFixed(2).replace(".",","),(Number(d.roi)||0).toFixed(2).replace(".",","),d.erro||""];});
 var csv=[h].concat(ln).map(function(r){return r.map(function(c){return '"'+c+'"';}).join(";");}).join("\\r\\n");
@@ -1150,16 +1151,20 @@ function buildAdsReportHtml(items, prev) {
     o.c += Number(it.custo) || 0; o.r += Number(it.receita) || 0; o.p += Number(it.pedidos) || 0;
     o.l++; if ((it.pedidos || 0) > 0) o.v++;
   });
-  const DATA = JSON.stringify(items);
-  return ADS_REPORT_TEMPLATE
-    .replace(/__REF__/g, ref)
-    .replace("__KPI_CUSTO__", adsBrl(tC))
-    .replace("__KPI_RECEITA__", adsBrl(tR))
-    .replace("__KPI_ROI__", roiG.toFixed(2) + "x")
-    .replace("__KPI_PEDIDOS__", tP.toLocaleString("pt-BR"))
-    .replace("__KPI_VEND__", `${vendendo} / ${ativos.length}`)
-    .replace("__RESP__", JSON.stringify(porResp))
-    .replace("__DADOS__", DATA);
+  // Escapa "<" no JSON embutido no <script> (evita que um nome com "</script>"
+  // quebre o relatório). E usa REPLACER EM FUNÇÃO em tudo, pra um nome com "$&",
+  // "$'" etc. nao ser interpretado pelo String.replace (corromperia o HTML).
+  const safeJson = (obj) => JSON.stringify(obj).replace(/</g, "\\u003c");
+  const put = (tpl, ph, val) => tpl.replace(ph, () => val);
+  let html = ADS_REPORT_TEMPLATE.replace(/__REF__/g, () => ref);
+  html = put(html, "__KPI_CUSTO__", adsBrl(tC));
+  html = put(html, "__KPI_RECEITA__", adsBrl(tR));
+  html = put(html, "__KPI_ROI__", roiG.toFixed(2) + "x");
+  html = put(html, "__KPI_PEDIDOS__", tP.toLocaleString("pt-BR"));
+  html = put(html, "__KPI_VEND__", `${vendendo} / ${ativos.length}`);
+  html = put(html, "__RESP__", safeJson(porResp));
+  html = put(html, "__DADOS__", safeJson(items));
+  return html;
 }
 
 async function setView(view) {

@@ -8,8 +8,21 @@ const { spawn } = require("node:child_process");
 const API_URL = process.env.ELEVATE_API_URL || "https://contas-v2.elevateecom.com.br";
 const APP_NAME = "ElevateHub";
 
+// Rede de seguranca: um erro nao tratado (ex: evento 'error' de um processo sem
+// listener) NUNCA deve derrubar o app inteiro. So registra e segue.
+process.on("uncaughtException", (err) => { try { console.error("[uncaught]", err?.message || err); } catch { /* nada */ } });
+process.on("unhandledRejection", (err) => { try { console.error("[unhandledRejection]", err?.message || err); } catch { /* nada */ } });
+
+// Gravacao atomica (tmp + rename): evita arquivo corrompido por escrita interrompida.
+async function atomicWrite(file, data) {
+  const tmp = `${file}.${Date.now()}.${Math.floor(Math.random() * 1e6)}.tmp`;
+  await fs.writeFile(tmp, data);
+  await fs.rename(tmp, file);
+}
+
 // ===== Navegador local por perfil (modelo Dolphin) =====
 const openBrowsers = new Map(); // profileId -> child process
+const adsInProgress = new Set(); // perfis sendo lidos pelo Relatorio de ADS agora
 
 function resolveChromePath() {
   const candidates = [];
@@ -145,7 +158,7 @@ function toCookieParams(cookies) {
     });
 }
 
-async function startCookieSync(profileId, dir, url, cookies, sender) {
+async function startCookieSync(profileId, dir, url, cookies, sender, child) {
   const port = await waitDevToolsPort(dir);
   // Conecta com tentativas: em PC ocupado o endpoint pode demorar/falhar por um
   // instante. Sem essa conexao a marca "Google Chrome" nao e aplicada e o TikTok
@@ -161,6 +174,9 @@ async function startCookieSync(profileId, dir, url, cookies, sender) {
       await sleep(600);
     }
   }
+  // Se durante a espera o usuario fechou e reabriu (novo Chrome), este sync ficou
+  // orfao -> nao mexe (senao abriria aba duplicada e vazaria timer/conexao).
+  if (child && openBrowsers.get(profileId)?.child !== child) { client.close(); return; }
 
   const params = toCookieParams(cookies);
   if (params.length) {
@@ -241,7 +257,7 @@ async function markChromeProfile(dir, name) {
   prefs.browser.theme = prefs.browser.theme || {};
   prefs.browser.theme.user_color = ((0xFF << 24) | rgb) >>> 0;
   prefs.browser.theme.is_grayscale = false;
-  try { await fs.writeFile(prefsPath, JSON.stringify(prefs)); } catch { /* segue sem a marca */ }
+  try { await atomicWrite(prefsPath, JSON.stringify(prefs)); } catch { /* segue sem a marca */ }
 
   // 2) Local State: e DAQUI que o Chrome tira o NOME EXIBIDO (barra/aba/taskbar)
   // -> era o que faltava (por isso continuava "Test").
@@ -260,7 +276,7 @@ async function markChromeProfile(dir, name) {
   };
   if (!Array.isArray(ls.profile.profiles_order)) ls.profile.profiles_order = ["Default"];
   ls.profile.last_used = "Default";
-  try { await fs.writeFile(lsPath, JSON.stringify(ls)); } catch { /* segue */ }
+  try { await atomicWrite(lsPath, JSON.stringify(ls)); } catch { /* segue */ }
 }
 
 // URL do painel de ADS filtrada no DIA ANTERIOR (data nos parametros, fuso -03:00).
@@ -288,6 +304,7 @@ async function collectAdsMetrics(info) {
   const chrome = resolveChromePath();
   if (!chrome) return { ok: false, motivo: "Navegador do app nao encontrado." };
 
+  adsInProgress.add(profileId); // impede "Abrir" a mesma conta durante a leitura
   const dir = profileDataDir(profileId);
   await fs.mkdir(dir, { recursive: true });
   await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
@@ -297,6 +314,8 @@ async function collectAdsMetrics(info) {
     "--window-position=-32000,-32000", "--window-size=1280,800", // abre fora da tela (coleta em segundo plano)
     "about:blank"
   ], { detached: false, windowsHide: true });
+  // SEM este listener, um evento 'error' do processo (exe travado, etc.) derruba o app.
+  child.on("error", () => { /* tratado no catch/finally (o connect vai falhar) */ });
 
   let client = null;
   try {
@@ -347,12 +366,16 @@ async function collectAdsMetrics(info) {
   } finally {
     try { if (client) client.close(); } catch { /* ja fechado */ }
     killChrome(child);
+    adsInProgress.delete(profileId);
   }
 }
 
 async function openBrowserProfile(info, sender) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, error: "no-id" };
+  if (adsInProgress.has(profileId)) {
+    return { ok: false, error: "ads-busy" };
+  }
   if (openBrowsers.has(profileId)) {
     const e = openBrowsers.get(profileId);
     // Só considera "já aberto" se o Chrome ainda está vivo. Entrada presa de um
@@ -408,7 +431,7 @@ async function openBrowserProfile(info, sender) {
     if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
   });
 
-  startCookieSync(profileId, dir, url, info?.cookies || [], sender).catch(() => {
+  startCookieSync(profileId, dir, url, info?.cookies || [], sender, child).catch(() => {
     // Se a sincronizacao falhar, o Chrome ja abriu; o usuario navega manual.
   });
 

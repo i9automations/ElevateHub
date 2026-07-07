@@ -195,14 +195,22 @@ async function handleProfileRoute(req, res, parts, user) {
       return send(res, 409, { error: "Abra o perfil antes de baixar a sessao." });
     }
     await store.audit(user, "profile.cookies.read", profile.id).catch(() => {});
+    let raw;
     try {
-      const raw = await fsp.readFile(cookiesFile(profile.id), "utf8");
+      raw = await fsp.readFile(cookiesFile(profile.id), "utf8");
+    } catch {
+      return send(res, 200, { cookies: [] }); // arquivo ausente = sem sessao (normal)
+    }
+    try {
       // Arquivos novos vem cifrados ("v1:"); os antigos (texto puro) ainda leem
       // direto e serao re-gravados cifrados na proxima sincronizacao.
       const json = raw.startsWith("v1:") ? decrypt(raw) : raw;
       const parsed = JSON.parse(json);
       return send(res, 200, { cookies: Array.isArray(parsed.cookies) ? parsed.cookies : [] });
-    } catch {
+    } catch (e) {
+      // Cifrado mas nao decifrou = chave mudou/corrompeu -> loga (senao a sessao
+      // some em silencio e o app mostra "logada" sem cookies).
+      if (raw.startsWith("v1:")) console.warn(`[cookies] falha ao descriptografar perfil ${profile.id}: ${e.message}`);
       return send(res, 200, { cookies: [] });
     }
   }
