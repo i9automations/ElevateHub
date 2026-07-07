@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const browserWorker = require("./browser-worker");
 const { createStore } = require("./store");
+const { encrypt, decrypt } = require("./secret");
 const { loadMailboxes, loadMailboxesSafe, saveMailboxes, normalizeBox, publicMailbox } = require("./mailboxes");
 const { fetchCode, testMailbox, marketplaceInfo } = require("./imap-code");
 const {
@@ -196,7 +197,10 @@ async function handleProfileRoute(req, res, parts, user) {
     await store.audit(user, "profile.cookies.read", profile.id).catch(() => {});
     try {
       const raw = await fsp.readFile(cookiesFile(profile.id), "utf8");
-      const parsed = JSON.parse(raw);
+      // Arquivos novos vem cifrados ("v1:"); os antigos (texto puro) ainda leem
+      // direto e serao re-gravados cifrados na proxima sincronizacao.
+      const json = raw.startsWith("v1:") ? decrypt(raw) : raw;
+      const parsed = JSON.parse(json);
       return send(res, 200, { cookies: Array.isArray(parsed.cookies) ? parsed.cookies : [] });
     } catch {
       return send(res, 200, { cookies: [] });
@@ -213,7 +217,8 @@ async function handleProfileRoute(req, res, parts, user) {
     await fsp.mkdir(COOKIES_DIR, { recursive: true });
     // Escrita atomica: 2 pessoas na mesma conta gravam a cada 8s. writeFile direto pode
     // intercalar e corromper o JSON (-> sessao perdida). tmp unico + rename resolve.
-    await atomicWriteFile(cookiesFile(profile.id), JSON.stringify({ cookies, updatedAt: now() }));
+    // CRIPTOGRAFADO em repouso: a sessao (cookies) e o dado mais sensivel.
+    await atomicWriteFile(cookiesFile(profile.id), encrypt(JSON.stringify({ cookies, updatedAt: now() })));
     // Sessao salva = conta logada. Reflete no status do perfil.
     const nowReady = cookies.length > 0;
     if ((profile.sessionState === "ready") !== nowReady) {
