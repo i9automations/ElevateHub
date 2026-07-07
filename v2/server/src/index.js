@@ -441,7 +441,14 @@ async function handle(req, res) {
 
     send(res, 404, { error: "Rota nao encontrada" });
   } catch (error) {
-    send(res, errorStatus(error), { error: error.message || "Erro interno" });
+    const status = errorStatus(error);
+    // Erro 500 INESPERADO (sem .status proprio): loga o detalhe (diagnostico) mas
+    // devolve mensagem generica (nao vaza detalhe de infra/banco pro cliente).
+    if (status >= 500 && !error.status) {
+      try { console.error("[500]", req.method, req.url, error?.message || error); } catch { /* nada */ }
+      return send(res, 500, { error: "Erro interno. Tente de novo em instantes." });
+    }
+    send(res, status, { error: error.message || "Erro interno" });
   }
 }
 

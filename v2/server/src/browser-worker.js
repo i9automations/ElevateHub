@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const net = require("node:net");
 
 const LOGIN_URL = "https://seller-br.tiktok.com/account/login";
 const DEFAULT_VIEWPORT = { width: 1365, height: 768 };
@@ -23,17 +24,15 @@ function slug(value) {
 function isBlockedHost(host) {
   const h = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
   if (!h) return true;
-  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal")) return true;
-  if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true;
-  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (m) {
-    const a = Number(m[1]);
-    const b = Number(m[2]);
-    if (a === 127 || a === 10 || a === 0) return true;               // loopback / privado / invalido
-    if (a === 169 && b === 254) return true;                          // link-local / metadata de nuvem
-    if (a === 172 && b >= 16 && b <= 31) return true;                 // privado
-    if (a === 192 && b === 168) return true;                          // privado
-  }
+  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".localhost")) return true;
+  // Os marketplaces sao DOMINIOS. Entao bloqueamos QUALQUER endereco IP literal
+  // (v4/v6) e suas formas nao-canonicas (decimal, hex, octal, curtas, ::ffff:) —
+  // e assim que se driblava o filtro antigo (ex: http://2130706433 = 127.0.0.1).
+  if (h.includes(":")) return true;                       // IPv6 (inclui ::ffff:IPv4)
+  if (net.isIP(h)) return true;                           // IP literal valido v4/v6
+  // Qualquer host cujos segmentos sejam SO numeros/hex = forma de IP (decimal,
+  // hex, octal, curta, ou mista tipo 0x7f.0.0.1). Dominios tem letras -> passam.
+  if (/^(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+))*$/i.test(h)) return true;
   return false;
 }
 

@@ -492,10 +492,17 @@ function createWindow() {
   win.setMenu(null);
   win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => win.show());
+  // Abrir link externo: SO https (nao deixa file://, ms-msdt:, UNC etc. abrirem
+  // pelo SO caso a pagina seja comprometida).
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try { if (new URL(url).protocol === "https:") shell.openExternal(url); } catch { /* url invalida */ }
     return { action: "deny" };
   });
+  // Trava a janela no app local: nunca navega pra conteudo remoto (que herdaria a
+  // ponte 'elevate'). Links vao pelo handler acima.
+  const blockNav = (e, url) => { try { if (new URL(url).protocol !== "file:") e.preventDefault(); } catch { e.preventDefault(); } };
+  win.webContents.on("will-navigate", blockNav);
+  win.webContents.on("will-redirect", blockNav);
   win.loadFile(path.join(__dirname, "index.html"));
 }
 

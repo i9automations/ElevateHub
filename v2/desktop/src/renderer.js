@@ -317,19 +317,20 @@ function renderProfiles() {
   $("profileList").innerHTML = visible.map((profile) => {
     const status = profileStatus(profile);
     const selected = profile.id === state.selectedId ? " selected" : "";
+    const pid = escapeHtml(profile.id); // defesa: id vai em atributos HTML
     const owner = profile.responsavel || "—";
-    const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${profile.id}" title="Editar">Editar</button>`;
+    const editButton = `<button class="ghost compact" type="button" data-action="edit" data-id="${pid}" title="Editar">Editar</button>`;
     // Botão "Código" só no TikTok (qualquer hub); os outros marketplaces não precisam.
     const codeButton = isTikTokProfile(profile)
-      ? `<button class="ghost compact" type="button" data-action="code" data-id="${profile.id}" title="Pegar código de verificação do e-mail">Código</button>`
+      ? `<button class="ghost compact" type="button" data-action="code" data-id="${pid}" title="Pegar código de verificação do e-mail">Código</button>`
       : "";
     const releaseButton = "";
-    const openBtn = `<button class="run" type="button" data-action="open" data-id="${profile.id}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
+    const openBtn = `<button class="run" type="button" data-action="open" data-id="${pid}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
     const av = profileAvatar(profile.name);
     return `
-      <div class="profile-row${selected} st-row-${status.cls}" data-profile-id="${profile.id}">
+      <div class="profile-row${selected} st-row-${status.cls}" data-profile-id="${pid}">
         <div class="c-name">
-          <span class="avatar" style="background:${av.col}1f;color:${av.col}">${av.ini}</span>
+          <span class="avatar" style="background:${av.col}1f;color:${av.col}">${escapeHtml(av.ini)}</span>
           <span class="ntxt">
             <span class="nm" title="${escapeHtml(profile.name)}">${escapeHtml(profile.name)}</span>
             <span class="em" title="${escapeHtml(profile.tiktokEmail || "")}">${escapeHtml(profile.tiktokEmail || "—")}</span>
