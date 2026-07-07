@@ -1845,3 +1845,27 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
   font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
   color: var(--faint); font-weight: 800; padding: 4px 8px 6px;
 }
+
+/* ===== Faixa de atualização (topo do app, não pop-up central) ===== */
+/* Faixa FIXA no topo da janela; empurra o app inteiro pra baixo (não sobrepõe). */
+.app-shell.has-update-banner { padding-top: 46px; transition: padding-top .2s ease; }
+.update-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 10px 22px; flex-wrap: wrap;
+  background: linear-gradient(90deg, rgba(20,26,32,.97), rgba(20,26,32,.9));
+  border-bottom: 1px solid rgba(37,244,238,.35);
+  color: var(--text); font-size: 13.5px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 60; min-height: 46px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.32);
+  animation: bannerDown .3s ease;
+}
+@keyframes bannerDown { from { transform: translateY(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
+.update-banner.hidden { display: none; }
+.update-banner-txt { font-weight: 600; }
+.update-banner-actions { display: flex; gap: 8px; }
+.update-banner-btn {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  padding: 6px 14px; border-radius: 8px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.update-banner-btn:hover { border-color: var(--primary); }
+.update-banner-btn.now { background: linear-gradient(145deg, var(--primary), var(--primary-hover)); color: #04191a; border: 0; font-weight: 700; }

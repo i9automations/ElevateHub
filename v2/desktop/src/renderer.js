@@ -1216,29 +1216,27 @@ function checkForUpdates() {
 function showUpdateReady(info) {
   if (info) state.updateInfo = info;
   const v = state.updateInfo?.version;
-  $("updateCopy").textContent = "Uma nova versão do ElevateHub está pronta. Você pode atualizar agora (leva poucos segundos) ou deixar para depois — o aviso fica no topo até você atualizar.";
-  $("updateMeta").textContent = v ? `Nova versão: ${v}` : "";
-  $("installUpdateBtn").textContent = "Atualizar agora";
-  $("cancelUpdateBtn").textContent = "Atualizar depois";
-  // botão fixo no topo: some só quando a pessoa atualizar de fato
-  $("updateAvailableBtn")?.classList.remove("hidden");
-  if (!$("updateDialog").open) $("updateDialog").showModal();
+  // Aviso DISCRETO no topo do app (faixa), NUNCA um pop-up no meio da tela.
+  const verEl = $("updateBannerVer");
+  if (verEl) verEl.textContent = v ? ` (${v})` : "";
+  $("updateBanner")?.classList.remove("hidden");
+  $("appShell")?.classList.add("has-update-banner"); // empurra o app pra baixo
+  $("updateAvailableBtn")?.classList.remove("hidden"); // botão no topbar tb (fallback)
 }
 
 function dismissUpdate() {
-  // "Atualizar depois": fecha o aviso, mas o botão do topo continua ali.
-  $("updateDialog").close();
-  toast("Sem problema — quando quiser, é só clicar em “Atualização disponível” no topo.", "info");
+  // "Agora não": some a faixa; o botão "Atualização disponível" no topo continua.
+  $("updateBanner")?.classList.add("hidden");
+  $("appShell")?.classList.remove("has-update-banner");
 }
 
 async function installUpdate() {
-  $("installUpdateBtn").disabled = true;
-  $("installUpdateBtn").textContent = "Reiniciando...";
+  const btn = $("updateBannerNow");
+  if (btn) { btn.disabled = true; btn.textContent = "Reiniciando…"; }
   try {
     if (window.elevate?.installUpdateNow) await window.elevate.installUpdateNow();
   } catch {
-    $("installUpdateBtn").disabled = false;
-    $("installUpdateBtn").textContent = "Reiniciar agora";
+    if (btn) { btn.disabled = false; btn.textContent = "Atualizar agora"; }
   }
 }
 
@@ -1361,8 +1359,10 @@ $("importBtn").addEventListener("click", () => requireAdminAction(() => $("impor
 $("cancelProfileBtn").addEventListener("click", () => $("profileDialog").close());
 $("deleteProfileBtn").addEventListener("click", deleteProfile);
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
-$("cancelUpdateBtn").addEventListener("click", dismissUpdate);
-$("installUpdateBtn").addEventListener("click", installUpdate);
+$("cancelUpdateBtn")?.addEventListener("click", dismissUpdate);
+$("installUpdateBtn")?.addEventListener("click", installUpdate);
+$("updateBannerNow")?.addEventListener("click", installUpdate);
+$("updateBannerLater")?.addEventListener("click", dismissUpdate);
 $("updateAvailableBtn")?.addEventListener("click", () => showUpdateReady());
 $("profileDialog").addEventListener("submit", saveProfile);
 $("runImportBtn").addEventListener("click", runImport);
