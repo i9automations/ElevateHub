@@ -116,7 +116,7 @@ function buildUaMetadata(browserStr, ua) {
 
 async function waitDevToolsPort(dir) {
   const file = path.join(dir, "DevToolsActivePort");
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 120; i++) {
     try {
       const content = await fs.readFile(file, "utf8");
       const port = parseInt(content.split("\n")[0], 10);
@@ -147,8 +147,20 @@ function toCookieParams(cookies) {
 
 async function startCookieSync(profileId, dir, url, cookies, sender) {
   const port = await waitDevToolsPort(dir);
-  const version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
-  const client = await connectCdp(version.webSocketDebuggerUrl);
+  // Conecta com tentativas: em PC ocupado o endpoint pode demorar/falhar por um
+  // instante. Sem essa conexao a marca "Google Chrome" nao e aplicada e o TikTok
+  // bloqueia -> era o erro intermitente que sumia ao reiniciar.
+  let version, client;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+      client = await connectCdp(version.webSocketDebuggerUrl);
+      break;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      await sleep(600);
+    }
+  }
 
   const params = toCookieParams(cookies);
   if (params.length) {
@@ -319,7 +331,16 @@ async function collectAdsMetrics(info) {
 async function openBrowserProfile(info, sender) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, error: "no-id" };
-  if (openBrowsers.has(profileId)) return { ok: true, already: true };
+  if (openBrowsers.has(profileId)) {
+    const e = openBrowsers.get(profileId);
+    // Só considera "já aberto" se o Chrome ainda está vivo. Entrada presa de um
+    // processo que morreu -> limpa e reabre (senão diria "já aberto" sem janela).
+    if (e?.child && e.child.exitCode === null && !e.child.killed) {
+      return { ok: true, already: true };
+    }
+    try { if (e?.firstSync) clearTimeout(e.firstSync); if (e?.interval) clearInterval(e.interval); if (e?.client) e.client.close(); } catch { /* ignora */ }
+    openBrowsers.delete(profileId);
+  }
 
   const chrome = resolveChromePath();
   if (!chrome) return { ok: false, error: "no-chrome" };
