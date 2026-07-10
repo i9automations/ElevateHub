@@ -1,62 +1,10 @@
 {
   "name": "@contas-tiktok-v2/desktop",
   "private": true,
-  "version": "0.2.34",
+  "version": "0.2.37",
   "description": "Aplicativo desktop do ElevateHub.",
   "main": "src/main.js",
-  "scripts": {
-    "dev": "electron .",
-    "start": "electron .",
-    "dist": "electron-builder --win nsis --x64"
-  },
   "dependencies": {
     "electron-updater": "^6.8.9"
-  },
-  "devDependencies": {
-    "electron": "^43.0.0",
-    "electron-builder": "^26.15.3"
-  },
-  "build": {
-    "appId": "br.com.elevateecom.contas-tiktok-v2",
-    "productName": "ElevateHub",
-    "directories": {
-      "output": "dist"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "i9automations",
-        "repo": "ElevateHub"
-      }
-    ],
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "chrome",
-        "to": "chrome"
-      }
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "assets/elevatehub.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "ElevateHub"
-    }
   }
 }

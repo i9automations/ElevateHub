@@ -1,5 +1,6 @@
 const state = {
   token: localStorage.getItem("ctv2.token") || sessionStorage.getItem("ctv2.token") || "",
+  refreshToken: localStorage.getItem("ctv2.refresh") || sessionStorage.getItem("ctv2.refresh") || "",
   user: null,
   profiles: [],
   users: [],
@@ -22,26 +23,59 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-function storeToken(token, remember) {
+function storeToken(token, refreshToken, remember) {
   try {
-    if (remember) {
-      localStorage.setItem("ctv2.token", token);
-      sessionStorage.removeItem("ctv2.token");
-    } else {
-      sessionStorage.setItem("ctv2.token", token);
-      localStorage.removeItem("ctv2.token");
+    const keep = remember ? localStorage : sessionStorage;
+    const drop = remember ? sessionStorage : localStorage;
+    keep.setItem("ctv2.token", token);
+    drop.removeItem("ctv2.token");
+    if (refreshToken) {
+      keep.setItem("ctv2.refresh", refreshToken);
+      drop.removeItem("ctv2.refresh");
     }
   } catch {
     // Armazenamento indisponivel não deve impedir o login na sessão atual.
   }
 }
 
+// Onde o login ficou salvo antes (localStorage = "lembrar"). Usado ao renovar
+// pra manter o crachá no mesmo lugar.
+function rememberedInLocal() {
+  try { return localStorage.getItem("ctv2.token") !== null || localStorage.getItem("ctv2.refresh") !== null; }
+  catch { return true; }
+}
+
 function clearToken() {
   try {
     localStorage.removeItem("ctv2.token");
     sessionStorage.removeItem("ctv2.token");
+    localStorage.removeItem("ctv2.refresh");
+    sessionStorage.removeItem("ctv2.refresh");
   } catch {
     // Ignorar falha ao limpar; a sessão já foi encerrada em memoria.
+  }
+}
+
+// Troca o crachá de renovação por uma sessão nova (sem senha). Retorna true se
+// conseguiu. Chamado automaticamente quando o token de acesso (~1h) vence.
+async function tryRefresh() {
+  if (!state.refreshToken) return false;
+  try {
+    const res = await fetch(`${apiBase}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: state.refreshToken })
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.token) return false;
+    state.token = data.token;
+    if (data.refreshToken) state.refreshToken = data.refreshToken;
+    if (data.user) state.user = data.user;
+    storeToken(state.token, state.refreshToken, rememberedInLocal());
+    return true;
+  } catch {
+    return false;
   }
 }
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
@@ -167,6 +201,13 @@ async function api(path, options = {}) {
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined
   });
+  // Token de acesso vencido (401): renova UMA vez com o crachá de renovação e
+  // repete a chamada -> ninguém cai na tela de login a cada atualização/reinício.
+  if (res.status === 401 && !options._retried && path !== "/api/auth/refresh" && state.refreshToken) {
+    if (await tryRefresh()) {
+      return api(path, { ...options, _retried: true });
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Não foi possível concluir agora.");
   return data;
@@ -227,7 +268,9 @@ function renderSquads() {
   };
   const hubs = [];
   squads.forEach((s) => { if (!hubs.includes(s.hub)) hubs.push(s.hub); });
+  const collapsed = getCollapsedHubs();
   $("squadNav").innerHTML = hubs.map((hub) => {
+    const hubCount = squads.filter((s) => s.hub === hub).reduce((n, s) => n + (counts[s.key] || 0), 0);
     const items = squads.filter((s) => s.hub === hub).map((squad) => {
       const mk = mktIcon[squad.mkt] || mktIcon.tiktok;
       return `
@@ -240,8 +283,28 @@ function renderSquads() {
         <span class="squad-count">${counts[squad.key] || 0}</span>
       </button>`;
     }).join("");
-    return `<div class="hub-group"><div class="hub-label">${escapeHtml(hub)}</div>${items}</div>`;
+    const isCol = collapsed.has(hub);
+    return `<div class="hub-group${isCol ? " collapsed" : ""}" data-hub="${escapeHtml(hub)}">
+      <button class="hub-label" type="button" data-hub-toggle="${escapeHtml(hub)}" aria-expanded="${!isCol}">
+        <span class="hub-caret" aria-hidden="true"></span>
+        <span class="hub-label-txt">${escapeHtml(hub)}</span>
+        <span class="hub-total">${hubCount}</span>
+      </button>
+      <div class="hub-items">${items}</div>
+    </div>`;
   }).join("");
+}
+
+// Grupos recolhidos (setinha na barra lateral). Guardado -> lembra entre sessoes.
+function getCollapsedHubs() {
+  try { return new Set(JSON.parse(localStorage.getItem("ctv2.collapsedHubs") || "[]")); }
+  catch { return new Set(); }
+}
+function toggleHub(hub) {
+  const set = getCollapsedHubs();
+  if (set.has(hub)) set.delete(hub); else set.add(hub);
+  try { localStorage.setItem("ctv2.collapsedHubs", JSON.stringify([...set])); } catch { /* cheio */ }
+  renderSquads();
 }
 
 function selectedProfile() {
@@ -445,8 +508,9 @@ async function login() {
       }
     });
     state.token = data.token;
+    state.refreshToken = data.refreshToken || "";
     state.user = data.user;
-    storeToken(state.token, $("remember")?.checked !== false);
+    storeToken(state.token, state.refreshToken, $("remember")?.checked !== false);
     setServer("conectado", true);
     showApp();
     await loadProfiles();
@@ -459,7 +523,9 @@ async function login() {
 }
 
 async function restoreSession() {
-  if (!state.token) return false;
+  // Com crachá de renovação, mesmo sem token de acesso válido dá pra voltar
+  // logado: o api() renova sozinho no primeiro 401.
+  if (!state.token && !state.refreshToken) return false;
   try {
     const data = await api("/api/me");
     state.user = data.user;
@@ -471,33 +537,10 @@ async function restoreSession() {
   } catch {
     clearToken();
     state.token = "";
+    state.refreshToken = "";
     state.user = null;
     return false;
   }
-}
-
-// "Link ao abrir": opcoes fixas + personalizado. Vazio = padrao da pasta (squad).
-const START_URL_OPTIONS = [MKT_URL.tiktok, MKT_URL.ml, MKT_URL.shopee, MKT_URL.amazon];
-function setProfileStartUrl(startUrl, squad) {
-  const sel = $("profileStartUrl");
-  const custom = $("profileStartUrlCustom");
-  if (!sel || !custom) return;
-  const url = String(startUrl || "").trim();
-  const squadDefault = squad?.startUrl || "";
-  if (!url || url === squadDefault) sel.value = "";           // padrao da pasta
-  else if (START_URL_OPTIONS.includes(url)) sel.value = url;  // um marketplace conhecido
-  else sel.value = "__custom__";                              // link personalizado
-  const isCustom = sel.value === "__custom__";
-  custom.value = isCustom ? url : "";
-  custom.classList.toggle("hidden", !isCustom);
-}
-
-// Le a escolha do link no dialogo. "" = padrao da pasta (o servidor resolve).
-function readProfileStartUrl() {
-  const sel = $("profileStartUrl");
-  if (!sel) return "";
-  if (sel.value === "__custom__") return $("profileStartUrlCustom")?.value.trim() || "";
-  return sel.value || "";
 }
 
 function openProfileDialog(profile = null) {
@@ -511,7 +554,6 @@ function openProfileDialog(profile = null) {
   $("profileMailbox").value = profile?.mailboxEmail || "";
   $("profileTags").value = (profile?.tags || []).join(", ");
   $("profileNotes").value = profile?.notes || "";
-  setProfileStartUrl(profile?.startUrl || "", squad);
   // Excluir so aparece ao editar um perfil existente
   $("deleteProfileBtn").classList.toggle("hidden", !profile);
   $("profileDialog").showModal();
@@ -574,7 +616,6 @@ async function saveProfile(event) {
     squad: state.editProfileId ? profileSquad(selectedProfile()) : state.selectedSquad
   };
   body.mailboxEmail = $("profileMailbox").value.trim();
-  body.startUrl = readProfileStartUrl(); // "" = padrao da pasta
   if (isAdmin()) {
     body.tags = $("profileTags").value.split(",").map((item) => item.trim()).filter(Boolean);
   }
@@ -671,10 +712,7 @@ async function openLocalBrowser(profileId) {
     }
   }
   try {
-    // "Link ao abrir": usa o link escolhido no perfil (pode ser personalizado,
-    // p/ clientes de mais de 1 marketplace); se vazio, cai no padrao da pasta.
-    const startUrl = profile.startUrl || squadOf(profileSquad(profile)).startUrl;
-    const mkt = squadOf(profileSquad(profile)).mkt;
+    const startUrl = squadOf(profileSquad(profile)).startUrl || profile.startUrl;
     // Etapa 2: baixa a sessão (cookies) do servidor pra já abrir logado
     let cookies = [];
     try {
@@ -683,7 +721,7 @@ async function openLocalBrowser(profileId) {
     } catch {
       // sem sessão salva ainda: abre pra logar do zero (a 1a vez)
     }
-    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl, cookies, mkt });
+    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl, cookies });
     if (!result?.ok) {
       const reason = result?.error === "no-chrome"
         ? "Navegador do app não encontrado."
@@ -1160,8 +1198,8 @@ document.getElementById("grade").innerHTML=ord.map(function(d){
 if(d.erro){return '<div class="c err"><div class="h"><div class="cli">'+esc(d.cli)+(d.resp?'<span class="rsp">'+esc(d.resp)+'</span>':'')+'</div></div><div class="alert">Não foi possível ler: '+esc(d.erro)+'</div></div>';}
 var cls="c";if(d.roi>=8)cls+=" top";if((d.pedidos||0)===0)cls+=" zero";
 return '<div class="'+cls+'"><div class="h"><div class="cli">'+esc(d.cli)+(d.resp?'<span class="rsp">'+esc(d.resp)+'</span>':'')+'</div><div class="roi '+roiCls(d.roi)+'">'+(Number(d.roi)||0).toFixed(2)+'x</div></div><div class="mt"><div class="m"><div class="l">Custo</div><div class="v">'+brl(d.custo)+'</div></div><div class="m"><div class="l">Pedidos</div><div class="v">'+(d.pedidos||0)+'</div></div><div class="m"><div class="l">Custo/Ped.</div><div class="v">'+brl(d.cpp)+'</div></div><div class="m"><div class="l">Receita</div><div class="v g">'+brl(d.receita)+'</div></div></div></div>';}).join("");
-function exportCSV(){var h=["Conta","Responsavel","Custo","Pedidos","Custo por pedido","Receita","ROI","Erro"];
-var ln=dados.map(function(d){return [d.cli,d.resp||"",(d.custo||0).toFixed(2).replace(".",","),(d.pedidos||0),(d.cpp||0).toFixed(2).replace(".",","),(d.receita||0).toFixed(2).replace(".",","),(Number(d.roi)||0).toFixed(2).replace(".",","),d.erro||""];});
+function exportCSV(){var h=["Conta","Responsavel","Custo","Pedidos","Custo por pedido","Receita","Ticket medio","ROI","Erro"];
+var ln=dados.map(function(d){return [d.cli,d.resp||"",(d.custo||0).toFixed(2).replace(".",","),(d.pedidos||0),(d.cpp||0).toFixed(2).replace(".",","),(d.receita||0).toFixed(2).replace(".",","),(d.ticket||0).toFixed(2).replace(".",","),(Number(d.roi)||0).toFixed(2).replace(".",","),d.erro||""];});
 var csv=[h].concat(ln).map(function(r){return r.map(function(c){return '"'+c+'"';}).join(";");}).join("\\r\\n");
 var b=new Blob(["\\ufeff"+csv],{type:"text/csv;charset=utf-8;"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="Relatorio_ADS.csv";a.click();}
 </script></body></html>`;
@@ -1386,12 +1424,6 @@ $("search").addEventListener("input", renderProfiles);
 $("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
 $("importBtn").addEventListener("click", () => requireAdminAction(() => $("importDialog").showModal()));
 $("cancelProfileBtn").addEventListener("click", () => $("profileDialog").close());
-$("profileStartUrl")?.addEventListener("change", () => {
-  const custom = $("profileStartUrlCustom");
-  const isCustom = $("profileStartUrl").value === "__custom__";
-  custom.classList.toggle("hidden", !isCustom);
-  if (isCustom) custom.focus();
-});
 $("deleteProfileBtn").addEventListener("click", deleteProfile);
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
 $("cancelUpdateBtn")?.addEventListener("click", dismissUpdate);
@@ -1410,6 +1442,8 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => requireAuth(() => setView(button.dataset.view)));
 });
 $("squadNav").addEventListener("click", (event) => {
+  const toggle = event.target.closest("button[data-hub-toggle]");
+  if (toggle) { toggleHub(toggle.dataset.hubToggle); return; }
   const button = event.target.closest("button[data-squad]");
   if (!button) return;
   requireAuth(() => {

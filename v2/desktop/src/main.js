@@ -117,7 +117,7 @@ function buildUaMetadata(browserStr, ua) {
       ],
       fullVersion: full,
       platform: "Windows",
-      platformVersion: "15.0.0",
+      platformVersion: "19.0.0",
       architecture: "x86",
       model: "",
       mobile: false,
@@ -158,7 +158,7 @@ function toCookieParams(cookies) {
     });
 }
 
-async function startCookieSync(profileId, dir, url, cookies, sender, child, mkt) {
+async function startCookieSync(profileId, dir, url, cookies, sender, child) {
   const port = await waitDevToolsPort(dir);
   // Conecta com tentativas: em PC ocupado o endpoint pode demorar/falhar por um
   // instante. Sem essa conexao a marca "Google Chrome" nao e aplicada e o TikTok
@@ -192,23 +192,15 @@ async function startCookieSync(profileId, dir, url, cookies, sender, child, mkt)
   }
 
   // Faz o navegador se apresentar como "Google Chrome" (senao o TikTok bloqueia).
-  // IMPORTANTE: a marca falsa (e os "client hints" de sistema) SO e aplicada quando
-  // o destino e o TikTok. Em Mercado Livre/Shopee/Amazon, mandar uma identidade
-  // fabricada fazia esses sites acionarem reCAPTCHA e deslogar a conta. Fora do TikTok
-  // o navegador usa a identidade nativa (igual a um Chrome normal), que e o esperado.
-  // Decidimos pela URL de destino (nao pela pasta): um cliente de ML arquivado na
-  // pasta do TikTok, com link proprio, tambem fica sem o spoof.
-  let destHost = "";
-  try { destHost = new URL(url).hostname.toLowerCase(); } catch { /* url estranha */ }
-  const spoof = /(^|\.)tiktok\.com$/.test(destHost) || (mkt === "tiktok" && !destHost);
-  const uaMeta = spoof ? buildUaMetadata(version.Browser, version["User-Agent"]) : null;
+  // Aplica a marca SO na aba principal e ANTES de navegar (abre em branco, aplica,
+  // depois navega). NAO pausa todas as abas/frames — isso deixava o site MUITO lento.
+  // A marca vale tambem p/ os frames internos da propria pagina.
+  const uaMeta = buildUaMetadata(version.Browser, version["User-Agent"]);
   let createdId = null;
   try {
     createdId = (await client.send("Target.createTarget", { url: "about:blank" })).targetId;
     const attached = await client.send("Target.attachToTarget", { targetId: createdId, flatten: true });
-    if (spoof) {
-      try { await client.send("Emulation.setUserAgentOverride", uaMeta, attached.sessionId); } catch { /* segue sem a marca */ }
-    }
+    try { await client.send("Emulation.setUserAgentOverride", uaMeta, attached.sessionId); } catch { /* segue sem a marca */ }
     await client.send("Page.navigate", { url }, attached.sessionId);
   } catch {
     // fallback: abre direto na URL (pode cair no bloqueio, mas abre)
@@ -303,6 +295,20 @@ function killChrome(child) {
 
 // Fase 1 do "Relatorio de ADS": abre a conta, entra no painel de anuncios do dia
 // anterior, LE as metricas do DOM (via ads-metrics) e fecha. Retorna os numeros.
+// Diagnóstico do ADS: salva o TEXTO e uma FOTO do painel de cada conta em
+// Documentos/ElevateHub/ads-debug -> serve p/ calibrar a leitura contra a tela
+// real do GMV Max (e p/ entender quando uma conta falha).
+async function saveAdsDebug(name, text, client, sessionId) {
+  const safe = String(name || "conta").replace(/[^a-z0-9._-]/gi, "_").slice(0, 60) || "conta";
+  const dir = path.join(app.getPath("documents"), APP_NAME, "ads-debug");
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, `${safe}.txt`), String(text || ""), "utf8");
+  try {
+    const shot = await client.send("Page.captureScreenshot", { format: "png" }, sessionId);
+    if (shot?.data) await fs.writeFile(path.join(dir, `${safe}.png`), Buffer.from(shot.data, "base64"));
+  } catch { /* screenshot é opcional */ }
+}
+
 async function collectAdsMetrics(info) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, motivo: "perfil invalido" };
@@ -365,10 +371,11 @@ async function collectAdsMetrics(info) {
     }
     await sleep(5000); // deixa os numeros/grafico assentarem
     text = await readText();
+    await saveAdsDebug(info?.name, text, client, sessionId).catch(() => {}); // captura p/ calibrar
     const { extractAdsMetrics } = require("./ads-metrics");
     const m = extractAdsMetrics(text);
     if (!m.ok) return { ok: false, motivo: m.motivo };
-    return { ok: true, metrics: { custo: m.custo, pedidos: m.pedidos, cpp: m.cpp, receita: m.receita, roi: m.roi } };
+    return { ok: true, metrics: { custo: m.custo, pedidos: m.pedidos, cpp: m.cpp, receita: m.receita, roi: m.roi, ticket: m.ticket } };
   } catch (e) {
     return { ok: false, motivo: String(e?.message || e || "falha ao ler o ADS") };
   } finally {
@@ -439,7 +446,7 @@ async function openBrowserProfile(info, sender) {
     if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
   });
 
-  startCookieSync(profileId, dir, url, info?.cookies || [], sender, child, String(info?.mkt || "")).catch(() => {
+  startCookieSync(profileId, dir, url, info?.cookies || [], sender, child).catch(() => {
     // Se a sincronizacao falhar, o Chrome ja abriu; o usuario navega manual.
   });
 

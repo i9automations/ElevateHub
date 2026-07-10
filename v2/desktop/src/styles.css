@@ -18,6 +18,13 @@
   --shadow: 0 16px 36px rgba(0, 0, 0, .34);
 }
 
+/* Fonte Inter auto-hospedada (embutida no app; nao depende do Google, funciona offline). */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("./assets/fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("./assets/fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("./assets/fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("./assets/fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 800; font-display: swap; src: url("./assets/fonts/inter-800.woff2") format("woff2"); }
+
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; }
 
@@ -26,8 +33,11 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
 }
 
 button, input, textarea, select {
@@ -102,10 +112,7 @@ body:not(.admin-mode) .admin-only {
 }
 
 .app-shell.auth-mode .workspace {
-  background:
-    linear-gradient(135deg, rgba(37, 244, 238, .08), transparent 34%),
-    linear-gradient(315deg, rgba(254, 44, 85, .045), transparent 30%),
-    #070809;
+  background: #070809;
 }
 
 .app-shell.auth-mode .login {
@@ -133,7 +140,7 @@ body:not(.admin-mode) .admin-only {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), var(--pink));
+  background: var(--primary);
   color: #071014;
   font-weight: 900;
 }
@@ -686,10 +693,10 @@ label {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(rgba(37, 244, 238, .07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(254, 44, 85, .06) 1px, transparent 1px);
-  background-size: 32px 32px;
-  opacity: .58;
+    linear-gradient(rgba(255, 255, 255, .014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .014) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: 1;
 }
 
 .screen-copy {
@@ -998,7 +1005,7 @@ dialog::backdrop {
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center center;
   overflow: hidden;
-  font-family: "Jost", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   background: linear-gradient(180deg, #05121b 0%, #0a2233 24%, #17475e 52%, #3e7f9c 76%, #9fcbe0 100%);
 }
 
@@ -1109,7 +1116,7 @@ dialog::backdrop {
 .install-badge-gloss {
   position: absolute;
   inset: 0;
-  background: linear-gradient(160deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%);
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 55%);
 }
 .install-badge-name {
   font-size: 18px;
@@ -1261,7 +1268,7 @@ dialog::backdrop {
 .login-v2 .lg-wordmark {
   display: flex;
   align-items: baseline;
-  font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   line-height: 1;
 }
 .login-v2 .lg-w1 { font-size: 52px; font-weight: 300; letter-spacing: -.5px; color: #f4f2ec; }
@@ -1275,7 +1282,7 @@ dialog::backdrop {
   position: relative;
   margin: 40px 0 0;
   max-width: 400px;
-  font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   font-size: 26px; font-weight: 300; line-height: 1.5; color: #cfe0ea;
 }
 
@@ -1611,7 +1618,7 @@ dialog::backdrop {
 
 .lg3-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:auto; padding:24px; }
 
-.lg3-wordmark { display:flex; align-items:flex-start; font-family:"Jost","Segoe UI",system-ui,sans-serif; opacity:0; animation:lg3-rise .9s cubic-bezier(.2,.7,.2,1) .05s forwards; }
+.lg3-wordmark { display:flex; align-items:flex-start; font-family:"Inter","Segoe UI",system-ui,sans-serif; opacity:0; animation:lg3-rise .9s cubic-bezier(.2,.7,.2,1) .05s forwards; }
 .lg3-w1 { font-size:72px; font-weight:300; letter-spacing:-1px; color:#f4f2ec; line-height:1; }
 .lg3-w2 { font-size:72px; font-weight:500; letter-spacing:-1px; color:#f4f2ec; line-height:1; margin-left:15px; }
 .lg3-reg { font-size:19px; font-weight:400; color:#cfe0ea; margin-top:8px; margin-left:5px; }
@@ -1659,7 +1666,7 @@ dialog::backdrop {
 .lg3-badge { display:flex; flex-direction:column; align-items:center; gap:9px; }
 .lg3-tile { width:52px; height:52px; border-radius:14px; display:grid; place-items:center; position:relative; overflow:hidden;
   box-shadow:0 12px 26px -10px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.15); }
-.lg3-tile::after { content:""; position:absolute; inset:0; background:linear-gradient(160deg,rgba(255,255,255,.2),rgba(255,255,255,0) 55%); }
+.lg3-tile::after { content:""; position:absolute; inset:0; background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,0) 55%); }
 .lg3-tile img { position:relative; z-index:1; object-fit:contain; }
 .lg3-badge span { font-size:11px; color:#a9c0cd; letter-spacing:.3px; }
 
@@ -1806,10 +1813,9 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
 
 /* ===== Aviso de atualização (botão fixo no topo) ===== */
 .update-pill {
-  background: linear-gradient(145deg, var(--primary), var(--primary-hover));
+  background: var(--primary);
   color: #04191a; border: 0; font-weight: 700; font-size: 13px;
-  padding: 9px 15px; border-radius: 10px; cursor: pointer; white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(37,244,238,.28);
+  padding: 9px 15px; border-radius: 8px; cursor: pointer; white-space: nowrap;
   animation: updpulse 2.4s ease-in-out infinite;
 }
 .update-pill:hover { filter: brightness(1.07); }
@@ -1844,7 +1850,30 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
 .hub-label {
   font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
   color: var(--faint); font-weight: 800; padding: 4px 8px 6px;
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; min-height: 0; background: none; border: 0; cursor: pointer;
+  text-align: left;
 }
+.hub-label:hover { color: var(--muted); }
+.hub-label-txt { flex: 1; }
+.hub-caret {
+  width: 0; height: 0; flex: none;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transform: rotate(90deg); /* aberto: aponta pra baixo */
+  transition: transform .18s ease;
+  opacity: .85;
+}
+.hub-total {
+  font-size: 10px; font-weight: 700; color: var(--faint);
+  background: var(--surface-2); border-radius: 20px; padding: 1px 7px;
+  opacity: 0; transition: opacity .15s ease;
+}
+.hub-group.collapsed .hub-caret { transform: rotate(0deg); } /* recolhido: aponta pra direita */
+.hub-group.collapsed .hub-total { opacity: 1; } /* mostra o total quando esconde os squads */
+.hub-items { overflow: hidden; }
+.hub-group.collapsed .hub-items { display: none; }
 
 /* ===== Faixa de atualização (topo do app, não pop-up central) ===== */
 /* Faixa FIXA no topo da janela; empurra o app inteiro pra baixo (não sobrepõe). */
@@ -1868,4 +1897,68 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
   padding: 6px 14px; border-radius: 8px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
 }
 .update-banner-btn:hover { border-color: var(--primary); }
-.update-banner-btn.now { background: linear-gradient(145deg, var(--primary), var(--primary-hover)); color: #04191a; border: 0; font-weight: 700; }
+.update-banner-btn.now { background: var(--primary); color: #04191a; border: 0; font-weight: 700; }
+
+/* ============================================================
+   Refino geral — micro-interações, foco acessível e temática.
+   Bloco aditivo (append-only): não altera regras acima.
+   ============================================================ */
+
+/* Botões: leve "pressionar" ao clicar + transição do transform */
+button { transition: background .16s ease, border-color .16s ease, color .16s ease, opacity .16s ease, transform .08s ease, box-shadow .16s ease; }
+button:not(:disabled):active { transform: translateY(1px) scale(.995); }
+
+/* Foco por teclado visível e temático (não aparece no clique de mouse) */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* Seleção de texto na cor da marca */
+::selection { background: rgba(37, 244, 238, .28); color: var(--text); }
+
+/* Scrollbar fina e temática (some quando não usa) */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: padding-box; }
+
+/* Linhas de perfil e itens do menu: hover mais "vivo" e suave */
+.profile-row { transition: background .16s ease, box-shadow .16s ease; }
+.nav-item, .squad-item, .squad-tile { transition: background .16s ease, color .16s ease, border-color .16s ease, transform .1s ease; }
+.nav-item:active, .squad-item:active { transform: translateY(1px); }
+
+/* Cartões de squad: leve elevação no hover */
+.squad-block { transition: transform .14s ease, box-shadow .16s ease, border-color .16s ease; }
+.squad-block:hover { transform: translateY(-1px); }
+
+/* Empty-state: hierarquia um pouco mais respirada */
+.empty-state { gap: 8px; }
+.empty-state strong { font-size: 15px; letter-spacing: -.01em; }
+
+/* Diálogos: entrada suave */
+dialog[open] { animation: dlgIn .16s ease; }
+@keyframes dlgIn { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: none; } }
+
+/* Respeita quem prefere menos movimento (acessibilidade / enjoo) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

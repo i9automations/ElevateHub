@@ -2,12 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self' https://contas-v2.elevateecom.com.br; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://contas-v2.elevateecom.com.br; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ElevateHub</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -125,7 +122,7 @@
 
     <main class="workspace">
       <div class="update-banner hidden" id="updateBanner">
-        <span class="update-banner-txt">🔔 Nova versão do ElevateHub disponível<span id="updateBannerVer"></span> — atualização rápida, quando quiser.</span>
+        <span class="update-banner-txt">Nova versão do ElevateHub disponível<span id="updateBannerVer"></span> — atualização rápida, quando quiser.</span>
         <div class="update-banner-actions">
           <button type="button" class="update-banner-btn now" id="updateBannerNow">Atualizar agora</button>
           <button type="button" class="update-banner-btn" id="updateBannerLater">Agora não</button>
@@ -408,16 +405,6 @@
       <input id="profileName" autocomplete="off" placeholder="ex: Loja da Ana">
       <label for="profileEmail">E-mail de login</label>
       <input id="profileEmail" autocomplete="off" placeholder="opcional">
-      <label for="profileStartUrl">Link ao abrir o navegador</label>
-      <select id="profileStartUrl">
-        <option value="">Padrão da pasta</option>
-        <option value="https://seller-br.tiktok.com/account/login">TikTok Seller</option>
-        <option value="https://www.mercadolivre.com.br/">Mercado Livre</option>
-        <option value="https://seller.shopee.com.br/">Shopee Seller</option>
-        <option value="https://sellercentral.amazon.com.br/">Amazon Seller</option>
-        <option value="__custom__">Personalizado…</option>
-      </select>
-      <input id="profileStartUrlCustom" class="hidden" autocomplete="off" placeholder="https://... (cole o link do painel do cliente)">
       <label for="profileResp">Responsável</label>
       <input id="profileResp" autocomplete="off" placeholder="Quem cuida desta conta">
       <label for="profileMailbox">E-mail/alias que recebe o código (Caixa Hostinger)</label>
