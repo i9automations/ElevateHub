@@ -10,7 +10,8 @@ const {
   normalizeTags,
   applyProfileFields,
   profileFromImportRow,
-  startUrlForSquad
+  startUrlForSquad,
+  sanitizeStartUrl
 } = require("./shared");
 
 function requireEnv(name) {
@@ -76,6 +77,7 @@ function profileToRow(profile) {
     name: profile.name,
     tiktok_email: normalizeEmail(profile.tiktokEmail) || null,
     mailbox_email: normalizeEmail(profile.mailboxEmail) || null,
+    start_url: profile.startUrl || startUrlForSquad(squad),
     notes: String(profile.notes || ""),
     tags: [...tags, ...extra],
     session_state: profile.sessionState || "empty",
@@ -272,7 +274,7 @@ class SupabaseStore {
       tiktokEmail: normalizeEmail(body.tiktokEmail),
       mailboxEmail: normalizeEmail(body.mailboxEmail),
       squad: normalizeSquad(body.squad),
-      startUrl: startUrlForSquad(body.squad),
+      startUrl: sanitizeStartUrl(body.startUrl) || startUrlForSquad(body.squad),
       notes: String(body.notes || "").trim(),
       responsavel: String(body.responsavel || "").trim(),
       tags: normalizeTags(body.tags),

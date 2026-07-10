@@ -13,7 +13,8 @@ const {
   normalizeTags,
   applyProfileFields,
   profileFromImportRow,
-  startUrlForSquad
+  startUrlForSquad,
+  sanitizeStartUrl
 } = require("./shared");
 
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 12;
@@ -185,7 +186,7 @@ class JsonStore {
       tiktokEmail: normalizeEmail(body.tiktokEmail),
       mailboxEmail: normalizeEmail(body.mailboxEmail),
       squad: normalizeSquad(body.squad),
-      startUrl: startUrlForSquad(body.squad),
+      startUrl: sanitizeStartUrl(body.startUrl) || startUrlForSquad(body.squad),
       notes: String(body.notes || "").trim(),
       responsavel: String(body.responsavel || "").trim(),
       tags: normalizeTags(body.tags),

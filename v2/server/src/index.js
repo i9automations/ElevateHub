@@ -303,6 +303,13 @@ async function handleProfileRoute(req, res, parts, user) {
   if (req.method === "POST" && parts[3] === "release") {
     dropSession(profile.id, sessionKey(req));
     await browserWorker.stopBrowserSession(profile.id).catch(() => {});
+    // Solta a trava do fluxo remoto (session/start seta lockedBy). Sem isso o
+    // perfil ficava "em uso por" para sempre e travava os outros usuarios.
+    if (profile.lockedBy) {
+      profile.lockedBy = null;
+      profile.lockedAt = null;
+      await store.saveProfile(profile).catch(() => {});
+    }
     return send(res, 200, { ok: true });
   }
 

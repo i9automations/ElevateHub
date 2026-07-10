@@ -67,6 +67,26 @@ function startUrlForSquad(value) {
   return SQUADS[normalizeSquad(value)].startUrl;
 }
 
+// Valida a URL escolhida pelo usuario ("link ao abrir"). So http/https e nunca
+// loopback/rede interna (evita abrir 127.0.0.1/localhost por engano). Vazio = usar
+// o padrao da pasta. Aceita "site.com" sem protocolo (assume https).
+function sanitizeStartUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProto);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (!host) return "";
+    if (host === "localhost" || host.endsWith(".local") || host.endsWith(".localhost")) return "";
+    if (host === "0.0.0.0" || host === "::1" || host.startsWith("127.")) return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.pbkdf2Sync(password, salt, 120000, 32, "sha256").toString("hex");
   return `${salt}:${hash}`;
@@ -119,6 +139,13 @@ function applyProfileFields(profile, body) {
   if (body.tags !== undefined) profile.tags = normalizeTags(body.tags);
   if (body.squad !== undefined) {
     profile.squad = normalizeSquad(body.squad);
+  }
+  // "Link ao abrir": vazio (ou invalido) = usar o padrao da pasta; senao usa o
+  // link escolhido/personalizado. Assim um cliente de mais de 1 marketplace pode
+  // apontar pro site certo. So recalcula pela pasta quando NAO veio um startUrl.
+  if (body.startUrl !== undefined) {
+    profile.startUrl = sanitizeStartUrl(body.startUrl) || startUrlForSquad(profile.squad);
+  } else if (body.squad !== undefined && !profile.startUrl) {
     profile.startUrl = startUrlForSquad(profile.squad);
   }
   profile.updatedAt = now();
@@ -225,6 +252,7 @@ module.exports = {
   DEFAULT_SQUAD,
   normalizeSquad,
   startUrlForSquad,
+  sanitizeStartUrl,
   publicUser,
   profileDto,
   normalizeEmail,

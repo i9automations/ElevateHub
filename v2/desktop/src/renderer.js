@@ -476,6 +476,30 @@ async function restoreSession() {
   }
 }
 
+// "Link ao abrir": opcoes fixas + personalizado. Vazio = padrao da pasta (squad).
+const START_URL_OPTIONS = [MKT_URL.tiktok, MKT_URL.ml, MKT_URL.shopee, MKT_URL.amazon];
+function setProfileStartUrl(startUrl, squad) {
+  const sel = $("profileStartUrl");
+  const custom = $("profileStartUrlCustom");
+  if (!sel || !custom) return;
+  const url = String(startUrl || "").trim();
+  const squadDefault = squad?.startUrl || "";
+  if (!url || url === squadDefault) sel.value = "";           // padrao da pasta
+  else if (START_URL_OPTIONS.includes(url)) sel.value = url;  // um marketplace conhecido
+  else sel.value = "__custom__";                              // link personalizado
+  const isCustom = sel.value === "__custom__";
+  custom.value = isCustom ? url : "";
+  custom.classList.toggle("hidden", !isCustom);
+}
+
+// Le a escolha do link no dialogo. "" = padrao da pasta (o servidor resolve).
+function readProfileStartUrl() {
+  const sel = $("profileStartUrl");
+  if (!sel) return "";
+  if (sel.value === "__custom__") return $("profileStartUrlCustom")?.value.trim() || "";
+  return sel.value || "";
+}
+
 function openProfileDialog(profile = null) {
   const squad = profile ? squads.find((item) => item.key === profileSquad(profile)) || selectedSquad() : selectedSquad();
   state.editProfileId = profile?.id || null;
@@ -487,6 +511,7 @@ function openProfileDialog(profile = null) {
   $("profileMailbox").value = profile?.mailboxEmail || "";
   $("profileTags").value = (profile?.tags || []).join(", ");
   $("profileNotes").value = profile?.notes || "";
+  setProfileStartUrl(profile?.startUrl || "", squad);
   // Excluir so aparece ao editar um perfil existente
   $("deleteProfileBtn").classList.toggle("hidden", !profile);
   $("profileDialog").showModal();
@@ -549,6 +574,7 @@ async function saveProfile(event) {
     squad: state.editProfileId ? profileSquad(selectedProfile()) : state.selectedSquad
   };
   body.mailboxEmail = $("profileMailbox").value.trim();
+  body.startUrl = readProfileStartUrl(); // "" = padrao da pasta
   if (isAdmin()) {
     body.tags = $("profileTags").value.split(",").map((item) => item.trim()).filter(Boolean);
   }
@@ -645,7 +671,10 @@ async function openLocalBrowser(profileId) {
     }
   }
   try {
-    const startUrl = squadOf(profileSquad(profile)).startUrl || profile.startUrl;
+    // "Link ao abrir": usa o link escolhido no perfil (pode ser personalizado,
+    // p/ clientes de mais de 1 marketplace); se vazio, cai no padrao da pasta.
+    const startUrl = profile.startUrl || squadOf(profileSquad(profile)).startUrl;
+    const mkt = squadOf(profileSquad(profile)).mkt;
     // Etapa 2: baixa a sessão (cookies) do servidor pra já abrir logado
     let cookies = [];
     try {
@@ -654,7 +683,7 @@ async function openLocalBrowser(profileId) {
     } catch {
       // sem sessão salva ainda: abre pra logar do zero (a 1a vez)
     }
-    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl, cookies });
+    const result = await window.elevate.openBrowserProfile({ id: profileId, name: profile.name, url: startUrl, cookies, mkt });
     if (!result?.ok) {
       const reason = result?.error === "no-chrome"
         ? "Navegador do app não encontrado."
@@ -1357,6 +1386,12 @@ $("search").addEventListener("input", renderProfiles);
 $("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
 $("importBtn").addEventListener("click", () => requireAdminAction(() => $("importDialog").showModal()));
 $("cancelProfileBtn").addEventListener("click", () => $("profileDialog").close());
+$("profileStartUrl")?.addEventListener("change", () => {
+  const custom = $("profileStartUrlCustom");
+  const isCustom = $("profileStartUrl").value === "__custom__";
+  custom.classList.toggle("hidden", !isCustom);
+  if (isCustom) custom.focus();
+});
 $("deleteProfileBtn").addEventListener("click", deleteProfile);
 $("cancelImportBtn").addEventListener("click", () => $("importDialog").close());
 $("cancelUpdateBtn")?.addEventListener("click", dismissUpdate);
