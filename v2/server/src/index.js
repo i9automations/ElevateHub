@@ -25,6 +25,42 @@ function cookiesFile(profileId) {
   return path.join(COOKIES_DIR, `${safe}.json`);
 }
 
+// Cookies de LOGIN conhecidos por marketplace. Se a sessao guardada tem algum
+// destes e a que chega perdeu TODOS, e uma leitura degradada (nao um logout real)
+// -> a trava anti-regressao no PUT recusa gravar, pra conta nao "cair" sozinha.
+const AUTH_COOKIE_NAMES = new Set([
+  // TikTok / TikTok Shop
+  "sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt", "uid_tt_ss", "cmpl_token",
+  // Mercado Livre
+  "orguseridp", "ssid",
+  // Shopee
+  "spc_ec", "spc_st", "spc_u",
+  // Amazon
+  "at-main", "sess-at-main", "x-main", "sess-id"
+]);
+function hasAuthCookie(cookies) {
+  return (cookies || []).some(
+    (c) => c && c.name && c.value && AUTH_COOKIE_NAMES.has(String(c.name).toLowerCase())
+  );
+}
+// Le a sessao guardada (decifra) p/ comparar com a que chega. null = sem arquivo
+// ou ilegivel (nesses casos nao serve de base de comparacao e o PUT segue normal).
+async function readStoredCookies(profileId) {
+  let raw;
+  try {
+    raw = await fsp.readFile(cookiesFile(profileId), "utf8");
+  } catch {
+    return null;
+  }
+  try {
+    const json = raw.startsWith("v1:") ? decrypt(raw) : raw;
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed.cookies) ? parsed.cookies : [];
+  } catch {
+    return null;
+  }
+}
+
 // Sessoes ativas (quem esta com cada perfil aberto AGORA) em memoria.
 // Chaveado por SESSAO (hash do token) e nao por usuario, porque a equipe pode
 // compartilhar a mesma conta -> cada PC/login tem um token proprio.
@@ -222,6 +258,25 @@ async function handleProfileRoute(req, res, parts, user) {
     touchSession(profile.id, sessionKey(req), user.name, true);
     const body = await readBody(req);
     const cookies = Array.isArray(body.cookies) ? body.cookies : [];
+
+    // TRAVA ANTI-REGRESSAO: a sincronizacao roda a cada 8s com o navegador aberto.
+    // Uma leitura vazia/degradada (navegacao, redirect, checagem de seguranca, ou o
+    // Chrome fechando) NAO pode apagar uma sessao boa -> senao a conta "cai" e o
+    // estado vazio ainda se espalha pros outros PCs. Guarda a sessao existente.
+    const stored = await readStoredCookies(profile.id);
+    const storedCount = stored ? stored.length : 0;
+    if (storedCount > 0) {
+      // 1) vazio nunca substitui uma sessao que existe
+      if (cookies.length === 0) {
+        return send(res, 200, { ok: true, count: storedCount, skipped: "empty-guard" });
+      }
+      // 2) a que chega perdeu TODOS os cookies de login que a guardada tinha = degradada
+      if (hasAuthCookie(stored) && !hasAuthCookie(cookies)) {
+        console.warn(`[cookies] PUT degradado ignorado (perdeu login) perfil ${profile.id}: ${cookies.length} cookies`);
+        return send(res, 200, { ok: true, count: storedCount, skipped: "auth-guard" });
+      }
+    }
+
     await fsp.mkdir(COOKIES_DIR, { recursive: true });
     // Escrita atomica: 2 pessoas na mesma conta gravam a cada 8s. writeFile direto pode
     // intercalar e corromper o JSON (-> sessao perdida). tmp unico + rename resolve.
@@ -354,6 +409,15 @@ async function handle(req, res) {
       const login = await store.login(body.email, body.password);
       if (!login) return send(res, 401, { error: "E-mail ou senha invalidos" });
       return send(res, 200, login);
+    }
+
+    // Renova a sessao usando o cracha de renovacao (sem senha). Fica ANTES do
+    // requireUser porque o token de acesso pode estar vencido justamente aqui.
+    if (req.method === "POST" && parts.join("/") === "api/auth/refresh") {
+      const body = await readBody(req);
+      const renewed = await store.refresh(body.refreshToken).catch(() => null);
+      if (!renewed) return send(res, 401, { error: "Sessao expirada. Faca login de novo." });
+      return send(res, 200, renewed);
     }
 
     const user = await requireUser(req, res);

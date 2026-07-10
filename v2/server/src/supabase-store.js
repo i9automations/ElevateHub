@@ -133,7 +133,27 @@ class SupabaseStore {
       throw authError;
     }
     await this.audit(user, "auth.login", user.id);
-    return { token: data.session.access_token, user: publicUser(user) };
+    return {
+      token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      user: publicUser(user)
+    };
+  }
+
+  // Troca o cracha de renovacao por uma sessao nova (sem pedir senha). O app chama
+  // isso quando o token de acesso (~1h) vence -> ninguem precisa relogar a cada
+  // atualizacao/reinicio. O Supabase ROTACIONA o refresh_token a cada uso.
+  async refresh(refreshToken) {
+    if (!refreshToken) return null;
+    const { data, error } = await this.auth.auth.refreshSession({ refresh_token: refreshToken });
+    if (error || !data.session?.access_token || !data.user) return null;
+    const user = await this.findUser(data.user.id, data.user.email);
+    if (!user) return null;
+    return {
+      token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      user: publicUser(user)
+    };
   }
 
   async currentUser(token) {

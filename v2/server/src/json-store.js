@@ -23,6 +23,7 @@ class JsonStore {
     this.mode = "json";
     this.dbFile = options.dbFile;
     this.sessions = new Map();
+    this.refreshTokens = new Map(); // refreshToken -> { userId } (dev; espelha o fluxo do Supabase)
   }
 
   defaultDb() {
@@ -84,6 +85,12 @@ class JsonStore {
     return token;
   }
 
+  issueRefreshToken(user) {
+    const rt = crypto.randomBytes(32).toString("hex");
+    this.refreshTokens.set(rt, { userId: user.id });
+    return rt;
+  }
+
   async login(email, password) {
     const db = this.loadDb();
     const normalized = normalizeEmail(email);
@@ -92,8 +99,22 @@ class JsonStore {
       return null;
     }
     const token = this.issueToken(user);
+    const refreshToken = this.issueRefreshToken(user);
     await this.audit(user, "auth.login", user.id);
-    return { token, user: publicUser(user) };
+    return { token, refreshToken, user: publicUser(user) };
+  }
+
+  // Renova sem senha (dev; espelha o Supabase). Rotaciona o refresh token a cada uso.
+  async refresh(refreshToken) {
+    const rec = this.refreshTokens.get(refreshToken);
+    if (!rec) return null;
+    const db = this.loadDb();
+    const user = db.users.find((item) => item.id === rec.userId);
+    if (!user) return null;
+    this.refreshTokens.delete(refreshToken); // rotaciona: invalida o antigo
+    const token = this.issueToken(user);
+    const newRefresh = this.issueRefreshToken(user);
+    return { token, refreshToken: newRefresh, user: publicUser(user) };
   }
 
   async currentUser(token) {
