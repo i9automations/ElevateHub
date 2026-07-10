@@ -1,6 +1,8 @@
 // Busca o codigo de verificacao nas caixas Hostinger via IMAP, filtrando pelo
 // alias do cliente (destinatario EXATO) e pontuando por remetente/qualidade.
 // Libs carregadas sob demanda: se faltarem, so esta feature falha (servidor nao cai).
+const { isBlockedHost } = require("./shared");
+
 function lib() {
   return { ImapFlow: require("imapflow").ImapFlow, simpleParser: require("mailparser").simpleParser };
 }
@@ -74,9 +76,18 @@ function collectRecipients(parsed) {
 }
 
 function makeClient(box) {
+  const host = box.host || "imap.hostinger.com";
+  // Anti-SSRF: as caixas ficam liberadas p/ operador (conta compartilhada), entao
+  // barramos aqui um host interno/IP literal — senao daria p/ escanear a rede do
+  // servidor via /api/mailboxes/test (host arbitrario). So dominios reais passam.
+  if (isBlockedHost(host)) {
+    const err = new Error("Host de e-mail invalido.");
+    err.status = 400;
+    throw err;
+  }
   const { ImapFlow } = lib();
   return new ImapFlow({
-    host: box.host || "imap.hostinger.com",
+    host,
     port: box.port || 993,
     secure: box.secure !== false,
     auth: { user: box.user || box.email, pass: box.password },

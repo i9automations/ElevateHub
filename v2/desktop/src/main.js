@@ -59,12 +59,23 @@ function connectCdp(wsUrl) {
       send(method, params = {}, sessionId) {
         return new Promise((res, rej) => {
           const id = nextId++;
-          pending.set(id, { res, rej });
+          // Timeout de seguranca: se um comando CDP for ACEITO mas nunca responder
+          // (socket vivo, sem close/error), o `await` ficaria preso p/ sempre — isso
+          // travava o deadline do Relatorio de ADS e deixava adsInProgress preso ate
+          // reiniciar o app. Rejeita apos 30s e limpa o pendente.
+          const timer = setTimeout(() => {
+            if (pending.has(id)) { pending.delete(id); rej(new Error("cdp-timeout")); }
+          }, 30000);
+          pending.set(id, {
+            res: (v) => { clearTimeout(timer); res(v); },
+            rej: (e) => { clearTimeout(timer); rej(e); }
+          });
           const msg = { id, method, params };
           if (sessionId) msg.sessionId = sessionId;
           try {
             ws.send(JSON.stringify(msg));
           } catch (err) {
+            clearTimeout(timer);
             pending.delete(id);
             rej(err);
           }
@@ -224,7 +235,11 @@ async function startCookieSync(profileId, dir, url, cookies, sender, child, mkt)
   } catch { /* deixa a aba em branco se nao der pra fechar */ }
 
   const entry = openBrowsers.get(profileId);
-  if (!entry) { client.close(); return; }
+  // Mesmo cuidado do guard la em cima (fechou e reabriu durante os awaits): so
+  // adota a entrada se ela ainda for DESTE Chrome. Senao este sync ficou orfao e
+  // sobrescreveria o client/timers do navegador NOVO com os do velho (ja morto)
+  // -> vazava setInterval e o navegador reaberto parava de sincronizar cookies.
+  if (!entry || (child && entry.child !== child)) { client.close(); return; }
   entry.client = client;
   const pushCookies = async () => {
     try {
@@ -432,27 +447,26 @@ async function openBrowserProfile(info, sender) {
   const entry = { child, client: null, interval: null };
   openBrowsers.set(profileId, entry);
 
-  child.on("exit", () => {
+  // 'exit' e 'error' podem disparar os DOIS pro mesmo Chrome. Um handler unico:
+  // (1) so limpa se a entrada ainda for DESTE child (evita mexer no navegador ja
+  // reaberto por um evento atrasado, que soltaria o lock recem-adquirido) e
+  // (2) avisa o renderer no maximo 1x (senao seriam 2x release/loadProfiles).
+  let closedEmitted = false;
+  const onGone = () => {
     const e = openBrowsers.get(profileId);
-    if (e) {
+    if (e && e.child === child) {
       if (e.firstSync) clearTimeout(e.firstSync);
       if (e.interval) clearInterval(e.interval);
       if (e.client) e.client.close();
+      openBrowsers.delete(profileId);
     }
-    openBrowsers.delete(profileId);
-    if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
-  });
-  child.on("error", () => {
-    const e = openBrowsers.get(profileId);
-    if (e) {
-      if (e.firstSync) clearTimeout(e.firstSync);
-      if (e.interval) clearInterval(e.interval);
-      if (e.client) e.client.close();
-    }
-    openBrowsers.delete(profileId);
+    if (closedEmitted) return;
+    closedEmitted = true;
     // Avisa o renderer pra LIBERAR o lock (senao o perfil fica preso em "em uso")
     if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
-  });
+  };
+  child.on("exit", onGone);
+  child.on("error", onGone);
 
   startCookieSync(profileId, dir, url, info?.cookies || [], sender, child, String(info?.mkt || "")).catch(() => {
     // Se a sincronizacao falhar, o Chrome ja abriu; o usuario navega manual.

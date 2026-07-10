@@ -282,11 +282,17 @@ async function handleProfileRoute(req, res, parts, user) {
     // intercalar e corromper o JSON (-> sessao perdida). tmp unico + rename resolve.
     // CRIPTOGRAFADO em repouso: a sessao (cookies) e o dado mais sensivel.
     await atomicWriteFile(cookiesFile(profile.id), encrypt(JSON.stringify({ cookies, updatedAt: now() })));
-    // Sessao salva = conta logada. Reflete no status do perfil.
+    // Sessao salva = conta logada. Reflete no status do perfil. RELE fresco antes de
+    // gravar: o saveProfile regrava o objeto inteiro; se usasse o snapshot lido no
+    // inicio do request, uma edicao concorrente (renomear/tags) seria sobrescrita.
+    // Reler + so mexer em sessionState reduz a janela a alguns ms.
     const nowReady = cookies.length > 0;
     if ((profile.sessionState === "ready") !== nowReady) {
-      profile.sessionState = nowReady ? "ready" : "empty";
-      await store.saveProfile(profile);
+      const fresh = await store.getProfile(profile.id);
+      if (fresh && (fresh.sessionState === "ready") !== nowReady) {
+        fresh.sessionState = nowReady ? "ready" : "empty";
+        await store.saveProfile(fresh);
+      }
     }
     return send(res, 200, { ok: true, count: cookies.length });
   }

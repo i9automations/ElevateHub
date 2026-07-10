@@ -67,9 +67,27 @@ function startUrlForSquad(value) {
   return SQUADS[normalizeSquad(value)].startUrl;
 }
 
+// Bloqueia hosts internos/loopback/rede-privada e QUALQUER IP literal (marketplaces
+// e caixas de e-mail sao DOMINIOS). Fecha SSRF: rede interna e as formas nao-canonicas
+// de IP (decimal/hex/octal/curtas/::ffff:) usadas p/ driblar filtros. Mesma logica do
+// browser-worker, centralizada aqui p/ reuso (start URL do perfil + host IMAP).
+function isBlockedHost(host) {
+  const h = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!h) return true;
+  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".localhost")) return true;
+  if (h.includes(":")) return true;                       // IPv6 (inclui ::ffff:IPv4)
+  // Rede privada / link-local / loopback em v4 canonico
+  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;  // 172.16.0.0 – 172.31.255.255
+  if (require("node:net").isIP(h)) return true;           // qualquer outro IP literal v4/v6
+  // Segmentos SO numericos/hex = forma de IP (decimal/hex/octal/curta). Dominios tem letras.
+  if (/^(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+))*$/i.test(h)) return true;
+  return false;
+}
+
 // Valida a URL escolhida pelo usuario ("link ao abrir"). So http/https e nunca
-// loopback/rede interna (evita abrir 127.0.0.1/localhost por engano). Vazio = usar
-// o padrao da pasta. Aceita "site.com" sem protocolo (assume https).
+// loopback/rede interna/IP literal (evita SSRF e abrir 127.0.0.1 por engano).
+// Vazio = usar o padrao da pasta. Aceita "site.com" sem protocolo (assume https).
 function sanitizeStartUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -77,10 +95,7 @@ function sanitizeStartUrl(value) {
   try {
     const url = new URL(withProto);
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-    if (!host) return "";
-    if (host === "localhost" || host.endsWith(".local") || host.endsWith(".localhost")) return "";
-    if (host === "0.0.0.0" || host === "::1" || host.startsWith("127.")) return "";
+    if (isBlockedHost(url.hostname)) return "";
     return url.toString();
   } catch {
     return "";
@@ -253,6 +268,7 @@ module.exports = {
   normalizeSquad,
   startUrlForSquad,
   sanitizeStartUrl,
+  isBlockedHost,
   publicUser,
   profileDto,
   normalizeEmail,
