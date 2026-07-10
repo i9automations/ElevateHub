@@ -405,6 +405,16 @@
       <input id="profileName" autocomplete="off" placeholder="ex: Loja da Ana">
       <label for="profileEmail">E-mail de login</label>
       <input id="profileEmail" autocomplete="off" placeholder="opcional">
+      <label for="profileStartUrl">Link ao abrir o navegador</label>
+      <select id="profileStartUrl">
+        <option value="">Padrão da pasta</option>
+        <option value="https://seller-br.tiktok.com/account/login">TikTok Seller</option>
+        <option value="https://www.mercadolivre.com.br/">Mercado Livre</option>
+        <option value="https://seller.shopee.com.br/">Shopee Seller</option>
+        <option value="https://sellercentral.amazon.com.br/">Amazon Seller</option>
+        <option value="__custom__">Personalizado…</option>
+      </select>
+      <input id="profileStartUrlCustom" class="hidden" autocomplete="off" placeholder="https://... (cole o link do painel do cliente)">
       <label for="profileResp">Responsável</label>
       <input id="profileResp" autocomplete="off" placeholder="Quem cuida desta conta">
       <label for="profileMailbox">E-mail/alias que recebe o código (Caixa Hostinger)</label>
