@@ -445,11 +445,20 @@ async function openBrowserProfile(info, sender) {
   if (openingProfiles.has(profileId)) return { ok: true, already: true };
   if (openBrowsers.has(profileId)) {
     const e = openBrowsers.get(profileId);
-    // Só considera "já aberto" se o Chrome ainda está vivo. Entrada presa de um
-    // processo que morreu -> limpa e reabre (senão diria "já aberto" sem janela).
-    if (e?.child && e.child.exitCode === null && !e.child.killed) {
+    // Só considera "já aberto" se o Chrome ainda está vivo DE VERDADE. Alem do
+    // exitCode, confirma que o PID ainda existe no SO: o evento 'exit' as vezes
+    // NAO chega (processo morto por fora, ou o Chrome que reencaminha e sai) e a
+    // entrada ficava FANTASMA -> dizia "ja aberto" sem janela nenhuma.
+    // process.kill(pid, 0) so testa a existencia do processo (nao mata nada).
+    let vivoDeVerdade = false;
+    if (e?.child && e.child.exitCode === null && !e.child.killed && e.child.pid) {
+      try { process.kill(e.child.pid, 0); vivoDeVerdade = true; } catch { vivoDeVerdade = false; }
+    }
+    if (vivoDeVerdade) {
       return { ok: true, already: true };
     }
+    // Entrada fantasma (processo ja morreu) -> limpa e segue pra REABRIR (nao deixa
+    // preso em "ja aberto"). Nao mexe no lock: o openLocalBrowser ja registrou.
     try { if (e?.firstSync) clearTimeout(e.firstSync); if (e?.interval) clearInterval(e.interval); if (e?.client) e.client.close(); } catch { /* ignora */ }
     openBrowsers.delete(profileId);
   }
