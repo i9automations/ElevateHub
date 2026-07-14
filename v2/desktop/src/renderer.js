@@ -277,6 +277,10 @@ function renderSquads() {
   const collapsed = getCollapsedHubs();
   $("squadNav").innerHTML = hubs.map((hub) => {
     const hubCount = squads.filter((s) => s.hub === hub).reduce((n, s) => n + (counts[s.key] || 0), 0);
+    // Hub sem nenhuma conta nao aparece (ex: ManalindaHub 0) — volta sozinho quando
+    // ganhar a 1a conta. Excecao: se o usuario esta com uma pasta dele selecionada.
+    const temSelecionada = squads.some((s) => s.hub === hub && s.key === state.selectedSquad);
+    if (hubCount === 0 && !temSelecionada) return "";
     const items = squads.filter((s) => s.hub === hub).map((squad) => {
       const mk = mktIcon[squad.mkt] || mktIcon.tiktok;
       return `
@@ -573,11 +577,33 @@ function readProfileStartUrl() {
   return sel.value || "";
 }
 
+// Preenche o seletor de pasta (agrupado por hub) do dialogo "Novo perfil".
+function fillSquadSelect(selectedKey) {
+  const sel = $("profileSquad");
+  if (!sel) return;
+  const hubs = [];
+  squads.forEach((s) => { if (!hubs.includes(s.hub)) hubs.push(s.hub); });
+  sel.innerHTML = hubs.map((hub) =>
+    `<optgroup label="${escapeHtml(hub)}">` +
+    squads.filter((s) => s.hub === hub).map((s) =>
+      `<option value="${escapeHtml(s.key)}"${s.key === selectedKey ? " selected" : ""}>${escapeHtml(s.name)} — ${escapeHtml(s.label)}</option>`
+    ).join("") +
+    "</optgroup>"
+  ).join("");
+}
+
 function openProfileDialog(profile = null) {
   const squad = profile ? squads.find((item) => item.key === profileSquad(profile)) || selectedSquad() : selectedSquad();
   state.editProfileId = profile?.id || null;
   $("profileDialogTitle").textContent = profile ? "Editar perfil" : "Novo perfil";
   $("profileSquadName").textContent = `${squad.name} - ${squad.label}`;
+  // Ao CRIAR, deixa escolher a pasta (necessario p/ criar em hub vazio/escondido).
+  // Ao EDITAR, mantem a pilula (mover de pasta segue so por admin/import).
+  const editing = !!profile;
+  $("profileSquadName").classList.toggle("hidden", !editing);
+  $("profileSquadLabel").classList.toggle("hidden", editing);
+  $("profileSquad").classList.toggle("hidden", editing);
+  if (!editing) fillSquadSelect(state.selectedSquad);
   $("profileName").value = profile?.name || "";
   $("profileEmail").value = profile?.tiktokEmail || "";
   $("profileResp").value = profile?.responsavel || "";
@@ -645,7 +671,7 @@ async function saveProfile(event) {
     tiktokEmail: $("profileEmail").value.trim(),
     responsavel: $("profileResp").value.trim(),
     notes: $("profileNotes").value.trim(),
-    squad: state.editProfileId ? profileSquad(selectedProfile()) : state.selectedSquad
+    squad: state.editProfileId ? profileSquad(selectedProfile()) : ($("profileSquad").value || state.selectedSquad)
   };
   body.mailboxEmail = $("profileMailbox").value.trim();
   body.startUrl = readProfileStartUrl(); // "" = padrao da pasta
@@ -662,6 +688,12 @@ async function saveProfile(event) {
   try {
     const data = await api(path, { method: editing ? "PATCH" : "POST", body });
     state.selectedId = data.profile.id;
+    // Criou em outra pasta? Muda a pasta atual pra ela, senao o novo perfil nao
+    // apareceria (a lista filtra pela pasta selecionada).
+    if (!editing && data.profile?.squad && data.profile.squad !== state.selectedSquad) {
+      state.selectedSquad = normalizeSquad(data.profile.squad);
+      try { localStorage.setItem("ctv2.squad", state.selectedSquad); } catch { /* cheio */ }
+    }
     $("profileDialog").close();
     await loadProfiles();
     toast(editing ? "Perfil atualizado." : "Perfil criado.", "success");

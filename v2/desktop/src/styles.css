@@ -194,13 +194,19 @@ body:not(.admin-mode) .admin-only {
 }
 
 .sidebar-label {
-  display: block;
-  margin: 2px 0 8px;
-  padding: 0 12px;
-  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+  padding: 0 8px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: .08em;
 }
+/* linha fina ao lado do rotulo — separa sem gritar */
+.sidebar-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
 
 .primary,
 .secondary,
@@ -298,13 +304,10 @@ body:not(.admin-mode) .admin-only {
   color: var(--text);
 }
 
-.nav-item.active,
-.squad-item.active {
+/* Barrinha ciano SO nas ferramentas ativas. A pasta ativa usa o ::before (mais
+   abaixo) — antes empilhava box-shadow + ::before + borda ciano (efeito acumulado). */
+.nav-item.active {
   box-shadow: inset 3px 0 0 var(--primary);
-}
-
-.squad-item.active {
-  border-color: rgba(37, 244, 238, .16);
 }
 
 .server-card {
@@ -1468,6 +1471,20 @@ dialog::backdrop {
 .squad-count { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .squad-item.active .squad-count { color: var(--primary); }
 
+/* Ferramentas/Admin: itens no MESMO peso/tamanho das pastas (antes saiam
+   maiores e em negrito 800, parecendo o principal). Icone discreto p/ leitura. */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.nav-item svg { width: 16px; height: 16px; flex: none; color: var(--faint); }
+.nav-item:hover svg, .nav-item.active svg { color: currentColor; }
+
 /* Tela de perfis ocupa toda a altura */
 #profilesView {
   display: flex;
@@ -1848,8 +1865,8 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
 .hub-group { margin-bottom: 12px; }
 .hub-group + .hub-group { margin-top: 2px; }
 .hub-label {
-  font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
-  color: var(--faint); font-weight: 800; padding: 4px 8px 6px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--faint); font-weight: 600; padding: 4px 8px 6px;
   display: flex; align-items: center; gap: 7px;
   width: 100%; min-height: 0; background: none; border: 0; cursor: pointer;
   text-align: left;
@@ -1866,12 +1883,10 @@ button.danger:hover { background: var(--danger); color: #2a0710; border-color: v
   opacity: .85;
 }
 .hub-total {
-  font-size: 10px; font-weight: 700; color: var(--faint);
-  background: var(--surface-2); border-radius: 20px; padding: 1px 7px;
-  opacity: 0; transition: opacity .15s ease;
+  font-size: 11px; font-weight: 600; color: var(--faint);
+  font-variant-numeric: tabular-nums; /* numero simples, sem capsula */
 }
 .hub-group.collapsed .hub-caret { transform: rotate(0deg); } /* recolhido: aponta pra direita */
-.hub-group.collapsed .hub-total { opacity: 1; } /* mostra o total quando esconde os squads */
 .hub-items { overflow: hidden; }
 .hub-group.collapsed .hub-items { display: none; }
 
