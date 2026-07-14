@@ -1502,7 +1502,6 @@ $("togglePw")?.addEventListener("click", () => {
   input.type = show ? "text" : "password";
   $("togglePw").textContent = show ? "Ocultar" : "Mostrar";
 });
-$("refreshBtn").addEventListener("click", refreshCurrentView);
 $("search").addEventListener("input", renderProfiles);
 $("newProfileBtn").addEventListener("click", () => requireAuth(() => openProfileDialog()));
 $("importBtn").addEventListener("click", () => requireAdminAction(() => $("importDialog").showModal()));
