@@ -350,7 +350,17 @@ class Slot:
                 except Exception:
                     pass
         except Exception as e:
-            self._log("ERRO: " + str(e))
+            msg = str(e)
+            low = msg.lower()
+            # Erro tipico quando a conta ja esta ABERTA no ElevateHub: o Chrome
+            # trava o perfil (nao abre a mesma pasta 2x). Mensagem clara em vez do
+            # erro cru do Playwright.
+            if any(t in low for t in ("singleton", "profile", "user data",
+                                      "user-data", "lock", "in use", "cannot create")):
+                self._log(">>> Esta conta parece ABERTA no ElevateHub. Feche-a lá "
+                          "(botão Abrir) e clique '1 Abrir' aqui de novo.")
+            else:
+                self._log("ERRO: " + msg)
         finally:
             self.navegador = False
             self.rodando = False
@@ -448,8 +458,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <body>
  <div class="top">
    <div class="dot"><img src="__LOGO__" alt=""></div>
-   <h1>Afiliador</h1><span class="sub">painel · 3 contas em paralelo</span>
-   <button class="novabtn" onclick="abrirNC()">+ Nova conta</button>
+   <h1>Adicionar creators</h1><span class="sub">até 3 contas em paralelo</span>
+   <button class="novabtn" __NC_STYLE__ onclick="abrirNC()">+ Nova conta</button>
  </div>
  <div class="cols" id="cols"></div>
  <div class="ov" id="ov"><div class="modal">
@@ -586,6 +596,9 @@ def _logo_uri():
 
 
 HTML = HTML.replace("__LOGO__", _logo_uri())
+# Dentro do ElevateHub as contas vem do app -> esconde "+ Nova conta" (criar aqui
+# geraria um perfil local vazio, sem os cookies/login do ElevateHub).
+HTML = HTML.replace("__NC_STYLE__", 'style="display:none"' if ELEVATE_ACCOUNTS else "")
 
 
 class H(BaseHTTPRequestHandler):
