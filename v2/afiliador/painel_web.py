@@ -351,6 +351,10 @@ class Slot:
 
 SLOTS = [Slot(i) for i in range(N_SLOTS)]
 
+# Ultimo "ping" da UI (cada request atualiza). O painel usa isto pra saber que a
+# janela ainda esta aberta, sem depender do processo-pai do Chrome.
+_PING = [0.0]
+
 
 HTML = r"""<!doctype html>
 <html lang="pt-br"><head><meta charset="utf-8"><title>Afiliador — Painel</title>
@@ -587,6 +591,7 @@ class H(BaseHTTPRequestHandler):
         return parse_qs(urlparse(self.path).query)
 
     def do_GET(self):
+        _PING[0] = time.time()          # UI viva
         path = self.path.split("?")[0]
         if path == "/":
             self._send(200, HTML, "text/html")
@@ -598,6 +603,7 @@ class H(BaseHTTPRequestHandler):
             self._send(404, "{}")
 
     def do_POST(self):
+        _PING[0] = time.time()          # UI viva
         path = self.path.split("?")[0]
         q = self._qs()
         i = int(q.get("i", ["0"])[0])
@@ -655,22 +661,36 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
-    os.makedirs(PERFIS_DIR, exist_ok=True)
+    try:
+        os.makedirs(PERFIS_DIR, exist_ok=True)
+    except Exception:
+        pass                            # dentro do ElevateHub a pasta e so-leitura
     server = ThreadingHTTPServer(("127.0.0.1", 0), H)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port}/"
+    _PING[0] = time.time()
+    proc = None
     if CHROME:
         proc = subprocess.Popen([
             CHROME, f"--app={url}", f"--user-data-dir={UI_UDD}",
             "--no-first-run", "--no-default-browser-check",
             "--window-size=1280,800",
         ])
-        proc.wait()
     else:
         import webbrowser
         webbrowser.open(url)
-        threading.Event().wait()
+    # Fica vivo enquanto a UI (janela) estiver aberta. NAO amarra a vida ao
+    # processo-pai do Chrome — o Chrome-for-Testing solta o pai na hora, o que
+    # fecharia o painel cedo demais. A UI faz ping a cada ~0.9s (tick); parou de
+    # pingar por um tempo = a janela fechou -> encerra.
+    time.sleep(3)                       # deixa a UI carregar e comecar a pingar
+    while True:
+        silencio = time.time() - _PING[0]
+        vivo = (proc is not None and proc.poll() is None)
+        if silencio > 25 or (silencio > 15 and not vivo):
+            break
+        time.sleep(1.0)
     for s in SLOTS:
         s.fechar_ev.set()
         s.parar_ev.set()
@@ -678,3 +698,7 @@ def main():
         server.shutdown()
     except Exception:
         pass
+
+
+if __name__ == "__main__":
+    main()
