@@ -370,7 +370,7 @@ async function collectAdsMetrics(info) {
   await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
   const child = spawn(chrome, [
     `--user-data-dir=${dir}`, "--no-first-run", "--no-default-browser-check",
-    "--test-type", "--disable-infobars", "--remote-debugging-port=0",
+    "--disable-infobars", "--disable-blink-features=AutomationControlled", "--remote-debugging-port=0",
     "--window-position=-32000,-32000", "--window-size=1280,800", // abre fora da tela (coleta em segundo plano)
     "about:blank"
   ], { detached: false, windowsHide: true });
@@ -479,8 +479,11 @@ async function openBrowserProfile(info, sender) {
       `--user-data-dir=${dir}`,
       "--no-first-run",
       "--no-default-browser-check",
-      "--test-type",
+      // Menos "cara de robo" pro anti-fraude do TikTok: tira o --test-type (bandeira
+      // classica de automacao) e esconde o marcador navigator.webdriver. Reduz
+      // captcha em loop e o bloqueio "nao foi possivel verificar/iniciar sessao".
       "--disable-infobars",
+      "--disable-blink-features=AutomationControlled",
       "--remote-debugging-port=0",
       "about:blank"
     ], { detached: false, windowsHide: false });
