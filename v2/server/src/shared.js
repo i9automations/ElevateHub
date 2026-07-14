@@ -152,6 +152,9 @@ function applyProfileFields(profile, body) {
   if (body.notes !== undefined) profile.notes = String(body.notes || "").trim();
   if (body.responsavel !== undefined) profile.responsavel = String(body.responsavel || "").trim();
   if (body.tags !== undefined) profile.tags = normalizeTags(body.tags);
+  // Conta marcada individualmente como TikTok (ex: conta TikTok dentro da pasta
+  // Amazon) -> habilita botao Codigo, spoof de UA, ADS e link do TikTok no app.
+  if (body.isTikTok !== undefined) profile.isTikTok = !!body.isTikTok;
   if (body.squad !== undefined) {
     profile.squad = normalizeSquad(body.squad);
   }

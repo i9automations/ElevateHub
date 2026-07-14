@@ -190,6 +190,7 @@ class JsonStore {
       notes: String(body.notes || "").trim(),
       responsavel: String(body.responsavel || "").trim(),
       tags: normalizeTags(body.tags),
+      isTikTok: !!body.isTikTok,
       sessionState: "empty",
       lockedBy: null,
       lockedAt: null,

@@ -47,6 +47,9 @@ function profileFromRow(row) {
   const squad = normalizeSquad(squadTag ? String(squadTag).split(":")[1] : row.squad);
   const respTag = rawTags.find((tag) => /^resp:/i.test(String(tag || "")));
   const responsavel = respTag ? String(respTag).slice(String(respTag).indexOf(":") + 1) : "";
+  // Conta marcada como TikTok (mesmo fora da pasta Fox) guardada como tag mkt:tiktok
+  // (sem migracao de banco, igual squad:/resp:).
+  const isTikTok = rawTags.some((tag) => /^mkt:tiktok$/i.test(String(tag || "").trim()));
   return {
     id: row.id,
     name: row.name,
@@ -56,7 +59,8 @@ function profileFromRow(row) {
     startUrl: row.start_url || startUrlForSquad(squad),
     notes: row.notes || "",
     responsavel,
-    tags: rawTags.filter((tag) => !/^(squad|resp):/i.test(String(tag || ""))),
+    isTikTok,
+    tags: rawTags.filter((tag) => !/^(squad|resp|mkt):/i.test(String(tag || ""))),
     sessionState: row.session_state || "empty",
     lockedBy: row.locked_by || null,
     lockedAt: row.locked_at || null,
@@ -68,10 +72,11 @@ function profileFromRow(row) {
 
 function profileToRow(profile) {
   const squad = normalizeSquad(profile.squad);
-  const tags = normalizeTags(profile.tags).filter((tag) => !/^(squad|resp):/i.test(String(tag || "")));
+  const tags = normalizeTags(profile.tags).filter((tag) => !/^(squad|resp|mkt):/i.test(String(tag || "")));
   const extra = [`squad:${squad}`];
   const responsavel = String(profile.responsavel || "").trim();
   if (responsavel) extra.push(`resp:${responsavel}`);
+  if (profile.isTikTok) extra.push("mkt:tiktok"); // conta TikTok fora da pasta Fox
   return {
     id: profile.id,
     name: profile.name,
@@ -278,6 +283,7 @@ class SupabaseStore {
       notes: String(body.notes || "").trim(),
       responsavel: String(body.responsavel || "").trim(),
       tags: normalizeTags(body.tags),
+      isTikTok: !!body.isTikTok,
       sessionState: "empty",
       lockedBy: null,
       lockedAt: null,

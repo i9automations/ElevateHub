@@ -99,7 +99,13 @@ const squads = [
   { key: "manalinda-amazon", name: "Amazon", label: "Amazon Seller", startUrl: MKT_URL.amazon, hub: "ManalindaHub", mkt: "amazon" }
 ];
 function squadOf(key) { return squads.find((s) => s.key === key) || squads[0]; }
-function isTikTokProfile(profile) { return squadOf(profileSquad(profile)).mkt === "tiktok"; }
+// Marketplace EFETIVO do perfil: o padrao vem da pasta (squad), mas uma conta
+// pode ser marcada individualmente como TikTok (ex: conta TikTok dentro da pasta
+// Amazon) -> ai vale "tiktok" pra tudo (botao Codigo, spoof de UA, ADS, link).
+function profileMkt(profile) {
+  return profile?.isTikTok ? "tiktok" : squadOf(profileSquad(profile)).mkt;
+}
+function isTikTokProfile(profile) { return profileMkt(profile) === "tiktok"; }
 
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
@@ -578,6 +584,7 @@ function openProfileDialog(profile = null) {
   $("profileMailbox").value = profile?.mailboxEmail || "";
   $("profileTags").value = (profile?.tags || []).join(", ");
   $("profileNotes").value = profile?.notes || "";
+  $("profileIsTikTok").checked = !!profile?.isTikTok;
   setProfileStartUrl(profile?.startUrl || "", squad);
   // Excluir so aparece ao editar um perfil existente
   $("deleteProfileBtn").classList.toggle("hidden", !profile);
@@ -642,6 +649,7 @@ async function saveProfile(event) {
   };
   body.mailboxEmail = $("profileMailbox").value.trim();
   body.startUrl = readProfileStartUrl(); // "" = padrao da pasta
+  body.isTikTok = $("profileIsTikTok").checked; // conta TikTok mesmo fora da pasta Fox
   if (isAdmin()) {
     body.tags = $("profileTags").value.split(",").map((item) => item.trim()).filter(Boolean);
   }
@@ -749,8 +757,16 @@ async function openLocalBrowser(profileId) {
   try {
     // "Link ao abrir": usa o link escolhido no perfil (pode ser personalizado,
     // p/ clientes de mais de 1 marketplace); se vazio, cai no padrao da pasta.
-    const startUrl = profile.startUrl || squadOf(profileSquad(profile)).startUrl;
-    const mkt = squadOf(profileSquad(profile)).mkt;
+    const mkt = profileMkt(profile); // "tiktok" se marcado, senao o da pasta
+    // O servidor guarda startUrl SEMPRE preenchido (padrao da pasta quando o
+    // usuario nao escolheu link). Entao: um link PERSONALIZADO (diferente do
+    // padrao da pasta) sempre vence; se for o padrao e a conta for TikTok, abre
+    // no login do TikTok; caso contrario, o padrao da pasta.
+    const squadStart = squadOf(profileSquad(profile)).startUrl;
+    let startUrl = profile.startUrl || squadStart;
+    if (mkt === "tiktok" && (!profile.startUrl || profile.startUrl === squadStart)) {
+      startUrl = MKT_URL.tiktok;
+    }
     // Etapa 2: baixa a sessão (cookies) do servidor pra já abrir logado
     let cookies = [];
     try {
