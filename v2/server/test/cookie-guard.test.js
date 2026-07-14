@@ -55,6 +55,16 @@ test("Mercado Livre: perder orguseridp (principal) = protegido", () => {
   assert.strictEqual(cookieWriteDecision(stored, incoming).reason, "primary-guard");
 });
 
+test("TikTok SELLER: reconhece sessionid_tiktokseller (o caso que deslogava)", () => {
+  const seller = [ck("sessionid_tiktokseller"), ck("sid_guard_tiktokseller"), ck("ttwid")];
+  assert.strictEqual(hasAuthCookie(seller), true, "conta Seller e login valido");
+  assert.strictEqual(hasPrimaryAuth(seller), true, "sessionid_tiktokseller e primario");
+  // leitura parcial que perde o sessionid do Seller -> NAO pode sobrescrever
+  const parcial = [ck("ttwid"), ck("uid_tt_tiktokseller")];
+  assert.strictEqual(cookieWriteDecision(seller, parcial).reason, "primary-guard",
+    "perder o sessionid do Seller era o bug do deslogar");
+});
+
 test("helpers: hasAuthCookie / hasPrimaryAuth ignoram cookie sem valor", () => {
   assert.strictEqual(hasAuthCookie([{ name: "sessionid", value: "" }]), false);
   assert.strictEqual(hasPrimaryAuth([ck("sessionid")]), true);

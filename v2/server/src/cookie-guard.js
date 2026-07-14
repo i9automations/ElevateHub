@@ -8,9 +8,16 @@
 // e o estado ruim ainda se espalha pros outros PCs.
 
 // Cookies de LOGIN conhecidos por marketplace.
+// IMPORTANTE: o TikTok SELLER (seller-br.tiktok.com) usa os cookies de sessao com
+// o sufixo "_tiktokseller" (sessionid_tiktokseller etc.) — NAO o "sessionid" cru.
+// Precisamos reconhecer AMBOS, senao a trava nao protege contas Seller (o caso
+// principal do app) e elas deslogam sozinhas.
 const AUTH_COOKIE_NAMES = new Set([
-  // TikTok / TikTok Shop
+  // TikTok / TikTok Shop (afiliado)
   "sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt", "uid_tt_ss", "cmpl_token",
+  // TikTok SELLER (painel do vendedor) — cookies com sufixo
+  "sessionid_tiktokseller", "sessionid_ss_tiktokseller", "sid_tt_tiktokseller",
+  "sid_guard_tiktokseller", "uid_tt_tiktokseller", "uid_tt_ss_tiktokseller",
   // Mercado Livre
   "orguseridp", "ssid",
   // Shopee
@@ -22,10 +29,11 @@ const AUTH_COOKIE_NAMES = new Set([
 // Cookie de SESSAO PRINCIPAL: e a ausencia DELE que significa "deslogado" de
 // verdade. Uma leitura parcial pode manter um secundario mas perder o principal.
 const PRIMARY_AUTH_NAMES = new Set([
-  "sessionid", "sessionid_ss",          // TikTok / TikTok Shop
-  "orguseridp",                         // Mercado Livre
-  "spc_ec", "spc_st",                   // Shopee
-  "at-main", "sess-at-main"             // Amazon
+  "sessionid", "sessionid_ss",                              // TikTok afiliado
+  "sessionid_tiktokseller", "sessionid_ss_tiktokseller",   // TikTok SELLER
+  "orguseridp",                                            // Mercado Livre
+  "spc_ec", "spc_st",                                      // Shopee
+  "at-main", "sess-at-main"                                // Amazon
 ]);
 
 function hasNamed(cookies, nameSet) {
