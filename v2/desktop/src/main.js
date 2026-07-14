@@ -536,7 +536,10 @@ function broadcast(channel, data) {
 
 function setupAutoUpdate() {
   autoUpdater.autoDownload = true;            // baixa em segundo plano (fica pronta)
-  autoUpdater.autoInstallOnAppQuit = false;   // NAO aplica sozinha: o usuario escolhe
+  // Aplica SOZINHA quando o usuario fecha o app (nao interrompe o uso, so ao sair).
+  // Assim ninguem fica preso numa versao antiga: na proxima abertura ja esta atualizado.
+  // O botao "atualizar agora" continua funcionando pra quem quiser na hora.
+  autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("update-available", (info) => broadcast("update-available", { version: info?.version }));
   autoUpdater.on("download-progress", (p) => broadcast("update-progress", { pct: Math.round(p?.percent || 0) }));
   autoUpdater.on("update-downloaded", (info) => { autoUpdateReady = true; broadcast("update-downloaded", { version: info?.version }); });
