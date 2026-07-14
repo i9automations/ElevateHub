@@ -43,6 +43,31 @@ function hasAuthCookie(cookies) {
     (c) => c && c.name && c.value && AUTH_COOKIE_NAMES.has(String(c.name).toLowerCase())
   );
 }
+
+// Cookie de SESSAO PRINCIPAL por marketplace: e a ausencia DELE que significa
+// "deslogado" de verdade. Uma leitura parcial (durante navegacao/redirect) pode
+// manter um cookie secundario mas PERDER o principal -> nao pode virar logout.
+const PRIMARY_AUTH_NAMES = new Set([
+  "sessionid", "sessionid_ss",          // TikTok / TikTok Shop
+  "orguseridp",                         // Mercado Livre
+  "spc_ec", "spc_st",                   // Shopee
+  "at-main", "sess-at-main"             // Amazon
+]);
+function hasPrimaryAuth(cookies) {
+  return (cookies || []).some(
+    (c) => c && c.name && c.value && PRIMARY_AUTH_NAMES.has(String(c.name).toLowerCase())
+  );
+}
+// "Impressao digital" da SESSAO (nome=valor dos cookies de login, ordenado). Se
+// nao mudou, nao ha nada novo pra gravar -> evita o churn entre 2 PCs na mesma
+// conta gravando por cima um do outro a cada 8s (era fonte de logout).
+function authFingerprint(cookies) {
+  return (cookies || [])
+    .filter((c) => c && c.name && c.value && AUTH_COOKIE_NAMES.has(String(c.name).toLowerCase()))
+    .map((c) => `${String(c.name).toLowerCase()}=${c.value}`)
+    .sort()
+    .join("&");
+}
 // Le a sessao guardada (decifra) p/ comparar com a que chega. null = sem arquivo
 // ou ilegivel (nesses casos nao serve de base de comparacao e o PUT segue normal).
 async function readStoredCookies(profileId) {
@@ -276,6 +301,13 @@ async function handleProfileRoute(req, res, parts, user) {
       if (hasAuthCookie(stored) && !hasAuthCookie(cookies)) {
         console.warn(`[cookies] PUT degradado ignorado (perdeu login) perfil ${profile.id}: ${cookies.length} cookies`);
         return send(res, 200, { ok: true, count: storedCount, skipped: "auth-guard" });
+      }
+      // 3) manteve algum cookie de login, mas PERDEU o de SESSAO PRINCIPAL (sessionid
+      //    etc.) que a guardada tinha = leitura PARCIAL durante navegacao. Antes isso
+      //    passava e sobrescrevia a sessao boa -> a conta DESLOGAVA. Agora recusa.
+      if (hasPrimaryAuth(stored) && !hasPrimaryAuth(cookies)) {
+        console.warn(`[cookies] PUT sem sessao principal ignorado perfil ${profile.id}: ${cookies.length} cookies`);
+        return send(res, 200, { ok: true, count: storedCount, skipped: "primary-guard" });
       }
     }
 

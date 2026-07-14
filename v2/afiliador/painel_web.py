@@ -57,9 +57,11 @@ if ELEVATE.get("dataDir"):
         pass
     PASTA = DATA_DIR
     ac.PASTA = DATA_DIR          # redireciona status/_debug do motor tambem
+    ac.PROFILE_DIR = os.path.join(DATA_DIR, "chrome_profile")  # fallback gravavel
     UI_UDD = os.path.join(DATA_DIR, "_ui_painel")
     UPLOADS = os.path.join(DATA_DIR, "_uploads")
     CONFIG_PATH = os.path.join(DATA_DIR, "config_painel.json")
+    PERFIS_DIR = os.path.join(DATA_DIR, "perfis")   # nao pode apontar pro bundle (so-leitura)
 
 
 def _elevate_profile_dir(conta):
@@ -90,14 +92,29 @@ def _injetar_cookies_elevate(ctx, conta, log=print):
                 ck["expires"] = c["expires"]
             if "httpOnly" in c:
                 ck["httpOnly"] = bool(c["httpOnly"])
-            if "secure" in c:
-                ck["secure"] = bool(c["secure"])
+            ck["secure"] = bool(c.get("secure"))
             if c.get("sameSite") in ("Strict", "Lax", "None"):
                 ck["sameSite"] = c["sameSite"]
+                if c["sameSite"] == "None":
+                    ck["secure"] = True   # Chromium exige Secure p/ SameSite=None
             pw.append(ck)
-        if pw:
+        if not pw:
+            return
+        # Injeta tudo de uma vez (rapido). Se UM cookie for invalido, o add_cookies
+        # em lote falha INTEIRO e o painel abriria DESLOGADO em silencio -> cai pra
+        # um-a-um (um cookie ruim nao derruba a sessao toda).
+        try:
             ctx.add_cookies(pw)
-            log(f"   sessao do ElevateHub carregada ({len(pw)} cookies).")
+            bons = len(pw)
+        except Exception:
+            bons = 0
+            for ck in pw:
+                try:
+                    ctx.add_cookies([ck])
+                    bons += 1
+                except Exception:
+                    pass
+        log(f"   sessao do ElevateHub carregada ({bons}/{len(pw)} cookies).")
     except Exception as e:
         log(f"   (nao consegui carregar a sessao do ElevateHub: {e})")
 
@@ -686,9 +703,11 @@ def main():
     # pingar por um tempo = a janela fechou -> encerra.
     time.sleep(3)                       # deixa a UI carregar e comecar a pingar
     while True:
-        silencio = time.time() - _PING[0]
-        vivo = (proc is not None and proc.poll() is None)
-        if silencio > 25 or (silencio > 15 and not vivo):
+        # A UI pinga a cada ~0.9s enquanto a janela esta aberta (inclusive rodando
+        # um lote). So encerra apos um silencio LONGO (janela fechada). NAO usa o
+        # processo-pai do Chrome (ele e solto de imediato) -> senao encerraria no
+        # meio de um lote se a maquina desse uma engasgada.
+        if time.time() - _PING[0] > 30:
             break
         time.sleep(1.0)
     for s in SLOTS:

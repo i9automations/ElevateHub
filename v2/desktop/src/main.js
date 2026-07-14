@@ -25,6 +25,7 @@ const openBrowsers = new Map(); // profileId -> child process
 const adsInProgress = new Set(); // perfis sendo lidos pelo Relatorio de ADS agora
 const openingProfiles = new Set(); // perfis EM PROCESSO de abertura (trava a corrida de duplo-clique)
 let creatorsPanel = null; // processo do painel "Adicionar creators" (Afiliador), 1 instancia
+let creatorsLaunching = false; // reserva sincrona anti duplo-clique no spawn do painel
 
 // Acha o executavel do painel de creators (Afiliador) empacotado, ou o dev.
 function resolveCreatorsSidecar() {
@@ -494,7 +495,11 @@ async function openBrowserProfile(info, sender) {
     let closedEmitted = false;
     const onGone = () => {
       const e = openBrowsers.get(profileId);
-      if (e && e.child === child) {
+      // Um navegador NOVO ja assumiu este perfil (reabertura) -> este 'exit' e do
+      // Chrome VELHO. Ignora por completo: NAO pode avisar "fechou", senao soltaria
+      // o lock/sessao do navegador novo (a conta sumia da lista mesmo aberta).
+      if (e && e.child !== child) return;
+      if (e) {
         if (e.firstSync) clearTimeout(e.firstSync);
         if (e.interval) clearInterval(e.interval);
         if (e.client) e.client.close();
@@ -632,12 +637,16 @@ app.whenReady().then(() => {
   // Abre o painel "Adicionar creators" (motor Afiliador) — reaproveita as contas,
   // perfis e logins do ElevateHub (sem relogar) e o Chrome que o app ja embute.
   ipcMain.handle("open-creators-panel", async (_event, info) => {
+    const sidecar = resolveCreatorsSidecar();
+    if (!sidecar) return { ok: false, error: "no-sidecar" };
+    // Ja aberto, ou JA ABRINDO (reserva sincrona anti duplo-clique: sem isto, os
+    // awaits abaixo deixavam dois cliques subirem DOIS paineis).
+    if (creatorsLaunching) return { ok: true, already: true };
+    if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
+      return { ok: true, already: true };
+    }
+    creatorsLaunching = true;
     try {
-      const sidecar = resolveCreatorsSidecar();
-      if (!sidecar) return { ok: false, error: "no-sidecar" };
-      if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
-        return { ok: true, already: true };
-      }
       const dataDir = path.join(app.getPath("userData"), "creators");
       await fs.mkdir(dataDir, { recursive: true });
       const accounts = (Array.isArray(info?.accounts) ? info.accounts : []).map((a) => ({
@@ -664,6 +673,8 @@ app.whenReady().then(() => {
       return { ok: true };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };
+    } finally {
+      creatorsLaunching = false;
     }
   });
 
