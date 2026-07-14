@@ -25,49 +25,9 @@ function cookiesFile(profileId) {
   return path.join(COOKIES_DIR, `${safe}.json`);
 }
 
-// Cookies de LOGIN conhecidos por marketplace. Se a sessao guardada tem algum
-// destes e a que chega perdeu TODOS, e uma leitura degradada (nao um logout real)
-// -> a trava anti-regressao no PUT recusa gravar, pra conta nao "cair" sozinha.
-const AUTH_COOKIE_NAMES = new Set([
-  // TikTok / TikTok Shop
-  "sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt", "uid_tt_ss", "cmpl_token",
-  // Mercado Livre
-  "orguseridp", "ssid",
-  // Shopee
-  "spc_ec", "spc_st", "spc_u",
-  // Amazon
-  "at-main", "sess-at-main", "x-main", "sess-id"
-]);
-function hasAuthCookie(cookies) {
-  return (cookies || []).some(
-    (c) => c && c.name && c.value && AUTH_COOKIE_NAMES.has(String(c.name).toLowerCase())
-  );
-}
-
-// Cookie de SESSAO PRINCIPAL por marketplace: e a ausencia DELE que significa
-// "deslogado" de verdade. Uma leitura parcial (durante navegacao/redirect) pode
-// manter um cookie secundario mas PERDER o principal -> nao pode virar logout.
-const PRIMARY_AUTH_NAMES = new Set([
-  "sessionid", "sessionid_ss",          // TikTok / TikTok Shop
-  "orguseridp",                         // Mercado Livre
-  "spc_ec", "spc_st",                   // Shopee
-  "at-main", "sess-at-main"             // Amazon
-]);
-function hasPrimaryAuth(cookies) {
-  return (cookies || []).some(
-    (c) => c && c.name && c.value && PRIMARY_AUTH_NAMES.has(String(c.name).toLowerCase())
-  );
-}
-// "Impressao digital" da SESSAO (nome=valor dos cookies de login, ordenado). Se
-// nao mudou, nao ha nada novo pra gravar -> evita o churn entre 2 PCs na mesma
-// conta gravando por cima um do outro a cada 8s (era fonte de logout).
-function authFingerprint(cookies) {
-  return (cookies || [])
-    .filter((c) => c && c.name && c.value && AUTH_COOKIE_NAMES.has(String(c.name).toLowerCase()))
-    .map((c) => `${String(c.name).toLowerCase()}=${c.value}`)
-    .sort()
-    .join("&");
-}
+// Trava anti-regressao/anti-LOGOUT dos cookies: logica isolada e TESTADA em
+// cookie-guard.js (test/cookie-guard.test.js).
+const { cookieWriteDecision } = require("./cookie-guard");
 // Le a sessao guardada (decifra) p/ comparar com a que chega. null = sem arquivo
 // ou ilegivel (nesses casos nao serve de base de comparacao e o PUT segue normal).
 async function readStoredCookies(profileId) {
@@ -292,23 +252,14 @@ async function handleProfileRoute(req, res, parts, user) {
     // estado vazio ainda se espalha pros outros PCs. Guarda a sessao existente.
     const stored = await readStoredCookies(profile.id);
     const storedCount = stored ? stored.length : 0;
-    if (storedCount > 0) {
-      // 1) vazio nunca substitui uma sessao que existe
-      if (cookies.length === 0) {
-        return send(res, 200, { ok: true, count: storedCount, skipped: "empty-guard" });
+    const decision = cookieWriteDecision(stored, cookies);
+    if (!decision.write) {
+      // empty-guard e comum (troca de aba, etc.) -> nao loga. Os outros indicam
+      // uma leitura degradada/parcial que teria DESLOGADO -> loga p/ diagnostico.
+      if (decision.reason !== "empty-guard") {
+        console.warn(`[cookies] PUT recusado (${decision.reason}) perfil ${profile.id}: ${cookies.length} cookies`);
       }
-      // 2) a que chega perdeu TODOS os cookies de login que a guardada tinha = degradada
-      if (hasAuthCookie(stored) && !hasAuthCookie(cookies)) {
-        console.warn(`[cookies] PUT degradado ignorado (perdeu login) perfil ${profile.id}: ${cookies.length} cookies`);
-        return send(res, 200, { ok: true, count: storedCount, skipped: "auth-guard" });
-      }
-      // 3) manteve algum cookie de login, mas PERDEU o de SESSAO PRINCIPAL (sessionid
-      //    etc.) que a guardada tinha = leitura PARCIAL durante navegacao. Antes isso
-      //    passava e sobrescrevia a sessao boa -> a conta DESLOGAVA. Agora recusa.
-      if (hasPrimaryAuth(stored) && !hasPrimaryAuth(cookies)) {
-        console.warn(`[cookies] PUT sem sessao principal ignorado perfil ${profile.id}: ${cookies.length} cookies`);
-        return send(res, 200, { ok: true, count: storedCount, skipped: "primary-guard" });
-      }
+      return send(res, 200, { ok: true, count: storedCount, skipped: decision.reason });
     }
 
     await fsp.mkdir(COOKIES_DIR, { recursive: true });
