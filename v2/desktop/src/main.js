@@ -23,6 +23,7 @@ async function atomicWrite(file, data) {
 // ===== Navegador local por perfil (modelo Dolphin) =====
 const openBrowsers = new Map(); // profileId -> child process
 const adsInProgress = new Set(); // perfis sendo lidos pelo Relatorio de ADS agora
+const openingProfiles = new Set(); // perfis EM PROCESSO de abertura (trava a corrida de duplo-clique)
 
 function resolveChromePath() {
   const candidates = [];
@@ -414,6 +415,13 @@ async function openBrowserProfile(info, sender) {
   if (adsInProgress.has(profileId)) {
     return { ok: false, error: "ads-busy" };
   }
+  // CORRIDA DE DUPLO-CLIQUE: o guard "ja aberto" (openBrowsers) so era gravado
+  // DEPOIS de varios awaits (mkdir/markChromeProfile/rm). Dois cliques rapidos (ou
+  // dois eventos IPC quase simultaneos) passavam OS DOIS pela checagem antes de
+  // qualquer um registrar -> cada um dava spawn = "varios Chromes", e o processo
+  // perdido virava orfao. Esta reserva e SINCRONA (roda inteira sem ceder o event
+  // loop), entao fecha a janela antes do primeiro await.
+  if (openingProfiles.has(profileId)) return { ok: true, already: true };
   if (openBrowsers.has(profileId)) {
     const e = openBrowsers.get(profileId);
     // Só considera "já aberto" se o Chrome ainda está vivo. Entrada presa de um
@@ -428,51 +436,58 @@ async function openBrowserProfile(info, sender) {
   const chrome = resolveChromePath();
   if (!chrome) return { ok: false, error: "no-chrome" };
 
-  const dir = profileDataDir(profileId);
-  await fs.mkdir(dir, { recursive: true });
-  await markChromeProfile(dir, info?.name);
-  await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
-  const url = /^https?:/i.test(String(info?.url || "")) ? String(info.url) : "about:blank";
+  openingProfiles.add(profileId); // reserva o slot ANTES do primeiro await
+  try {
+    const dir = profileDataDir(profileId);
+    await fs.mkdir(dir, { recursive: true });
+    await markChromeProfile(dir, info?.name);
+    await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
+    const url = /^https?:/i.test(String(info?.url || "")) ? String(info.url) : "about:blank";
 
-  const child = spawn(chrome, [
-    `--user-data-dir=${dir}`,
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--test-type",
-    "--disable-infobars",
-    "--remote-debugging-port=0",
-    "about:blank"
-  ], { detached: false, windowsHide: false });
+    const child = spawn(chrome, [
+      `--user-data-dir=${dir}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--test-type",
+      "--disable-infobars",
+      "--remote-debugging-port=0",
+      "about:blank"
+    ], { detached: false, windowsHide: false });
 
-  const entry = { child, client: null, interval: null };
-  openBrowsers.set(profileId, entry);
+    const entry = { child, client: null, interval: null };
+    openBrowsers.set(profileId, entry);
 
-  // 'exit' e 'error' podem disparar os DOIS pro mesmo Chrome. Um handler unico:
-  // (1) so limpa se a entrada ainda for DESTE child (evita mexer no navegador ja
-  // reaberto por um evento atrasado, que soltaria o lock recem-adquirido) e
-  // (2) avisa o renderer no maximo 1x (senao seriam 2x release/loadProfiles).
-  let closedEmitted = false;
-  const onGone = () => {
-    const e = openBrowsers.get(profileId);
-    if (e && e.child === child) {
-      if (e.firstSync) clearTimeout(e.firstSync);
-      if (e.interval) clearInterval(e.interval);
-      if (e.client) e.client.close();
-      openBrowsers.delete(profileId);
-    }
-    if (closedEmitted) return;
-    closedEmitted = true;
-    // Avisa o renderer pra LIBERAR o lock (senao o perfil fica preso em "em uso")
-    if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
-  };
-  child.on("exit", onGone);
-  child.on("error", onGone);
+    // 'exit' e 'error' podem disparar os DOIS pro mesmo Chrome. Um handler unico:
+    // (1) so limpa se a entrada ainda for DESTE child (evita mexer no navegador ja
+    // reaberto por um evento atrasado, que soltaria o lock recem-adquirido) e
+    // (2) avisa o renderer no maximo 1x (senao seriam 2x release/loadProfiles).
+    let closedEmitted = false;
+    const onGone = () => {
+      const e = openBrowsers.get(profileId);
+      if (e && e.child === child) {
+        if (e.firstSync) clearTimeout(e.firstSync);
+        if (e.interval) clearInterval(e.interval);
+        if (e.client) e.client.close();
+        openBrowsers.delete(profileId);
+      }
+      if (closedEmitted) return;
+      closedEmitted = true;
+      // Avisa o renderer pra LIBERAR o lock (senao o perfil fica preso em "em uso")
+      if (sender && !sender.isDestroyed()) sender.send("browser-profile-closed", { id: profileId });
+    };
+    child.on("exit", onGone);
+    child.on("error", onGone);
 
-  startCookieSync(profileId, dir, url, info?.cookies || [], sender, child, String(info?.mkt || "")).catch(() => {
-    // Se a sincronizacao falhar, o Chrome ja abriu; o usuario navega manual.
-  });
+    startCookieSync(profileId, dir, url, info?.cookies || [], sender, child, String(info?.mkt || "")).catch(() => {
+      // Se a sincronizacao falhar, o Chrome ja abriu; o usuario navega manual.
+    });
 
-  return { ok: true };
+    return { ok: true };
+  } finally {
+    // Libera a reserva: aqui openBrowsers ja tem a entrada (registro sincrono antes
+    // deste return), entao as proximas chamadas caem no guard de "ja aberto".
+    openingProfiles.delete(profileId);
+  }
 }
 
 // ===== Atualizacao automatica (delta, sem reinstalar) =====
@@ -543,6 +558,24 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "index.html"));
 }
 
+// INSTANCIA UNICA: sem isto, abrir o app 2x (ex.: duplo-clique no atalho) criava
+// DOIS processos ElevateHub, cada um com seu proprio controle de navegadores ->
+// cada "Abrir" disparava um Chrome por instancia (outra fonte de "varios Chromes",
+// alem de 2 sincronizacoes de cookie brigando no servidor). A 2a instancia agora
+// so foca a janela que ja existe e encerra.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
+
 app.whenReady().then(() => {
   app.setName(APP_NAME);
   Menu.setApplicationMenu(null);
@@ -603,6 +636,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+} // fim do else (esta instancia ganhou o lock de instancia unica)
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

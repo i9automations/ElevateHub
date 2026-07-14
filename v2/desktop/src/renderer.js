@@ -703,6 +703,12 @@ async function openRemote(profileId) {
   }
 }
 
+// Guard de duplo-clique no renderer: enquanto uma abertura esta em andamento,
+// cliques repetidos no mesmo perfil sao ignorados (evita 2x lock/IPC/toast). A
+// trava definitiva contra "varios Chromes" esta no main (openingProfiles); esta
+// aqui e defesa em profundidade + evita o lock duplicado no servidor.
+const openingLocal = new Set();
+
 // Modelo Dolphin: abre o Chrome PROPRIO do app, no PC, com pasta isolada por conta.
 async function openLocalBrowser(profileId) {
   state.selectedId = profileId;
@@ -712,6 +718,9 @@ async function openLocalBrowser(profileId) {
     toast("Esta versão do app ainda não abre o navegador local. Atualize o app.", "warning");
     return;
   }
+  if (openingLocal.has(profileId)) return; // ja esta abrindo este perfil
+  openingLocal.add(profileId);
+  try {
   let inUseBy = [];
   try {
     const lock = await api(`/api/profiles/${profileId}/lock`, { method: "POST" });
@@ -766,6 +775,9 @@ async function openLocalBrowser(profileId) {
     toast(friendlyError(error), "danger");
     await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
     await loadProfiles();
+  }
+  } finally {
+    openingLocal.delete(profileId);
   }
 }
 

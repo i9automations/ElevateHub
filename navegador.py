@@ -388,6 +388,13 @@ def semear(nome):
 
 
 def abrir_perfil(nome):
+    # JA ABERTO? Nao abre outro. Antes, CADA clique em "Abrir" fazia um novo
+    # subprocess.Popen (sem checar nada) -> como o Chrome demora a aparecer, o
+    # usuario clicava de novo e acumulava VARIOS Chromes da mesma conta no PC.
+    # poll()==None = processo ainda vivo -> so devolve "ja aberto".
+    proc = _abertos.get(nome)
+    if proc is not None and proc.poll() is None:
+        return "ja_aberta"
     semear(nome)
     # DOLPHIN: as contas SEMPRE abrem no navegador PROPRIO (que NAO se atualiza).
     # E isso que impede de deslogar. So cai no Chrome do sistema se ainda nao
