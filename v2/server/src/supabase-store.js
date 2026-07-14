@@ -50,17 +50,23 @@ function profileFromRow(row) {
   // Conta marcada como TikTok (mesmo fora da pasta Fox) guardada como tag mkt:tiktok
   // (sem migracao de banco, igual squad:/resp:).
   const isTikTok = rawTags.some((tag) => /^mkt:tiktok$/i.test(String(tag || "").trim()));
+  // "Link ao abrir" tambem vive em tag (url:<link>). A coluna start_url nao existe
+  // no banco de producao (migracao nunca aplicada); guardar em tag evita depender
+  // dela — mesmo padrao de squad:/resp:. row.start_url fica so como fallback.
+  const urlTag = rawTags.find((tag) => /^url:/i.test(String(tag || "")));
+  const startUrl = (urlTag ? String(urlTag).slice(String(urlTag).indexOf(":") + 1) : "")
+    || row.start_url || startUrlForSquad(squad);
   return {
     id: row.id,
     name: row.name,
     tiktokEmail: row.tiktok_email || "",
     mailboxEmail: row.mailbox_email || "",
     squad,
-    startUrl: row.start_url || startUrlForSquad(squad),
+    startUrl,
     notes: row.notes || "",
     responsavel,
     isTikTok,
-    tags: rawTags.filter((tag) => !/^(squad|resp|mkt):/i.test(String(tag || ""))),
+    tags: rawTags.filter((tag) => !/^(squad|resp|mkt|url):/i.test(String(tag || ""))),
     sessionState: row.session_state || "empty",
     lockedBy: row.locked_by || null,
     lockedAt: row.locked_at || null,
@@ -72,17 +78,20 @@ function profileFromRow(row) {
 
 function profileToRow(profile) {
   const squad = normalizeSquad(profile.squad);
-  const tags = normalizeTags(profile.tags).filter((tag) => !/^(squad|resp|mkt):/i.test(String(tag || "")));
+  const tags = normalizeTags(profile.tags).filter((tag) => !/^(squad|resp|mkt|url):/i.test(String(tag || "")));
   const extra = [`squad:${squad}`];
   const responsavel = String(profile.responsavel || "").trim();
   if (responsavel) extra.push(`resp:${responsavel}`);
   if (profile.isTikTok) extra.push("mkt:tiktok"); // conta TikTok fora da pasta Fox
+  // Link ao abrir: so guarda se for DIFERENTE do padrao da pasta (mantem tags limpas).
+  // NAO grava a coluna start_url (nao existe no banco de producao) -> guarda em tag.
+  const su = String(profile.startUrl || "").trim();
+  if (su && su !== startUrlForSquad(squad)) extra.push(`url:${su}`);
   return {
     id: profile.id,
     name: profile.name,
     tiktok_email: normalizeEmail(profile.tiktokEmail) || null,
     mailbox_email: normalizeEmail(profile.mailboxEmail) || null,
-    start_url: profile.startUrl || startUrlForSquad(squad),
     notes: String(profile.notes || ""),
     tags: [...tags, ...extra],
     session_state: profile.sessionState || "empty",
