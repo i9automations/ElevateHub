@@ -24,10 +24,13 @@ function parseNum(s, decimalPonto = false) {
   if (s == null) return null;
   let t = String(s).replace(/BRL/gi, "").replace(/R\$/g, "").replace(/[^\d.,]/g, "");
   if (t === "") return null;
-  if (decimalPonto) return parseFloat(t.replace(",", ".")) || 0;
-  if (t.includes(",")) return parseFloat(t.replace(/\./g, "").replace(",", ".")); // BR: 1.234,56
-  if (/^\d+\.\d{1,2}$/.test(t)) return parseFloat(t); // 12.50 = decimal (não milhar)
-  return parseFloat(t.replace(/\./g, "")); // 1.234 = 1234 (milhar)
+  let n;
+  if (decimalPonto) n = parseFloat(t.replace(",", "."));
+  else if (t.includes(",")) n = parseFloat(t.replace(/\./g, "").replace(",", ".")); // BR: 1.234,56
+  else if (/^\d+\.\d{1,2}$/.test(t)) n = parseFloat(t); // 12.50 = decimal (não milhar)
+  else n = parseFloat(t.replace(/\./g, "")); // 1.234 = 1234 (milhar)
+  // Nunca devolve NaN (que viraria 0 silencioso lá no `|| 0`): valor ilegivel = null.
+  return Number.isFinite(n) ? n : null;
 }
 
 // Rótulos aceitos por métrica (testados no texto SEM acento e minúsculo).
@@ -42,8 +45,14 @@ const LABELS = {
 
 // primeiro número plausível em UMA linha (usado p/ valor na mesma linha do rótulo)
 function primeiroValorNaLinha(linha) {
-  const cand = tirarVariacao(linha);
-  const m = cand.match(/(R\$\s*)?\d[\d.,]*/);
+  let cand = tirarVariacao(linha);
+  // Remove ruído de INTERVALO ("(7 dias)", "últimos 7 dias", "7d") que era
+  // confundido com o valor — ex: "Custo (7 dias) R$ 1.234,56" pegava "7".
+  cand = cand.replace(/\(?\búltimos?\b\)?/gi, " ").replace(/\(?\b\d+\s*(dias?|d)\b\)?/gi, " ");
+  // Prefere um valor com R$ (dinheiro); senão, o primeiro número que sobrar.
+  const comReais = cand.match(/R\$\s*\d[\d.,]*/);
+  if (comReais) return comReais[0];
+  const m = cand.match(/\d[\d.,]*/);
   return m ? m[0] : null;
 }
 

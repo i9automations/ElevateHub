@@ -257,8 +257,14 @@ function profileFromImportRow(row) {
   };
 }
 
+const LOCK_TTL_MS = 20 * 60 * 1000; // trava do fluxo remoto expira sozinha
 function canControlProfile(profile, user) {
-  return !profile.lockedBy || profile.lockedBy === user.id || user.role === "admin";
+  if (!profile.lockedBy || profile.lockedBy === user.id || user.role === "admin") return true;
+  // Trava presa: se quem deu session/start nunca deu release (PC travou/fechou),
+  // lockedBy ficaria no banco pra sempre e barraria todos os outros. Expira por
+  // tempo (lockedAt) -> depois de LOCK_TTL_MS qualquer um pode reassumir.
+  const at = profile.lockedAt ? Date.parse(profile.lockedAt) : 0;
+  return !!at && (Date.now() - at) > LOCK_TTL_MS;
 }
 
 module.exports = {

@@ -273,18 +273,23 @@ class JsonStore {
   }
 
   async audit(user, action, targetId, meta = {}) {
-    const db = this.loadDb();
-    db.audit.unshift({
-      id: id("aud"),
-      at: now(),
-      userId: user?.id || null,
-      userName: user?.name || "sistema",
-      action,
-      targetId,
-      meta
-    });
-    db.audit = db.audit.slice(0, 500);
-    this.saveDb(db);
+    // Telemetria nunca derruba a operacao principal (ver nota no supabase-store).
+    try {
+      const db = this.loadDb();
+      db.audit.unshift({
+        id: id("aud"),
+        at: now(),
+        userId: user?.id || null,
+        userName: user?.name || "sistema",
+        action,
+        targetId,
+        meta
+      });
+      db.audit = db.audit.slice(0, 500);
+      this.saveDb(db);
+    } catch (e) {
+      try { console.warn("[audit] falhou (ignorado):", action, e?.message || e); } catch { /* nada */ }
+    }
   }
 
   async listAudit() {

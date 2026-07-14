@@ -56,6 +56,12 @@ CHROME = achar_chrome()
 # contas abertas agora: nome -> processo do navegador (pra saber quais estao 'aberta')
 _abertos = {}
 
+# Serializa leitura/gravacao do registro (contas.json). O servidor e multi-thread
+# (ThreadingHTTPServer): sem isto, dois pedidos quase simultaneos podiam fazer
+# carregar->modifica->salvar e um sobrescrever a alteracao do outro. RLock =
+# reentrante (uma funcao ja com o lock pode chamar outra que tambem o pega).
+_REG_LOCK = threading.RLock()
+
 
 def _slug(nome):
     return re.sub(r'[\\/:*?"<>|]', "", nome).strip() or "conta"
@@ -86,11 +92,21 @@ def carregar():
 
 
 def salvar(contas):
+    """Grava o registro de forma ATOMICA (tmp + replace): uma escrita interrompida
+    (falta de energia, disco cheio) nunca deixa o contas.json pela metade. Devolve
+    True/False pra quem chama poder avisar o usuario em vez de fingir que salvou."""
+    tmp = REG + ".tmp"
     try:
-        with open(REG, "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"contas": contas}, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, REG)
+        return True
     except Exception:
-        pass
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+        return False
 
 
 def _idx(contas, nome):
@@ -287,12 +303,13 @@ def _ultima_abertura(nome):
 
 
 def _marcar_ultima_abertura(nome):
-    contas = carregar()
-    k = _idx(contas, nome)
-    valor = _agora_iso()
-    if k >= 0:
-        contas[k]["ultima_abertura"] = valor
-        salvar(contas)
+    with _REG_LOCK:
+        contas = carregar()
+        k = _idx(contas, nome)
+        valor = _agora_iso()
+        if k >= 0:
+            contas[k]["ultima_abertura"] = valor
+            salvar(contas)
     return valor
 
 
@@ -421,8 +438,12 @@ def abrir_perfil(nome):
 
 
 # cookies de SESSAO do TikTok Seller (presenca = logado; validade = nao expirou)
+# Cookies de SESSAO do TikTok Seller. Inclui as duas familias de nomes (com o
+# sufixo _tiktokseller e os "crus" sessionid/sid_tt/...), porque o TikTok varia
+# conforme o dominio/fluxo -> assim o status "logada" nao falha so por causa do nome.
 _COOKIES_SELLER = ("sessionid_tiktokseller", "sid_guard_tiktokseller",
-                   "sessionid_ss_tiktokseller", "sid_tt_tiktokseller")
+                   "sessionid_ss_tiktokseller", "sid_tt_tiktokseller",
+                   "sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt")
 
 
 def _status_conta(nome):
@@ -495,15 +516,30 @@ def _texto_email(msg):
 def _extrair_codigo_tiktok(texto):
     if not texto:
         return None
-    # Primeiro tenta achar um codigo perto de palavras de verificacao.
+    baixo = texto.lower()
+    # 1) numero de 4-8 digitos LOGO APOS uma palavra de codigo/verificacao (janela
+    #    curta). Descarta anos (19xx/20xx) pra nao confundir com data.
     ctx = re.compile(
-        r"(?i)(?:tiktok|c[oó]digo|codigo|code|verification|verifica[cç][aã]o)"
-        r".{0,120}?\b(\d{6})\b")
-    m = ctx.search(texto)
-    if m:
+        r"(?i)(?:c[oó]digo\s+de\s+(?:verifica\w*|seguran[çc]a)|verification\s+code|"
+        r"security\s+code|c[oó]digo|code|verifica\w*|otp|pin)"
+        r".{0,40}?\b(\d{4,8})\b")
+    for m in ctx.finditer(texto):
+        num = m.group(1)
+        if re.fullmatch(r"(19|20)\d\d", num):
+            continue
+        return num
+    # 2) fallback: um 6 digitos isolado, MAS nao se tiver palavra "ruim" por perto
+    #    (pedido/rastreio/cupom/cpf/telefone/fatura) — evita pegar numero errado.
+    ruim = re.compile(r"pedido|order|rastre|track|cupom|coupon|desconto|cpf|cnpj|"
+                      r"telefone|phone|whats|fatura|boleto|nota\s")
+    for m in re.finditer(r"\b(\d{6})\b", texto):
+        if re.fullmatch(r"(19|20)\d\d", m.group(1)):
+            continue
+        redor = baixo[max(0, m.start() - 30):m.end() + 30]
+        if ruim.search(redor):
+            continue
         return m.group(1)
-    achados = re.findall(r"\b(\d{6})\b", texto)
-    return achados[0] if achados else None
+    return None
 
 
 def _parse_corte_iso(valor):
@@ -577,8 +613,17 @@ def _buscar_codigo_em_caixa(alias, login, senha, corte=None):
                 msg.get("Delivered-To"), msg.get("X-Original-To"), msg.get("Envelope-To")])
             corpo = _texto_email(msg)
             pacote = (headers + " " + corpo).lower()
-            if alias not in pacote:
-                continue
+            # Destinatario EXATO: extrai os e-mails de To/Cc/Delivered-To/etc e exige
+            # que o alias seja UM deles. Antes era 'alias in pacote' (substring), o que
+            # deixava um alias curto (ana@x.com) casar dentro de outro (joana@x.com) e
+            # retornar o codigo de OUTRA conta que compartilha a caixa.
+            destinos = set(re.findall(
+                r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}",
+                " ".join(str(msg.get(h) or "") for h in
+                         ("To", "Cc", "Bcc", "Delivered-To",
+                          "X-Original-To", "Envelope-To")).lower()))
+            if not destinos or alias not in destinos:
+                continue  # destinatario ilegivel ou nao e este alias -> pula
             if "tiktok" not in pacote and "verification" not in pacote and "verifica" not in pacote:
                 continue
             codigo = _extrair_codigo_tiktok(headers + " " + corpo)
@@ -1256,11 +1301,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, code, body, ctype="application/json"):
         data = body.encode("utf-8") if isinstance(body, str) else body
-        self.send_response(code)
-        self.send_header("Content-Type", ctype + "; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype + "; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            # cliente desconectou no meio (ex: fechou a janela) -> nao derruba a thread
+            pass
 
     def do_GET(self):
         if self.path == "/" or self.path.startswith("/index"):
@@ -1283,24 +1332,30 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, "{}")
 
     def do_POST(self):
-        n = int(self.headers.get("Content-Length", 0))
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        # API local, mas evita ler um Content-Length gigante direto na memoria.
+        if n > 5_000_000:
+            return self._send(413, json.dumps({"erro": "Requisicao grande demais."}))
         try:
             dados = json.loads(self.rfile.read(n) or "{}")
         except Exception:
             dados = {}
         nome = (dados.get("nome") or "").strip()
         tags = [t.strip() for t in (dados.get("tags") or []) if t.strip()]
-        contas = carregar()
+        nao_salvou = json.dumps({"erro": "Nao consegui salvar agora. Tente de novo."})
         if self.path == "/api/create":
             if not nome:
                 return self._send(200, json.dumps({"erro": "Nome vazio"}))
-            if _idx(contas, nome) >= 0:
-                return self._send(200, json.dumps(
-                    {"erro": "Ja existe um perfil com esse nome."}))
-            nova = {"nome": nome, "tags": tags, "ultima_abertura": None}
-            _aplicar_email(nova, dados, manter_senha=False)
-            contas.append(nova)
-            salvar(contas)
+            with _REG_LOCK:
+                contas = carregar()
+                if _idx(contas, nome) >= 0:
+                    return self._send(200, json.dumps(
+                        {"erro": "Ja existe um perfil com esse nome."}))
+                nova = {"nome": nome, "tags": tags, "ultima_abertura": None}
+                _aplicar_email(nova, dados, manter_senha=False)
+                contas.append(nova)
+                if not salvar(contas):
+                    return self._send(200, nao_salvou)
             semear(nome)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/open":
@@ -1308,25 +1363,40 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(
                 {"status": status, "ultima_abertura": _ultima_abertura(nome)}))
         elif self.path == "/api/delete":
-            k = _idx(contas, nome)
-            if k >= 0:
-                contas.pop(k)
-                salvar(contas)
+            # Nao apaga a pasta de um Chrome AINDA aberto (corromperia a sessao).
+            proc = _abertos.get(nome)
+            if proc is not None and proc.poll() is None:
+                return self._send(200, json.dumps(
+                    {"erro": "Feche o navegador desta conta antes de remover."}))
+            with _REG_LOCK:
+                contas = carregar()
+                k = _idx(contas, nome)
+                if k >= 0:
+                    contas.pop(k)
+                    if not salvar(contas):
+                        return self._send(200, nao_salvou)
+            _abertos.pop(nome, None)                                      # limpa entrada morta
             shutil.rmtree(_perfil_dir(nome), ignore_errors=True)          # novo
             shutil.rmtree(os.path.join(CHROME_UDD, _slug(nome)),          # antigo
                           ignore_errors=True)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/tags":
-            k = _idx(contas, nome)
-            if k >= 0:
-                contas[k]["tags"] = tags
-                salvar(contas)
+            with _REG_LOCK:
+                contas = carregar()
+                k = _idx(contas, nome)
+                if k >= 0:
+                    contas[k]["tags"] = tags
+                    if not salvar(contas):
+                        return self._send(200, nao_salvou)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/email":
-            k = _idx(contas, nome)
-            if k >= 0:
-                _aplicar_email(contas[k], dados, manter_senha=True)
-                salvar(contas)
+            with _REG_LOCK:
+                contas = carregar()
+                k = _idx(contas, nome)
+                if k >= 0:
+                    _aplicar_email(contas[k], dados, manter_senha=True)
+                    if not salvar(contas):
+                        return self._send(200, nao_salvou)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/hostinger":
             self._send(200, json.dumps(
@@ -1336,26 +1406,29 @@ class Handler(BaseHTTPRequestHandler):
                 buscar_codigo_tiktok(nome, dados.get("depois_de"))))
         elif self.path == "/api/rename":
             novo = (dados.get("novo") or "").strip()
-            k = _idx(contas, nome)
             if not novo:
                 return self._send(200, json.dumps({"erro": "Nome vazio"}))
-            if novo != nome and _idx(contas, novo) >= 0:
-                return self._send(200, json.dumps(
-                    {"erro": "Ja existe um perfil com esse nome."}))
-            if k >= 0:
-                # migra primeiro (caso ainda esteja no layout antigo), depois
-                # renomeia a pasta isolada -> preserva o login.
-                _migrar_se_preciso(nome)
-                old_d = _perfil_dir(nome)
-                new_d = _perfil_dir(novo)
-                if (_slug(nome) != _slug(novo) and os.path.isdir(old_d)
-                        and not os.path.exists(new_d)):
-                    try:
-                        os.rename(old_d, new_d)
-                    except Exception:
-                        pass
-                contas[k]["nome"] = novo
-                salvar(contas)
+            with _REG_LOCK:
+                contas = carregar()
+                k = _idx(contas, nome)
+                if novo != nome and _idx(contas, novo) >= 0:
+                    return self._send(200, json.dumps(
+                        {"erro": "Ja existe um perfil com esse nome."}))
+                if k >= 0:
+                    # migra primeiro (caso ainda esteja no layout antigo), depois
+                    # renomeia a pasta isolada -> preserva o login.
+                    _migrar_se_preciso(nome)
+                    old_d = _perfil_dir(nome)
+                    new_d = _perfil_dir(novo)
+                    if (_slug(nome) != _slug(novo) and os.path.isdir(old_d)
+                            and not os.path.exists(new_d)):
+                        try:
+                            os.rename(old_d, new_d)
+                        except Exception:
+                            pass
+                    contas[k]["nome"] = novo
+                    if not salvar(contas):
+                        return self._send(200, nao_salvou)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/backup":
             self._send(200, json.dumps(fazer_backup()))

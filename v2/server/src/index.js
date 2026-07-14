@@ -161,7 +161,9 @@ function readBody(req) {
     req.on("data", (chunk) => {
       body += chunk;
       if (body.length > 1_000_000) {
-        reject(new Error("Payload muito grande"));
+        const e = new Error("Payload muito grande");
+        e.status = 413; // senao viraria 500 "Erro interno"
+        reject(e);
         req.destroy();
       }
     });
@@ -312,9 +314,14 @@ async function handleProfileRoute(req, res, parts, user) {
     // Solta a trava do fluxo remoto (session/start seta lockedBy). Sem isso o
     // perfil ficava "em uso por" para sempre e travava os outros usuarios.
     if (profile.lockedBy) {
-      profile.lockedBy = null;
-      profile.lockedAt = null;
-      await store.saveProfile(profile).catch(() => {});
+      // Rele FRESCO e mexe SO na trava — senao o upsert do snapshot velho reverteria
+      // uma edicao concorrente (nome/e-mail/tags) feita durante este request.
+      const fresh = await store.getProfile(profile.id).catch(() => null);
+      if (fresh && fresh.lockedBy) {
+        fresh.lockedBy = null;
+        fresh.lockedAt = null;
+        await store.saveProfile(fresh).catch(() => {});
+      }
     }
     return send(res, 200, { ok: true });
   }
@@ -350,12 +357,15 @@ async function handleProfileRoute(req, res, parts, user) {
     if (profile.lockedBy && profile.lockedBy !== user.id) {
       return send(res, 409, { error: "Perfil ja esta em uso" });
     }
-    profile.lockedBy = user.id;
-    profile.lockedAt = profile.lockedAt || now();
-    profile.lastOpenedAt = now();
     const browserSession = await browserWorker.startBrowserSession(profile, user);
-    profile.sessionState = browserSession.state === "running" ? "ready" : "queued";
-    const saved = await store.saveProfile(profile);
+    // Rele FRESCO e grava so os campos de sessao/trava — nao sobrescreve edicoes
+    // concorrentes (nome/e-mail/tags) com o snapshot do inicio do request.
+    const fresh = (await store.getProfile(profile.id).catch(() => null)) || profile;
+    fresh.lockedBy = user.id;
+    fresh.lockedAt = fresh.lockedAt || now();
+    fresh.lastOpenedAt = now();
+    fresh.sessionState = browserSession.state === "running" ? "ready" : "queued";
+    const saved = await store.saveProfile(fresh);
     await store.audit(user, "session.start", profile.id);
     return send(res, 202, {
       profile: saved,
@@ -373,6 +383,9 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "GET" && parts[3] === "session") {
+    if (!canControlProfile(profile, user)) {
+      return send(res, 403, { error: "Perfil travado por outro usuario" });
+    }
     return send(res, 200, { session: browserWorker.getBrowserSession(profile.id) });
   }
 

@@ -90,9 +90,15 @@ function connectCdp(wsUrl) {
     // Se a conexao cair, rejeita TODAS as chamadas pendentes (senao um `await`
     // de um comando sem resposta fica preso p/ sempre — poderia travar a aba).
     const failAll = (err) => { for (const [, p] of pending) p.rej(err); pending.clear(); };
-    ws.addEventListener("open", () => { settled = true; resolve(client); });
-    ws.addEventListener("error", () => { if (!settled) reject(new Error("cdp-ws-error")); else failAll(new Error("cdp-ws-error")); });
-    ws.addEventListener("close", () => { if (!settled) reject(new Error("cdp-ws-closed")); else failAll(new Error("cdp-ws-closed")); });
+    // Timeout de CONEXAO: se o WebSocket abrir o TCP mas nunca completar o handshake
+    // (nem 'open', nem 'error'/'close'), o await ficaria preso p/ sempre -> travava o
+    // collectAdsMetrics e deixava adsInProgress preso ate reiniciar o app.
+    const connectTimer = setTimeout(() => {
+      if (!settled) { settled = true; try { ws.close(); } catch { /* ja fechado */ } reject(new Error("cdp-connect-timeout")); }
+    }, 15000);
+    ws.addEventListener("open", () => { clearTimeout(connectTimer); settled = true; resolve(client); });
+    ws.addEventListener("error", () => { clearTimeout(connectTimer); if (!settled) { settled = true; reject(new Error("cdp-ws-error")); } else failAll(new Error("cdp-ws-error")); });
+    ws.addEventListener("close", () => { clearTimeout(connectTimer); if (!settled) { settled = true; reject(new Error("cdp-ws-closed")); } else failAll(new Error("cdp-ws-closed")); });
     ws.addEventListener("message", (event) => {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
@@ -336,7 +342,10 @@ async function saveAdsDebug(name, text, client, sessionId) {
 async function collectAdsMetrics(info) {
   const profileId = String(info?.id || "");
   if (!profileId) return { ok: false, motivo: "perfil invalido" };
-  if (openBrowsers.has(profileId)) {
+  // Checa TAMBEM openingProfiles: se o usuario acabou de clicar "Abrir" e a
+  // abertura esta nos awaits (openBrowsers ainda vazio), sem isto o ADS abriria
+  // um 2o Chrome no MESMO user-data-dir e mexeria na sessao que ele esta usando.
+  if (openBrowsers.has(profileId) || openingProfiles.has(profileId)) {
     return { ok: false, motivo: "Feche o navegador desta conta antes de ler o ADS." };
   }
   const chrome = resolveChromePath();
@@ -581,10 +590,14 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
 
   ipcMain.handle("open-external", async (_event, url) => {
-    const parsed = new URL(String(url));
-    if (parsed.protocol !== "https:") return false;
-    await shell.openExternal(parsed.toString());
-    return true;
+    try {
+      const parsed = new URL(String(url));
+      if (parsed.protocol !== "https:") return false;
+      await shell.openExternal(parsed.toString());
+      return true;
+    } catch {
+      return false; // url invalida -> nao rejeita a Promise do renderer
+    }
   });
 
   ipcMain.handle("open-browser-profile", async (event, info) => {

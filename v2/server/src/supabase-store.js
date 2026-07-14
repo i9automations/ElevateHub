@@ -218,7 +218,17 @@ class SupabaseStore {
       email_confirm: true,
       user_metadata: { name, role }
     });
-    if (authError) throw authError;
+    if (authError) {
+      // e-mail ja cadastrado vira mensagem clara (409), nao "Erro interno" (500).
+      const msg = String(authError.message || "").toLowerCase();
+      if (authError.status === 422 || authError.code === "email_exists"
+          || msg.includes("already") || msg.includes("registered") || msg.includes("exist")) {
+        const e = new Error("Usuario ja cadastrado com esse e-mail.");
+        e.status = 409;
+        throw e;
+      }
+      throw authError;
+    }
     const user = {
       id: createdAuth.user.id,
       name,
@@ -359,17 +369,25 @@ class SupabaseStore {
   }
 
   async audit(user, action, targetId, meta = {}) {
-    const row = {
-      id: id("aud"),
-      at: now(),
-      user_id: user?.id || null,
-      user_name: user?.name || "sistema",
-      action,
-      target_id: targetId || null,
-      meta
-    };
-    const { error } = await this.admin.from("audit").insert(row);
-    if (error) throw error;
+    // Auditoria e telemetria: NUNCA pode derrubar a operacao principal. Se o insert
+    // falhar (tabela indisponivel, etc.), so registra no log e segue. Antes, um
+    // login/criar-perfil BEM-SUCEDIDO virava 500 se o audit falhasse -> ninguem
+    // logava, e o retry do criar-perfil (com o perfil ja gravado) duplicava.
+    try {
+      const row = {
+        id: id("aud"),
+        at: now(),
+        user_id: user?.id || null,
+        user_name: user?.name || "sistema",
+        action,
+        target_id: targetId || null,
+        meta
+      };
+      const { error } = await this.admin.from("audit").insert(row);
+      if (error) throw error;
+    } catch (e) {
+      try { console.warn("[audit] falhou (ignorado):", action, e?.message || e); } catch { /* nada */ }
+    }
   }
 
   async listAudit() {

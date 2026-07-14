@@ -988,7 +988,7 @@ function renderUsers() {
   $("userMsg").textContent = canCreate ? "" : "Somente admin pode criar usuários.";
   $("userList").innerHTML = state.users.map((user) => `
     <div class="user-row">
-      <div class="avatar">${escapeHtml(user.name.slice(0, 2).toUpperCase())}</div>
+      <div class="avatar">${escapeHtml(String(user.name || "").slice(0, 2).toUpperCase())}</div>
       <div>
         <strong>${escapeHtml(user.name)}</strong>
         <span>${escapeHtml(user.email)}</span>
@@ -1257,7 +1257,8 @@ var cls="c";if(d.roi>=8)cls+=" top";if((d.pedidos||0)===0)cls+=" zero";
 return '<div class="'+cls+'"><div class="h"><div class="cli">'+esc(d.cli)+(d.resp?'<span class="rsp">'+esc(d.resp)+'</span>':'')+'</div><div class="roi '+roiCls(d.roi)+'">'+(Number(d.roi)||0).toFixed(2)+'x</div></div><div class="mt"><div class="m"><div class="l">Custo</div><div class="v">'+brl(d.custo)+'</div></div><div class="m"><div class="l">Pedidos</div><div class="v">'+(d.pedidos||0)+'</div></div><div class="m"><div class="l">Custo/Ped.</div><div class="v">'+brl(d.cpp)+'</div></div><div class="m"><div class="l">Receita</div><div class="v g">'+brl(d.receita)+'</div></div></div></div>';}).join("");
 function exportCSV(){var h=["Conta","Responsavel","Custo","Pedidos","Custo por pedido","Receita","Ticket medio","ROI","Erro"];
 var ln=dados.map(function(d){return [d.cli,d.resp||"",(d.custo||0).toFixed(2).replace(".",","),(d.pedidos||0),(d.cpp||0).toFixed(2).replace(".",","),(d.receita||0).toFixed(2).replace(".",","),(d.ticket||0).toFixed(2).replace(".",","),(Number(d.roi)||0).toFixed(2).replace(".",","),d.erro||""];});
-var csv=[h].concat(ln).map(function(r){return r.map(function(c){return '"'+c+'"';}).join(";");}).join("\\r\\n");
+function q(c){c=String(c==null?"":c);if(/^[=+\\-@\\t\\r]/.test(c))c="'"+c;return '"'+c.replace(/"/g,'""')+'"';}
+var csv=[h].concat(ln).map(function(r){return r.map(q).join(";");}).join("\\r\\n");
 var b=new Blob(["\\ufeff"+csv],{type:"text/csv;charset=utf-8;"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="Relatorio_ADS.csv";a.click();}
 </script></body></html>`;
 
