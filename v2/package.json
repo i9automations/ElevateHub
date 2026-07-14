@@ -1,7 +1,7 @@
 {
   "name": "contas-tiktok-v2",
   "private": true,
-  "version": "0.2.43",
+  "version": "0.2.44",
   "description": "ElevateHub - aplicativo desktop com backend central compartilhado.",
   "scripts": {
     "server": "node server/src/index.js",

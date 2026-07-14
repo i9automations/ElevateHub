@@ -1,7 +1,7 @@
 {
   "name": "@contas-tiktok-v2/desktop",
   "private": true,
-  "version": "0.2.43",
+  "version": "0.2.44",
   "description": "Aplicativo desktop do ElevateHub.",
   "main": "src/main.js",
   "scripts": {
@@ -37,6 +37,10 @@
       {
         "from": "chrome",
         "to": "chrome"
+      },
+      {
+        "from": "../afiliador/dist/creators-panel.exe",
+        "to": "creators/creators-panel.exe"
       }
     ],
     "win": {
