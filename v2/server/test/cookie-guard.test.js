@@ -65,6 +65,15 @@ test("TikTok SELLER: reconhece sessionid_tiktokseller (o caso que deslogava)", (
     "perder o sessionid do Seller era o bug do deslogar");
 });
 
+test("Shopee SELLER: reconhece SPC_SC_SESSION (mesma classe do bug do Seller)", () => {
+  const shopee = [ck("SPC_SC_SESSION"), ck("SPC_SC_OFFLINE_TOKEN"), ck("csrftoken")];
+  assert.strictEqual(hasAuthCookie(shopee), true, "Shopee Seller logado");
+  assert.strictEqual(hasPrimaryAuth(shopee), true, "SPC_SC_SESSION e primario");
+  const parcial = [ck("csrftoken"), ck("SPC_F")]; // perdeu a sessao
+  assert.strictEqual(cookieWriteDecision(shopee, parcial).write, false,
+    "leitura parcial NAO pode apagar a sessao da Shopee Seller");
+});
+
 test("helpers: hasAuthCookie / hasPrimaryAuth ignoram cookie sem valor", () => {
   assert.strictEqual(hasAuthCookie([{ name: "sessionid", value: "" }]), false);
   assert.strictEqual(hasPrimaryAuth([ck("sessionid")]), true);

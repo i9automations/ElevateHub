@@ -20,8 +20,10 @@ const AUTH_COOKIE_NAMES = new Set([
   "sid_guard_tiktokseller", "uid_tt_tiktokseller", "uid_tt_ss_tiktokseller",
   // Mercado Livre
   "orguseridp", "ssid",
-  // Shopee
+  // Shopee (consumidor)
   "spc_ec", "spc_st", "spc_u",
+  // Shopee SELLER (seller.shopee.com.br) — nomes proprios do painel do vendedor
+  "spc_sc_session", "spc_sc_offline_token", "spc_sc_tk",
   // Amazon
   "at-main", "sess-at-main", "x-main", "sess-id"
 ]);
@@ -32,7 +34,8 @@ const PRIMARY_AUTH_NAMES = new Set([
   "sessionid", "sessionid_ss",                              // TikTok afiliado
   "sessionid_tiktokseller", "sessionid_ss_tiktokseller",   // TikTok SELLER
   "orguseridp",                                            // Mercado Livre
-  "spc_ec", "spc_st",                                      // Shopee
+  "spc_ec", "spc_st",                                      // Shopee consumidor
+  "spc_sc_session", "spc_sc_offline_token",                // Shopee SELLER
   "at-main", "sess-at-main"                                // Amazon
 ]);
 
