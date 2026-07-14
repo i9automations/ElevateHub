@@ -770,20 +770,13 @@ async function openLocalBrowser(profileId) {
     return;
   }
   if (inUseBy.length) {
+    // Contas sao COMPARTILHADAS: nao bloqueia o uso simultaneo. Antes um modal
+    // "Abrir mesmo assim?" travava o time (clicavam Cancelar / achavam que era
+    // erro). Agora so avisa (sem modal) quem mais esta na conta e segue abrindo.
     const myName = state.user?.name || "";
     const others = inUseBy.filter((name) => name && name !== myName);
-    const message = others.length
-      ? `${others.join(", ")} ${others.length > 1 ? "estão" : "está"} nesta conta agora. Abrir mesmo assim?`
-      : `Esta conta já está aberta em outro computador (${inUseBy.length + 1} no total). Abrir mesmo assim?`;
-    const ok = await confirmAction({
-      title: "Conta em uso",
-      message,
-      okLabel: "Abrir mesmo assim"
-    });
-    if (!ok) {
-      await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
-      await loadProfiles().catch(() => {});
-      return;
+    if (others.length) {
+      toast(`Esta conta também está aberta por ${others.join(", ")}.`, "info");
     }
   }
   try {
