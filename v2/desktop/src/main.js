@@ -24,6 +24,18 @@ async function atomicWrite(file, data) {
 const openBrowsers = new Map(); // profileId -> child process
 const adsInProgress = new Set(); // perfis sendo lidos pelo Relatorio de ADS agora
 const openingProfiles = new Set(); // perfis EM PROCESSO de abertura (trava a corrida de duplo-clique)
+let creatorsPanel = null; // processo do painel "Adicionar creators" (Afiliador), 1 instancia
+
+// Acha o executavel do painel de creators (Afiliador) empacotado, ou o dev.
+function resolveCreatorsSidecar() {
+  const candidates = [];
+  if (app.isPackaged) candidates.push(path.join(process.resourcesPath, "creators", "creators-panel.exe"));
+  candidates.push(path.join(__dirname, "..", "..", "afiliador", "dist", "creators-panel.exe")); // dev/local
+  for (const c of candidates) {
+    try { if (fss.existsSync(c)) return c; } catch { /* segue */ }
+  }
+  return null;
+}
 
 function resolveChromePath() {
   const candidates = [];
@@ -606,6 +618,44 @@ app.whenReady().then(() => {
 
   ipcMain.handle("collect-ads-metrics", async (_event, info) => {
     return collectAdsMetrics(info);
+  });
+
+  // Abre o painel "Adicionar creators" (motor Afiliador) — reaproveita as contas,
+  // perfis e logins do ElevateHub (sem relogar) e o Chrome que o app ja embute.
+  ipcMain.handle("open-creators-panel", async (_event, info) => {
+    try {
+      const sidecar = resolveCreatorsSidecar();
+      if (!sidecar) return { ok: false, error: "no-sidecar" };
+      if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
+        return { ok: true, already: true };
+      }
+      const dataDir = path.join(app.getPath("userData"), "creators");
+      await fs.mkdir(dataDir, { recursive: true });
+      const accounts = (Array.isArray(info?.accounts) ? info.accounts : []).map((a) => ({
+        id: String(a.id),
+        name: String(a.name || a.id),
+        profileDir: profileDataDir(a.id)     // MESMO perfil do ElevateHub
+      }));
+      const cfg = {
+        apiBase: API_URL,
+        token: String(info?.token || ""),
+        chromePath: resolveChromePath() || "",
+        dataDir,
+        accounts
+      };
+      const cfgPath = path.join(dataDir, "config.json");
+      await atomicWrite(cfgPath, JSON.stringify(cfg));
+      creatorsPanel = spawn(sidecar, [], {
+        detached: false,
+        windowsHide: false,
+        env: { ...process.env, ELEVATE_CREATORS_CONFIG: cfgPath }
+      });
+      creatorsPanel.on("error", () => { creatorsPanel = null; });
+      creatorsPanel.on("exit", () => { creatorsPanel = null; });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String(e?.message || e) };
+    }
   });
 
   ipcMain.handle("save-open-report", async (_event, html) => {

@@ -1535,8 +1535,29 @@ $("importFile").addEventListener("change", async (event) => {
 });
 
 document.querySelectorAll(".nav-item").forEach((button) => {
+  // Botoes de acao (ex: abrir o painel de creators) nao tem data-view -> ignora aqui.
+  if (!button.dataset.view) return;
   button.addEventListener("click", () => requireAuth(() => setView(button.dataset.view)));
 });
+
+// Botao "Adicionar creators": abre o painel (motor Afiliador) reaproveitando as
+// contas TikTok e os logins do ElevateHub (sem relogar).
+$("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
+  if (!window.elevate?.openCreatorsPanel) {
+    toast("Atualize o app para usar o painel de creators.", "warning");
+    return;
+  }
+  const accounts = state.profiles.filter(isTikTokProfile).map((p) => ({ id: p.id, name: p.name }));
+  if (!accounts.length) { toast("Nenhuma conta TikTok encontrada.", "warning"); return; }
+  try {
+    const r = await window.elevate.openCreatorsPanel({ accounts, token: state.token });
+    if (r?.ok) toast(r.already ? "Painel de creators já está aberto." : "Abrindo painel de creators...", "success");
+    else if (r?.error === "no-sidecar") toast("O componente de creators não está instalado nesta versão.", "warning");
+    else toast("Não consegui abrir o painel de creators.", "danger");
+  } catch (e) {
+    toast(friendlyError(e), "danger");
+  }
+}));
 $("squadNav").addEventListener("click", (event) => {
   const toggle = event.target.closest("button[data-hub-toggle]");
   if (toggle) { toggleHub(toggle.dataset.hubToggle); return; }
