@@ -486,6 +486,31 @@ async function handle(req, res) {
       return send(res, 201, { profile });
     }
 
+    // Saude das sessoes: varre os cookies guardados e diz quais contas estao
+    // logadas de verdade (tem sessao principal) e quais precisam de re-login.
+    // So-leitura, admin-only. Transforma a varredura manual num recurso do app.
+    if (req.method === "GET" && parts.join("/") === "api/profiles/health") {
+      if (!requireAdmin(user, res)) return;
+      const profiles = await store.listProfiles();
+      const rows = [];
+      for (const profile of profiles) {
+        const info = await readStoredCookies(profile.id);
+        const loggedIn = info.readable && hasPrimaryAuth(info.cookies);
+        // tem arquivo com dado (ou ilegivel) mas sem sessao principal = caiu/precisa re-login;
+        // sem arquivo/vazio = nunca logou (conta nova) -> nao alarma.
+        const hasData = info.exists && (info.cookies.length > 0 || !info.readable);
+        const status = loggedIn ? "logada" : (hasData ? "precisa-relogin" : "sem-login");
+        rows.push({ id: profile.id, name: profile.name, status, inUseBy: sessionEntries(profile.id).map((u) => u.name) });
+      }
+      const needRelogin = rows.filter((r) => r.status === "precisa-relogin");
+      return send(res, 200, {
+        total: rows.length,
+        loggedIn: rows.filter((r) => r.status === "logada").length,
+        needRelogin: needRelogin.map((r) => ({ id: r.id, name: r.name })),
+        profiles: rows
+      });
+    }
+
     if (req.method === "POST" && parts.join("/") === "api/profiles/import") {
       if (!requireAdmin(user, res)) return;
       const body = await readBody(req);

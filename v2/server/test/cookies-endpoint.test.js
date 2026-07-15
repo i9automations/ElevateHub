@@ -92,3 +92,11 @@ test("JSON invalido no corpo retorna 400 (nao 500)", async () => {
   const res = await fetch(`${BASE}/api/profiles/${PID}/cookies`, { method: "PUT", headers: H(), body: "{nao e json" });
   assert.strictEqual(res.status, 400);
 });
+
+test("health das sessoes: conta a logada (prf_demo esta com sessionid apos os testes)", async () => {
+  const r = await api("/api/profiles/health", { headers: H() });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body?.total, 1);
+  assert.strictEqual(r.body?.loggedIn, 1);
+  assert.strictEqual(r.body?.needRelogin?.length, 0);
+});
