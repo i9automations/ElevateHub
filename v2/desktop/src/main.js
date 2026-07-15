@@ -197,7 +197,7 @@ async function startCookieSync(profileId, dir, url, cookies, sender, child, mkt)
   let version, client;
   for (let attempt = 0; ; attempt++) {
     try {
-      version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+      version = await (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(8000) })).json();
       client = await connectCdp(version.webSocketDebuggerUrl);
       break;
     } catch (err) {
@@ -264,12 +264,22 @@ async function startCookieSync(profileId, dir, url, cookies, sender, child, mkt)
   const pushCookies = async () => {
     try {
       const result = await client.send("Storage.getCookies", {});
+      const cookies = result.cookies || [];
+      // Nunca envia leitura VAZIA: durante navegacao/redirect/checagem o getCookies
+      // pode vir vazio por um instante, e mandar isso tentaria ZERAR a sessao no
+      // servidor. O servidor tambem barra (cookie-guard), mas cortar aqui evita o
+      // round-trip e o risco. A protecao contra leitura PARCIAL/degradada fica no
+      // servidor, que compara com a sessao ja guardada.
+      if (!cookies.length) return;
       if (sender && !sender.isDestroyed()) {
-        sender.send("browser-profile-cookies", { id: profileId, cookies: result.cookies || [] });
+        sender.send("browser-profile-cookies", { id: profileId, cookies });
       }
     } catch { /* proxima rodada tenta de novo */ }
   };
-  entry.firstSync = setTimeout(pushCookies, 3000);   // salva cedo caso feche rapido
+  // 1a sincronizacao um pouco mais tarde (era 3s): da tempo da sessao injetada
+  // assentar no cookie store do Chrome antes da 1a leitura -> evita mandar um
+  // estado incompleto logo na abertura.
+  entry.firstSync = setTimeout(pushCookies, 6000);
   entry.interval = setInterval(pushCookies, 8000);   // e mantem sincronizado
 }
 
@@ -358,7 +368,9 @@ async function collectAdsMetrics(info) {
   // Checa TAMBEM openingProfiles: se o usuario acabou de clicar "Abrir" e a
   // abertura esta nos awaits (openBrowsers ainda vazio), sem isto o ADS abriria
   // um 2o Chrome no MESMO user-data-dir e mexeria na sessao que ele esta usando.
-  if (openBrowsers.has(profileId) || openingProfiles.has(profileId)) {
+  if (openBrowsers.has(profileId) || openingProfiles.has(profileId) || adsInProgress.has(profileId)) {
+    // adsInProgress: 2 leituras concorrentes da MESMA conta (duplo-clique / lista
+    // processando em paralelo) abririam 2 Chromes no mesmo user-data-dir.
     return { ok: false, motivo: "Feche o navegador desta conta antes de ler o ADS." };
   }
   const chrome = resolveChromePath();
@@ -380,7 +392,7 @@ async function collectAdsMetrics(info) {
   let client = null;
   try {
     const port = await waitDevToolsPort(dir);
-    const version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+    const version = await (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(8000) })).json();
     client = await connectCdp(version.webSocketDebuggerUrl);
 
     const params = toCookieParams(info?.cookies || []);
@@ -669,13 +681,17 @@ app.whenReady().then(() => {
       };
       const cfgPath = path.join(dataDir, "config.json");
       await atomicWrite(cfgPath, JSON.stringify(cfg));
-      creatorsPanel = spawn(sidecar, [], {
+      const panel = spawn(sidecar, [], {
         detached: false,
         windowsHide: false,
         env: { ...process.env, ELEVATE_CREATORS_CONFIG: cfgPath }
       });
-      creatorsPanel.on("error", () => { creatorsPanel = null; });
-      creatorsPanel.on("exit", () => { creatorsPanel = null; });
+      creatorsPanel = panel;
+      // So zera se o processo que saiu ainda for o ATUAL: um exit atrasado do
+      // painel velho nao pode apagar a referencia de um painel novo (senao o
+      // proximo clique subiria um 2o painel com o atual ainda vivo).
+      panel.on("error", () => { if (creatorsPanel === panel) creatorsPanel = null; });
+      panel.on("exit", () => { if (creatorsPanel === panel) creatorsPanel = null; });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };
@@ -730,4 +746,24 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+// Ao SAIR (inclusive quando o auto-update aplica no quit): mata os Chromes de
+// conta e o painel de creators que ficariam ORFAOS. Sem isto, eles seguem vivos
+// sem sincronizar cookies e travam o user-data-dir -> a proxima abertura da conta
+// abre um 2o Chrome que e reencaminhado e sai ("fechou" com o velho ainda aberto).
+let quitCleanupDone = false;
+app.on("before-quit", () => {
+  if (quitCleanupDone) return;
+  quitCleanupDone = true;
+  for (const entry of openBrowsers.values()) {
+    try {
+      if (entry?.firstSync) clearTimeout(entry.firstSync);
+      if (entry?.interval) clearInterval(entry.interval);
+      if (entry?.client) entry.client.close();
+      if (entry?.child) killChrome(entry.child);
+    } catch { /* best-effort no encerramento */ }
+  }
+  openBrowsers.clear();
+  if (creatorsPanel) { try { killChrome(creatorsPanel); } catch { /* ja morreu */ } creatorsPanel = null; }
 });

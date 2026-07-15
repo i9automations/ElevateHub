@@ -58,25 +58,36 @@ function clearToken() {
 
 // Troca o crachá de renovação por uma sessão nova (sem senha). Retorna true se
 // conseguiu. Chamado automaticamente quando o token de acesso (~1h) vence.
+let refreshInFlight = null; // single-flight: 401s simultaneos compartilham 1 refresh
 async function tryRefresh() {
   if (!state.refreshToken) return false;
-  try {
-    const res = await fetch(`${apiBase}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: state.refreshToken })
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    if (!data.token) return false;
-    state.token = data.token;
-    if (data.refreshToken) state.refreshToken = data.refreshToken;
-    if (data.user) state.user = data.user;
-    storeToken(state.token, state.refreshToken, rememberedInLocal());
-    return true;
-  } catch {
-    return false;
-  }
+  // Se ja ha um refresh rodando, espera o MESMO (nao dispara outro). Sem isso,
+  // varios 401 ao mesmo tempo (ex.: poll do remoto + loadProfiles) fariam N
+  // trocas do cracha em paralelo -> se o servidor gira o refresh a cada uso, os
+  // seguintes falham e o usuario cai pro login depois.
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: state.refreshToken })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.token) return false;
+      state.token = data.token;
+      if (data.refreshToken) state.refreshToken = data.refreshToken;
+      if (data.user) state.user = data.user;
+      storeToken(state.token, state.refreshToken, rememberedInLocal());
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 const apiBase = window.elevate?.apiBase || "https://contas-v2.elevateecom.com.br";
 const appVersion = window.elevate?.appVersion || "0.0.0";
@@ -215,7 +226,13 @@ async function api(path, options = {}) {
     }
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Não foi possível concluir agora.");
+  if (!res.ok) {
+    // Carrega o status no erro pra quem chama distinguir 401 (auth de verdade)
+    // de erro passageiro (500/rede) -> nao deslogar o usuario a toa.
+    const err = new Error(data.error || "Não foi possível concluir agora.");
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -539,18 +556,29 @@ async function restoreSession() {
   try {
     const data = await api("/api/me");
     state.user = data.user;
-    setServer("conectado", true);
+  } catch (error) {
+    // So cai pro login se for falha de autenticacao DE VERDADE (401 apos o
+    // refresh ja ter sido tentado dentro do api()). Um erro passageiro do
+    // servidor (500) ou de rede NAO pode apagar o cracha e deslogar o usuario.
+    if (error && error.status === 401) {
+      clearToken();
+      state.token = "";
+      state.refreshToken = "";
+      state.user = null;
+      return false;
+    }
+    // Autenticado, mas o servidor esta instavel agora: mantem logado e mostra o
+    // app. A lista de perfis tenta de novo sozinha; ninguem vai pra tela de login.
+    setServer("sem conexão", false);
     showApp();
-    await loadProfiles();
-    checkForUpdates();
     return true;
-  } catch {
-    clearToken();
-    state.token = "";
-    state.refreshToken = "";
-    state.user = null;
-    return false;
   }
+  setServer("conectado", true);
+  showApp();
+  // Se a lista falhar por erro passageiro, NAO desloga: so nao popula agora.
+  try { await loadProfiles(); } catch { /* a lista se recarrega depois */ }
+  checkForUpdates();
+  return true;
 }
 
 // "Link ao abrir": opcoes fixas + personalizado. Vazio = padrao da pasta (squad).
@@ -807,11 +835,14 @@ async function openLocalBrowser(profileId) {
         : "Não consegui abrir o navegador.";
       toast(reason, "danger");
       await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
-      await loadProfiles();
+      await loadProfiles().catch(() => {});
       return;
     }
-    await loadProfiles();
+    // Aberto com SUCESSO. Daqui pra frente, um erro passageiro ao recarregar a
+    // lista NAO pode cair no catch e liberar o lock (senao o servidor acha o
+    // perfil livre com o Chrome aberto). Por isso vai sem await e sem derrubar.
     toast(result.already ? `${profile.name} já esta aberto.` : `Abrindo ${profile.name}...`, "success");
+    loadProfiles().catch(() => {});
   } catch (error) {
     toast(friendlyError(error), "danger");
     await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
