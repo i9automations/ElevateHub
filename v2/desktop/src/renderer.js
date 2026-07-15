@@ -1581,6 +1581,28 @@ $("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
     toast(friendlyError(e), "danger");
   }
 }));
+
+// Botao "Verificar sessoes" (admin): varre o servidor e diz quantas contas estao
+// logadas DE VERDADE (tem sessao principal) e quais precisam de re-login. So-leitura.
+$("healthBtn")?.addEventListener("click", () => requireAuth(async () => {
+  const btn = $("healthBtn");
+  const prev = btn.textContent;
+  btn.disabled = true; btn.textContent = "Verificando...";
+  try {
+    const h = await api("/api/profiles/health");
+    const need = Array.isArray(h.needRelogin) ? h.needRelogin : [];
+    toast(`${h.loggedIn} de ${h.total} contas logadas.`, need.length ? "info" : "success");
+    if (need.length) {
+      const nomes = need.map((x) => x.name).slice(0, 12).join(", ");
+      const resto = need.length > 12 ? ` (+${need.length - 12})` : "";
+      toast(`${need.length} precisam re-login: ${nomes}${resto}`, "warning");
+    }
+  } catch (e) {
+    toast(friendlyError(e), "danger");
+  } finally {
+    btn.disabled = false; btn.textContent = prev;
+  }
+}));
 $("squadNav").addEventListener("click", (event) => {
   const toggle = event.target.closest("button[data-hub-toggle]");
   if (toggle) { toggleHub(toggle.dataset.hubToggle); return; }
