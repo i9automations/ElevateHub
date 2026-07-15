@@ -27,22 +27,26 @@ function cookiesFile(profileId) {
 
 // Trava anti-regressao/anti-LOGOUT dos cookies: logica isolada e TESTADA em
 // cookie-guard.js (test/cookie-guard.test.js).
-const { cookieWriteDecision } = require("./cookie-guard");
-// Le a sessao guardada (decifra) p/ comparar com a que chega. null = sem arquivo
-// ou ilegivel (nesses casos nao serve de base de comparacao e o PUT segue normal).
+const { cookieWriteDecision, hasPrimaryAuth } = require("./cookie-guard");
+// Le a sessao guardada (decifra) p/ comparar com a que chega. Distingue 3 casos:
+//  - exists=false: nao ha arquivo (sessao nunca salva) -> PUT segue normal.
+//  - exists=true, readable=true: leu ok -> compara pela trava (cookie-guard).
+//  - exists=true, readable=false: HA sessao guardada mas nao decifrou/parseou
+//    (chave divergiu, arquivo corrompeu). NAO pode virar "base vazia", senao um
+//    PUT degradado apagaria a sessao boa (era um jeito real de deslogar).
 async function readStoredCookies(profileId) {
   let raw;
   try {
     raw = await fsp.readFile(cookiesFile(profileId), "utf8");
   } catch {
-    return null;
+    return { exists: false, readable: true, cookies: [] };
   }
   try {
     const json = raw.startsWith("v1:") ? decrypt(raw) : raw;
     const parsed = JSON.parse(json);
-    return Array.isArray(parsed.cookies) ? parsed.cookies : [];
+    return { exists: true, readable: true, cookies: Array.isArray(parsed.cookies) ? parsed.cookies : [] };
   } catch {
-    return null;
+    return { exists: true, readable: false, cookies: [] };
   }
 }
 
@@ -157,7 +161,9 @@ function readBody(req) {
       try {
         resolve(JSON.parse(body));
       } catch {
-        reject(new Error("JSON invalido"));
+        const e = new Error("JSON invalido");
+        e.status = 400; // erro do cliente (corpo malformado), nao 500 "Erro interno"
+        reject(e);
       }
     });
   });
@@ -250,8 +256,18 @@ async function handleProfileRoute(req, res, parts, user) {
     // Uma leitura vazia/degradada (navegacao, redirect, checagem de seguranca, ou o
     // Chrome fechando) NAO pode apagar uma sessao boa -> senao a conta "cai" e o
     // estado vazio ainda se espalha pros outros PCs. Guarda a sessao existente.
-    const stored = await readStoredCookies(profile.id);
-    const storedCount = stored ? stored.length : 0;
+    const storedInfo = await readStoredCookies(profile.id);
+    const stored = storedInfo.cookies;
+    const storedCount = stored.length;
+    // Sessao guardada EXISTE mas nao deu pra ler (chave/corrupcao): so aceita
+    // sobrescrever se a nova leitura trouxer sessao PRINCIPAL (re-login legitimo).
+    // Uma leitura degradada/vazia NAO pode apagar uma sessao que existe.
+    if (storedInfo.exists && !storedInfo.readable) {
+      if (!hasPrimaryAuth(cookies)) {
+        return send(res, 200, { ok: true, count: storedCount, skipped: "unreadable-guard" });
+      }
+      // tem sessao principal nova = re-login de verdade -> pode gravar por cima
+    } else {
     const decision = cookieWriteDecision(stored, cookies);
     if (!decision.write) {
       // empty-guard e comum (troca de aba, etc.) -> nao loga. Os outros indicam
@@ -260,8 +276,11 @@ async function handleProfileRoute(req, res, parts, user) {
         console.warn(`[cookies] PUT recusado (${decision.reason}) perfil ${profile.id}: ${cookies.length} cookies`);
       }
       return send(res, 200, { ok: true, count: storedCount, skipped: decision.reason });
+      }
     }
 
+    // Passou pelas travas (leitura ok e nao-degradada, OU re-login legitimo sobre
+    // uma sessao ilegivel): pode gravar.
     await fsp.mkdir(COOKIES_DIR, { recursive: true });
     // Escrita atomica: 2 pessoas na mesma conta gravam a cada 8s. writeFile direto pode
     // intercalar e corromper o JSON (-> sessao perdida). tmp unico + rename resolve.
@@ -337,7 +356,10 @@ async function handleProfileRoute(req, res, parts, user) {
   }
 
   if (req.method === "POST" && parts[3] === "session" && parts[4] === "start") {
-    if (profile.lockedBy && profile.lockedBy !== user.id) {
+    // Usa canControlProfile (igual as outras rotas de sessao): honra o TTL da trava
+    // (20min) e libera admin. Antes olhava so o lockedBy cru -> uma trava presa
+    // (PC caiu sem release) barrava todo mundo pra sempre, ate admin.
+    if (!canControlProfile(profile, user)) {
       return send(res, 409, { error: "Perfil ja esta em uso" });
     }
     const browserSession = await browserWorker.startBrowserSession(profile, user);
