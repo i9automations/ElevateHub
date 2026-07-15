@@ -382,7 +382,9 @@ async function collectAdsMetrics(info) {
   await fs.rm(path.join(dir, "DevToolsActivePort"), { force: true }).catch(() => {});
   const child = spawn(chrome, [
     `--user-data-dir=${dir}`, "--no-first-run", "--no-default-browser-check",
-    "--disable-infobars", "--disable-blink-features=AutomationControlled", "--remote-debugging-port=0",
+    // --test-type esconde o banner amarelo (o Chrome empacotado e "Chrome for
+    // Testing"); AutomationControlled esconde o navigator.webdriver (anti-deteccao).
+    "--test-type", "--disable-infobars", "--disable-blink-features=AutomationControlled", "--remote-debugging-port=0",
     "--window-position=-32000,-32000", "--window-size=1280,800", // abre fora da tela (coleta em segundo plano)
     "about:blank"
   ], { detached: false, windowsHide: true });
@@ -491,9 +493,12 @@ async function openBrowserProfile(info, sender) {
       `--user-data-dir=${dir}`,
       "--no-first-run",
       "--no-default-browser-check",
-      // Menos "cara de robo" pro anti-fraude do TikTok: tira o --test-type (bandeira
-      // classica de automacao) e esconde o marcador navigator.webdriver. Reduz
-      // captcha em loop e o bloqueio "nao foi possivel verificar/iniciar sessao".
+      // Anti-deteccao: esconde o navigator.webdriver (o sinal que o anti-fraude do
+      // TikTok le via JS) -> menos captcha em loop e menos bloqueio de login.
+      // MANTEMOS o --test-type: o Chrome empacotado e "Chrome for Testing" e o
+      // --test-type esconde o banner amarelo (senao o usuario ve "Chrome for
+      // Testing" no topo e pode clicar em "Baixe o Chrome").
+      "--test-type",
       "--disable-infobars",
       "--disable-blink-features=AutomationControlled",
       "--remote-debugging-port=0",

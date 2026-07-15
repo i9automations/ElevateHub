@@ -429,8 +429,13 @@ def abrir_perfil(nome):
         f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
         "--no-first-run", "--no-default-browser-check",
         # esconde os avisos amarelos (automacao / "Chrome for Testing") pra
-        # ninguem clicar por engano em "Baixe o Chrome".
+        # ninguem clicar por engano em "Baixe o Chrome". MANTEMOS o --test-type
+        # justamente pra esconder o banner do Chrome for Testing.
         "--test-type", "--disable-infobars",
+        # Anti-deteccao: esconde o navigator.webdriver, que o anti-fraude do TikTok
+        # le via JS -> menos captcha em loop. (Nao tira o --test-type: aqui ele
+        # segura o banner amarelo, e o webdriver e o sinal que realmente pesa.)
+        "--disable-blink-features=AutomationControlled",
         LOGIN_URL,
     ])
     _marcar_ultima_abertura(nome)
