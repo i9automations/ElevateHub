@@ -13,6 +13,9 @@ const state = {
   view: "profiles",
   filter: "all",
   sort: "az",
+  // contas marcadas (checkbox) que vao pro painel "Adicionar creators". E um Set de
+  // ids -> persiste entre pastas (voce marca contas de folders diferentes).
+  creatorsSelection: new Set(),
   editProfileId: null,
   frameLoading: false,
   wheelTimer: null,
@@ -417,9 +420,15 @@ function renderProfiles() {
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${pid}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
     const av = profileAvatar(profile.name);
+    // Checkbox de "marcar pra creators": so nas contas TikTok (o painel e TikTok).
+    // Nas outras vai um espaco vazio do mesmo tamanho, pra nao desalinhar o avatar.
+    const crCheck = isTikTokProfile(profile)
+      ? `<span class="cr-check${state.creatorsSelection.has(profile.id) ? " on" : ""}" data-action="cr-select" data-id="${pid}" title="Marcar para 'Adicionar creators'"></span>`
+      : `<span class="cr-check cr-off"></span>`;
     return `
       <div class="profile-row${selected} st-row-${status.cls}" data-profile-id="${pid}">
         <div class="c-name">
+          ${crCheck}
           <span class="avatar" style="background:${av.col}1f;color:${av.col}">${escapeHtml(av.ini)}</span>
           <span class="ntxt">
             <span class="nm" title="${escapeHtml(profile.name)}">${escapeHtml(profile.name)}</span>
@@ -434,6 +443,7 @@ function renderProfiles() {
   }).join("");
 
   renderSessionPane();
+  updateCreatorsButton();   // mantem o contador de "marcadas pra creators" em dia
 }
 
 function syncBrowserOverlay() {
@@ -1571,8 +1581,14 @@ $("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
     toast("Atualize o app para usar o painel de creators.", "warning");
     return;
   }
-  const accounts = state.profiles.filter(isTikTokProfile).map((p) => ({ id: p.id, name: p.name }));
-  if (!accounts.length) { toast("Nenhuma conta TikTok encontrada.", "warning"); return; }
+  // SO as contas MARCADAS (checkbox) — a lista de creators do dia. E TikTok.
+  const accounts = state.profiles
+    .filter((p) => state.creatorsSelection.has(p.id) && isTikTokProfile(p))
+    .map((p) => ({ id: p.id, name: p.name }));
+  if (!accounts.length) {
+    toast("Marque as contas na lista (o quadradinho ao lado do nome) antes de abrir os creators.", "warning");
+    return;
+  }
   const view = $("creatorsView");
   const status = $("creatorsStatus");
   if (status) status.textContent = "abrindo painel…";
@@ -1692,7 +1708,38 @@ $("filterPop").querySelectorAll("[data-sort]").forEach((button) => {
   });
 });
 
+// Alterna a marcacao da conta pro painel de creators (o quadradinho na lista).
+function toggleCreatorsSelection(id) {
+  if (!id) return;
+  if (state.creatorsSelection.has(id)) state.creatorsSelection.delete(id);
+  else state.creatorsSelection.add(id);
+  renderProfiles();          // reflete o check na linha
+  updateCreatorsButton();    // atualiza o contador no botao da sidebar
+}
+// Mostra no botao "Adicionar creators" quantas contas estao marcadas.
+function updateCreatorsButton() {
+  const el = $("creatorsCount");
+  if (!el) return;
+  const n = state.creatorsSelection.size;
+  el.textContent = n ? String(n) : "";
+  el.title = n ? "Clique aqui pra LIMPAR a seleção" : "";
+  el.classList.toggle("hidden", !n);
+}
+// Clicar no NUMERO (badge) limpa a selecao do dia — sem abrir o painel. Util pra
+// zerar as ~50 marcadas de ontem sem desmarcar uma a uma.
+$("creatorsCount")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!state.creatorsSelection.size) return;
+  state.creatorsSelection.clear();
+  renderProfiles();
+  updateCreatorsButton();
+  toast("Seleção de creators limpa.", "info");
+});
+
 $("profileList").addEventListener("click", (event) => {
+  // Checkbox de creators: alterna e para (nao seleciona a linha nem abre nada).
+  const check = event.target.closest("[data-action='cr-select']");
+  if (check) { event.stopPropagation(); toggleCreatorsSelection(check.dataset.id); return; }
   const button = event.target.closest("button[data-action]");
   const row = event.target.closest(".profile-row");
   const id = button?.dataset.id || row?.dataset.profileId;

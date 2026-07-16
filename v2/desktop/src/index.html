@@ -16,6 +16,14 @@
     .creators-topbar strong { font-size: 14px; color: #f3f6f8; }
     .creators-status { margin-left: auto; color: #9aa5b1; font-size: 12px; }
     .creators-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; }
+    /* Checkbox "marcar pra creators" na lista de contas + contador no botao. */
+    .cr-check { width: 15px; height: 15px; border: 1.6px solid #3a424d; border-radius: 5px; flex: none; cursor: pointer; transition: .12s; }
+    .cr-check:hover { border-color: #25f4ee; }
+    .cr-check.on { background: #25f4ee; border-color: #25f4ee; position: relative; }
+    .cr-check.on::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #04191a; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+    .cr-check.cr-off { border: none; background: none; cursor: default; }
+    .cr-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: auto; border-radius: 999px; background: #25f4ee; color: #04191a; font-size: 11px; font-weight: 700; }
+    .cr-count.hidden { display: none; }
   </style>
 </head>
 <body>
@@ -110,7 +118,7 @@
         <span class="sidebar-label">Ferramentas</span>
         <button class="nav-item" type="button" data-view="mailboxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Caixas de e-mail</button>
         <button class="nav-item" type="button" data-view="ads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>Relatório de ADS</button>
-        <button class="nav-item" type="button" id="creatorsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Adicionar creators</button>
+        <button class="nav-item" type="button" id="creatorsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Adicionar creators<span id="creatorsCount" class="cr-count hidden"></span></button>
       </nav>
 
       <nav class="nav admin-only" aria-label="Area admin">
