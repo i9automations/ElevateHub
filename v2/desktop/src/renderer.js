@@ -1591,11 +1591,19 @@ $("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
   }
 }));
 
-// O painel publicou seu endereco local -> carrega na webview embutida.
-window.elevate?.onCreatorsPanelReady?.(({ url }) => {
+// O painel publicou seu endereco local -> carrega na webview embutida. Se veio com
+// erro (o sidecar nao publicou a tempo / morreu), esconde o overlay e avisa (senao
+// ficaria preso em "abrindo...").
+window.elevate?.onCreatorsPanelReady?.((data) => {
   const frame = $("creatorsFrame");
   const view = $("creatorsView");
   const status = $("creatorsStatus");
+  if (data?.error) {
+    if (view) view.setAttribute("hidden", "");
+    toast("Não consegui abrir o painel de creators. Tente de novo.", "danger");
+    return;
+  }
+  const url = data?.url;
   if (!frame || !url) return;
   if (view) view.removeAttribute("hidden");
   if (status) status.textContent = "";
@@ -1612,7 +1620,8 @@ $("creatorsBack")?.addEventListener("click", () => {
 // Se a webview NAO carregar (CSP/erro de rede), esconde o overlay: o sidecar, sem
 // receber ping, abre a janela propria (fallback) -> nunca fica um overlay vazio.
 $("creatorsFrame")?.addEventListener("did-fail-load", (e) => {
-  if (e && (e.validatedURL === "about:blank" || e.errorCode === -3)) return; // navegacao proposital
+  if (e && !e.isMainFrame) return;                                            // sub-recurso falhando != o painel caiu
+  if (e && (e.validatedURL === "about:blank" || e.errorCode === -3)) return;  // navegacao proposital/abortada
   const view = $("creatorsView");
   if (view) view.setAttribute("hidden", "");
   toast("Abrindo o painel de creators em janela…", "info");

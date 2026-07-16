@@ -666,15 +666,34 @@ app.whenReady().then(() => {
   ipcMain.handle("open-creators-panel", async (event, info) => {
     const sidecar = resolveCreatorsSidecar();
     if (!sidecar) return { ok: false, error: "no-sidecar" };
-    // Ja aberto, ou JA ABRINDO (reserva sincrona anti duplo-clique: sem isto, os
-    // awaits abaixo deixavam dois cliques subirem DOIS paineis).
-    if (creatorsLaunching) return { ok: true, already: true };
+    const dataDir = path.join(app.getPath("userData"), "creators");
+    const urlFile = path.join(dataDir, "panel.url");
+    // Espera o sidecar publicar o endereco (panel.url) e manda pro renderer, que o
+    // carrega na webview. Se o sidecar morrer antes de publicar, ou estourar o tempo,
+    // avisa com erro -> o overlay NAO fica preso em "abrindo..." pra sempre.
+    const emitWhenReady = () => { (async () => {
+      for (let i = 0; i < 90; i++) {                 // ~18s
+        let url = "";
+        try { url = (await fs.readFile(urlFile, "utf8")).trim(); } catch { /* ainda nao escreveu */ }
+        if (url) {
+          if (event.sender && !event.sender.isDestroyed()) event.sender.send("creators-panel-ready", { url });
+          return;
+        }
+        if (creatorsPanel && creatorsPanel.exitCode !== null) break;   // sidecar morreu cedo
+        await sleep(200);
+      }
+      if (event.sender && !event.sender.isDestroyed()) event.sender.send("creators-panel-ready", { error: "timeout" });
+    })().catch(() => {}); };
+    // Ja aberto / ja abrindo: NAO sobe outro painel; mas RE-manda o endereco (o painel
+    // ja esta vivo com o panel.url escrito) -> reabrir mostra o conteudo, nao um
+    // overlay vazio (o painel podia estar rodando no fallback de janela).
+    if (creatorsLaunching) { emitWhenReady(); return { ok: true, already: true }; }
     if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
+      emitWhenReady();
       return { ok: true, already: true };
     }
     creatorsLaunching = true;
     try {
-      const dataDir = path.join(app.getPath("userData"), "creators");
       await fs.mkdir(dataDir, { recursive: true });
       const accounts = (Array.isArray(info?.accounts) ? info.accounts : []).map((a) => ({
         id: String(a.id),
@@ -691,9 +710,7 @@ app.whenReady().then(() => {
       };
       const cfgPath = path.join(dataDir, "config.json");
       await atomicWrite(cfgPath, JSON.stringify(cfg));
-      // O sidecar escreve o endereco da UI aqui depois de subir o servidor local.
-      // Limpamos o antigo pra ler o NOVO (nao um url de uma abertura passada).
-      const urlFile = path.join(dataDir, "panel.url");
+      // Limpa o panel.url antigo pra ler o NOVO (nao um url de uma abertura passada).
       await fs.rm(urlFile, { force: true }).catch(() => {});
       const panel = spawn(sidecar, [], {
         detached: false,
@@ -701,28 +718,11 @@ app.whenReady().then(() => {
         env: { ...process.env, ELEVATE_CREATORS_CONFIG: cfgPath }
       });
       creatorsPanel = panel;
-      // So zera se o processo que saiu ainda for o ATUAL: um exit atrasado do
-      // painel velho nao pode apagar a referencia de um painel novo (senao o
-      // proximo clique subiria um 2o painel com o atual ainda vivo).
+      // So zera se o processo que saiu ainda for o ATUAL (exit atrasado do painel
+      // velho nao pode apagar a referencia de um painel novo).
       panel.on("error", () => { if (creatorsPanel === panel) creatorsPanel = null; });
       panel.on("exit", () => { if (creatorsPanel === panel) creatorsPanel = null; });
-      // Espera o sidecar publicar o endereco (~ate 12s) e manda pro renderer, que o
-      // carrega numa webview embutida. Em paralelo (nao trava o retorno). Se nao vier
-      // a tempo, o proprio sidecar tem FALLBACK (abre a janela) -> o painel aparece
-      // de um jeito ou de outro.
-      (async () => {
-        for (let i = 0; i < 60; i++) {
-          let url = "";
-          try { url = (await fs.readFile(urlFile, "utf8")).trim(); } catch { /* ainda nao escreveu */ }
-          if (url) {
-            if (event.sender && !event.sender.isDestroyed()) {
-              event.sender.send("creators-panel-ready", { url });
-            }
-            return;
-          }
-          await sleep(200);
-        }
-      })().catch(() => {});
+      emitWhenReady();
       return { ok: true };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };

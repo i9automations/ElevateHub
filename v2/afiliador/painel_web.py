@@ -745,7 +745,12 @@ def main():
         # FALLBACK de seguranca: se em ~9s NENHUM request da UI chegou (webview nao
         # carregou / CSP barrou / etc.), abre a janela propria pra NUNCA deixar o
         # usuario sem painel. Pior caso = comportamento antigo (janela separada).
-        for _ in range(90):
+        # Espera ate ~20s (era 9s): a cadeia webview e longa (spawn do sidecar ->
+        # polling do panel.url no Electron -> IPC -> criar o processo guest do
+        # webview -> navegar -> carregar -> 1o request). Em maquina lenta no boot,
+        # 9s abria a janela de fallback JUNTO com a webview = UI dupla nos mesmos
+        # slots. 20s da folga; se realmente falhar, ai sim cai no fallback.
+        for _ in range(200):
             if _PING[0] > t0 + 0.3:     # chegou request real da UI = webview carregou
                 break
             time.sleep(0.1)
