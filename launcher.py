@@ -201,20 +201,41 @@ def _instalar_e_atalho():
     _criar_atalhos(destino)
 
 
+def _e_python_valido(txt):
+    # O download SO vale se for Python que compila. Um portal cativo/proxy pode
+    # devolver HTTP 200 com HTML (ou a API do GitHub com JSON) — corpo nao-vazio.
+    # Antes isso ia direto pro cache e o compile() estourava, travando o app ate
+    # OFFLINE (cache envenenado). Validar antes evita isso. So compila (nao executa).
+    try:
+        compile(txt, CACHE, "exec")
+        return True
+    except Exception:
+        return False
+
+
 def main():
     _instalar_e_atalho()
     codigo = None
     try:
-        codigo = _baixar()                      # tenta sempre a versao mais nova
+        baixado = _baixar()                     # tenta sempre a versao mais nova
+        if baixado and _e_python_valido(baixado):
+            codigo = baixado
+            try:                                # so cacheia DEPOIS de validar
+                with open(CACHE, "w", encoding="utf-8") as f:
+                    f.write(codigo)
+            except Exception:
+                pass
+        # baixou algo que NAO e Python (portal/proxy) -> ignora e cai no cache abaixo
+    except Exception:
+        pass
+    if not codigo and os.path.exists(CACHE):    # sem download bom -> usa o ultimo cache bom
         try:
-            with open(CACHE, "w", encoding="utf-8") as f:
-                f.write(codigo)
+            with open(CACHE, encoding="utf-8") as f:
+                cache = f.read()
+            if _e_python_valido(cache):
+                codigo = cache
         except Exception:
             pass
-    except Exception:
-        if os.path.exists(CACHE):               # offline -> usa o cache
-            with open(CACHE, encoding="utf-8") as f:
-                codigo = f.read()
     if not codigo:
         try:
             import tkinter as tk
