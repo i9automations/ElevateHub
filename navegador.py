@@ -64,7 +64,15 @@ _REG_LOCK = threading.RLock()
 
 
 def _slug(nome):
-    return re.sub(r'[\\/:*?"<>|]', "", nome).strip() or "conta"
+    # Remove caracteres ilegais em nome de pasta/arquivo no Windows.
+    s = re.sub(r'[\\/:*?"<>|]', "", str(nome)).strip()
+    # BLINDAGEM path traversal: um nome "." ou ".." viraria um caminho que SOBE de
+    # diretorio (os.path.join(base, "..") = pasta pai) -> o rmtree/rename do perfil
+    # apagaria/moveria a pasta do app inteira. Tira pontos/espacos das pontas (que
+    # o Windows ja mutila) e, se sobrar so isso, cai num nome seguro. Nomes normais
+    # nao mudam -> nao remapeia perfis existentes.
+    s = s.strip(". ")
+    return s or "conta"
 
 
 def carregar():
@@ -409,35 +417,41 @@ def abrir_perfil(nome):
     # subprocess.Popen (sem checar nada) -> como o Chrome demora a aparecer, o
     # usuario clicava de novo e acumulava VARIOS Chromes da mesma conta no PC.
     # poll()==None = processo ainda vivo -> so devolve "ja aberto".
-    proc = _abertos.get(nome)
-    if proc is not None and proc.poll() is None:
-        return "ja_aberta"
-    semear(nome)
-    # DOLPHIN: as contas SEMPRE abrem no navegador PROPRIO (que NAO se atualiza).
-    # E isso que impede de deslogar. So cai no Chrome do sistema se ainda nao
-    # deu pra ter o proprio (ex: sem internet) — e a UI avisa.
-    if os.path.exists(CHROME_FIXO):
-        exe = CHROME_FIXO
-    elif _chrome_status.get("baixando"):
-        return "preparando"          # navegador proprio ainda baixando
-    else:
-        exe = _chrome_sistema()
-        if not exe:
-            return "sem_navegador"
-    _abertos[nome] = subprocess.Popen([
-        exe,
-        f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
-        "--no-first-run", "--no-default-browser-check",
-        # esconde os avisos amarelos (automacao / "Chrome for Testing") pra
-        # ninguem clicar por engano em "Baixe o Chrome". MANTEMOS o --test-type
-        # justamente pra esconder o banner do Chrome for Testing.
-        "--test-type", "--disable-infobars",
-        # Anti-deteccao: esconde o navigator.webdriver, que o anti-fraude do TikTok
-        # le via JS -> menos captcha em loop. (Nao tira o --test-type: aqui ele
-        # segura o banner amarelo, e o webdriver e o sinal que realmente pesa.)
-        "--disable-blink-features=AutomationControlled",
-        LOGIN_URL,
-    ])
+    # SECAO CRITICA sob _REG_LOCK: sem o lock, dois POST /api/open quase simultaneos
+    # (duplo-clique) passavam OS DOIS pela checagem "ja aberto?" e davam Popen 2x ->
+    # dois Chromes na MESMA --user-data-dir = contencao de lock/corrupcao do perfil.
+    # O ThreadingHTTPServer atende cada request numa thread; o lock serializa o
+    # "checar-e-abrir". _REG_LOCK e RLock (reentrante), entao semear() pode reusa-lo.
+    with _REG_LOCK:
+        proc = _abertos.get(nome)
+        if proc is not None and proc.poll() is None:
+            return "ja_aberta"
+        semear(nome)
+        # DOLPHIN: as contas SEMPRE abrem no navegador PROPRIO (que NAO se atualiza).
+        # E isso que impede de deslogar. So cai no Chrome do sistema se ainda nao
+        # deu pra ter o proprio (ex: sem internet) — e a UI avisa.
+        if os.path.exists(CHROME_FIXO):
+            exe = CHROME_FIXO
+        elif _chrome_status.get("baixando"):
+            return "preparando"          # navegador proprio ainda baixando
+        else:
+            exe = _chrome_sistema()
+            if not exe:
+                return "sem_navegador"
+        _abertos[nome] = subprocess.Popen([
+            exe,
+            f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
+            "--no-first-run", "--no-default-browser-check",
+            # esconde os avisos amarelos (automacao / "Chrome for Testing") pra
+            # ninguem clicar por engano em "Baixe o Chrome". MANTEMOS o --test-type
+            # justamente pra esconder o banner do Chrome for Testing.
+            "--test-type", "--disable-infobars",
+            # Anti-deteccao: esconde o navigator.webdriver, que o anti-fraude do TikTok
+            # le via JS -> menos captcha em loop. (Nao tira o --test-type: aqui ele
+            # segura o banner amarelo, e o webdriver e o sinal que realmente pesa.)
+            "--disable-blink-features=AutomationControlled",
+            LOGIN_URL,
+        ])
     _marcar_ultima_abertura(nome)
     return "ok" if exe == CHROME_FIXO else "ok_sistema"
 
@@ -726,6 +740,15 @@ def restaurar_ultimo():
         if not zips:
             return {"ok": False, "erro": "Nenhum backup encontrado."}
         with zipfile.ZipFile(os.path.join(BACKUPS_DIR, zips[-1])) as z:
+            # BLINDAGEM Zip-Slip: um .zip forjado com entradas "..\\..\\algo" faria o
+            # extractall ESCREVER FORA de PASTA (ex.: pasta Inicializar do Windows =
+            # persistencia/execucao de codigo). Confere que todo caminho resolvido
+            # cai DENTRO de PASTA antes de extrair qualquer coisa.
+            base = os.path.abspath(PASTA)
+            for m in z.namelist():
+                alvo = os.path.abspath(os.path.join(PASTA, m))
+                if alvo != base and not alvo.startswith(base + os.sep):
+                    return {"ok": False, "erro": f"Backup inseguro (ignorado): {m}"}
             z.extractall(PASTA)
         return {"ok": True, "arquivo": zips[-1]}
     except Exception as e:
