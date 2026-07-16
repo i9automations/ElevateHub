@@ -1,0 +1,44 @@
+name: ci
+
+# Roda a bateria de testes automaticamente a cada push/PR na main.
+# Objetivo: pegar regressao ANTES de ir pra producao (hoje os testes so rodavam
+# na mao). NAO builda nem deploya nada — so valida o codigo. Risco zero pro app.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # O teste de INTEGRACAO (cookies-endpoint) sobe o server/src/index.js de
+      # verdade, que carrega o cliente do Supabase -> precisa das deps instaladas.
+      - name: Instalar deps do servidor
+        working-directory: v2/server
+        run: npm install --no-audit --no-fund
+
+      # Checagem de sintaxe de tudo (rapido) + a suite de testes (unit + integracao).
+      - name: Checagem de sintaxe (npm run check)
+        working-directory: v2
+        run: npm run check
+
+      - name: Testes Node (31 testes)
+        working-directory: v2
+        run: node --test "server/test/**/*.test.js" "desktop/test/**/*.test.js"
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Testes Python (navegador.py)
+        run: python -m unittest test_navegador -v
