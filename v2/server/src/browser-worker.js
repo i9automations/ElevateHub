@@ -211,12 +211,21 @@ async function getBrowserFrame(profileId) {
   session.lastActivityAt = now();
 
   if (session.page) {
-    const buffer = await session.page.screenshot({ type: "jpeg", quality: 72, fullPage: false });
-    session.url = session.page.url();
-    return {
-      session: publicSession(session),
-      image: `data:image/jpeg;base64,${buffer.toString("base64")}`
-    };
+    try {
+      const buffer = await session.page.screenshot({ type: "jpeg", quality: 72, fullPage: false });
+      session.url = session.page.url();
+      return {
+        session: publicSession(session),
+        image: `data:image/jpeg;base64,${buffer.toString("base64")}`
+      };
+    } catch (e) {
+      // Aba/contexto morreu (crash). ANTES: session.page continuava setado e TODO
+      // frame seguinte dava 500 eternamente, sem liberar o slot (MAX_SESSIONS=1 ->
+      // travava tudo). Agora encerra a sessao morta (fecha o Chromium, libera o
+      // slot) e devolve null -> o cliente sai do modo remoto em vez de repetir 500.
+      await stopBrowserSession(profileId).catch(() => {});
+      return null;
+    }
   }
 
   return {
@@ -329,6 +338,25 @@ async function stopBrowserSession(profileId) {
   }
   return true;
 }
+
+// REAPER de sessoes ociosas. O cliente faz polling de frame a cada ~1.3s (renderer),
+// entao lastActivityAt para de atualizar quando ele fecha o notebook/cai. ANTES: o
+// Chromium ficava vivo PARA SEMPRE e, como V2_BROWSER_MAX_SESSIONS=1, a proxima
+// sessao remota batia em "Limite atingido" indefinidamente ate reiniciar o processo
+// (a trava do perfil expira em 20min, mas a sessao do navegador NAO — ficavam
+// dessincronizadas). Agora, a cada minuto, fecha quem passou de IDLE_TTL sem
+// atividade -> libera o Chromium e o slot.
+const IDLE_TTL_MS = 3 * 60 * 1000;   // 3 min sem frame = cliente sumiu
+const reaper = setInterval(() => {
+  const limite = Date.now() - IDLE_TTL_MS;
+  for (const [profileId, session] of sessions) {
+    if ((Date.parse(session.lastActivityAt) || 0) < limite) {
+      stopBrowserSession(profileId).catch(() => {});
+    }
+  }
+}, 60 * 1000);
+// unref: o reaper nao deve, sozinho, segurar o processo Node vivo no encerramento.
+if (typeof reaper.unref === "function") reaper.unref();
 
 module.exports = {
   startBrowserSession,

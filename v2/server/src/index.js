@@ -538,7 +538,13 @@ async function handle(req, res) {
     if (req.method === "PUT" && parts.join("/") === "api/mailboxes") {
       const body = await readBody(req);
       const incoming = Array.isArray(body.mailboxes) ? body.mailboxes : [];
-      const existing = await loadMailboxesSafe(); // chave quebrada nao impede recadastro
+      // ANTES usava loadMailboxesSafe(): se a chave de seguranca quebrasse, ele
+      // devolvia [] em silencio. A UI manda as senhas EM BRANCO (contando com
+      // "manter a existente"); com existing=[], "manter" virava "" e o saveMailboxes
+      // gravava por cima -> APAGAVA TODAS as senhas de uma vez (mesma classe do bug
+      // do cookie ilegivel). loadMailboxes() LANCA nesse caso -> vira 500 e NAO
+      // sobrescreve nada. Preserva as senhas ate a chave certa voltar.
+      const existing = await loadMailboxes();
       const byId = new Map(existing.map((b) => [b.id, b]));
       const saved = incoming
         .filter((b) => String(b.email || "").trim())

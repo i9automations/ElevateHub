@@ -184,10 +184,15 @@ async function fetchCode(boxes, opts) {
   const alias = String(opts?.alias || "").trim();
   if (!alias) return null; // defesa em profundidade: sem alias, nunca busca
   const usable = boxes.filter((b) => b && b.password && b.email);
-  const withDeadline = (p) => Promise.race([
-    p,
-    new Promise((resolve) => setTimeout(() => resolve(null), 22000))
-  ]);
+  const withDeadline = (p) => {
+    // ANTES: Promise.race com um setTimeout(22s) que NUNCA era cancelado quando a
+    // busca resolvia primeiro. Sob polling, cada ciclo deixava timers de 22s vivos
+    // segurando o event loop. Agora guardamos o handle e damos clearTimeout no
+    // finally -> o timer some assim que a corrida termina (ganhe quem ganhar).
+    let t;
+    const prazo = new Promise((resolve) => { t = setTimeout(() => resolve(null), 22000); });
+    return Promise.race([p, prazo]).finally(() => clearTimeout(t));
+  };
   const results = await Promise.allSettled(usable.map((b) => withDeadline(fetchCodeFromBox(b, { ...opts, alias }))));
   const hits = results.filter((r) => r.status === "fulfilled" && r.value).map((r) => r.value);
   if (!hits.length) return null;
