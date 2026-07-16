@@ -76,10 +76,23 @@ def _injetar_cookies_elevate(ctx, conta, log=print):
     base = (ELEVATE.get("apiBase") or "").rstrip("/")
     if not acc or not base:
         return
+    tok = ELEVATE.get("token") or ""
+    # "Abre" (trava) a conta no servidor ANTES de baixar a sessao. O servidor so
+    # deixa um NAO-admin ler os cookies de uma conta que ele tem ABERTA (hasSession)
+    # -> sem este POST /lock, um operador tomava 403 aqui e o painel abria deslogado.
+    # POST /lock registra a sessao com ESTE token; o GET seguinte (mesmo token) passa.
+    # Admin ja passava sem isto; pra ele o lock so registra presenca (inofensivo).
+    try:
+        lock = urllib.request.Request(
+            f"{base}/api/profiles/{acc['id']}/lock", method="POST",
+            headers={"Authorization": "Bearer " + tok})
+        urllib.request.urlopen(lock, timeout=10).read()
+    except Exception:
+        pass  # se o lock falhar, o GET abaixo ainda tenta (admin passa mesmo assim)
     try:
         req = urllib.request.Request(
             f"{base}/api/profiles/{acc['id']}/cookies",
-            headers={"Authorization": "Bearer " + (ELEVATE.get("token") or "")})
+            headers={"Authorization": "Bearer " + tok})
         with urllib.request.urlopen(req, timeout=15) as r:
             data = json.loads(r.read().decode("utf-8"))
         pw = []
