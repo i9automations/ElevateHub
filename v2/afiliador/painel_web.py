@@ -283,6 +283,10 @@ class Slot:
                 _injetar_cookies_elevate(ctx, self.conta, log=self._log)
                 page = ctx.pages[0] if ctx.pages else ctx.new_page()
                 ac.desativar_pausas_debugger(page)
+                # DISFARCE "Google Chrome" ANTES de navegar: senao o TikTok ve
+                # "Chrome for Testing" na 1a requisicao (/account/login) e rejeita
+                # a sessao -> a conta abria deslogada. Aplicado antes do goto.
+                ac.aplicar_disfarce_chrome(page)
                 try:
                     page.goto(ac.START_URL, wait_until="domcontentloaded",
                               timeout=60000)

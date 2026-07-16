@@ -180,7 +180,11 @@ def abrir_contexto(p, profile_dir, log=print, tentativas=3, executable_path=None
                 headless=False, no_viewport=True,
                 ignore_default_args=["--enable-automation"],
                 args=["--start-maximized", "--no-first-run",
-                      "--no-default-browser-check"])
+                      "--no-default-browser-check",
+                      # mesmo tratamento do ElevateHub: esconde o banner amarelo
+                      # "Chrome for Testing" e o marcador navigator.webdriver.
+                      "--test-type",
+                      "--disable-blink-features=AutomationControlled"])
             if executable_path:
                 opts["executable_path"] = executable_path
             return p.chromium.launch_persistent_context(profile_dir, **opts)
@@ -550,6 +554,50 @@ def desativar_pausas_debugger(page):
     _skip_pauses(page)
     try:
         page.context.on("page", _skip_pauses)   # novas abas tambem
+    except Exception:
+        pass
+
+
+def _disfarce_chrome(pg):
+    """Forca a marca 'Google Chrome' no navigator.userAgentData desta aba.
+    O Chrome for Testing se identifica como 'Chromium', e o TikTok Shop checa isso
+    e REJEITA a sessao -> a conta abria DESLOGADA no painel de creators (mesmo com
+    os cookies certos injetados). Este e o MESMO disfarce que o ElevateHub aplica
+    (Emulation.setUserAgentOverride) ao abrir uma conta normal -> aqui replicamos."""
+    try:
+        cdp = pg.context.new_cdp_session(pg)
+        ua = pg.evaluate("() => navigator.userAgent") or ""
+        m = re.search(r"Chrome/([\d.]+)", ua)
+        full = m.group(1) if m else "150.0.0.0"
+        major = full.split(".")[0]
+        cdp.send("Emulation.setUserAgentOverride", {
+            "userAgent": ua,
+            "userAgentMetadata": {
+                "brands": [
+                    {"brand": "Not;A=Brand", "version": "8"},
+                    {"brand": "Chromium", "version": major},
+                    {"brand": "Google Chrome", "version": major},
+                ],
+                "fullVersionList": [
+                    {"brand": "Not;A=Brand", "version": "8.0.0.0"},
+                    {"brand": "Chromium", "version": full},
+                    {"brand": "Google Chrome", "version": full},
+                ],
+                "fullVersion": full,
+                "platform": "Windows", "platformVersion": "15.0.0",
+                "architecture": "x86", "model": "", "mobile": False,
+                "bitness": "64", "wow64": False,
+            },
+        })
+    except Exception:
+        pass
+
+
+def aplicar_disfarce_chrome(page):
+    """Aplica o disfarce 'Google Chrome' na aba atual e em toda aba nova do fluxo."""
+    _disfarce_chrome(page)
+    try:
+        page.context.on("page", _disfarce_chrome)
     except Exception:
         pass
 
