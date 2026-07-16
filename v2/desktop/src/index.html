@@ -2,10 +2,21 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://contas-v2.elevateecom.com.br; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://contas-v2.elevateecom.com.br; frame-src http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ElevateHub</title>
   <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* Painel de creators EMBUTIDO: overlay que cobre a janela inteira do ElevateHub
+       (nao depende do layout das outras telas). "Voltar" fecha. A webview mostra a
+       UI local do painel afiliador (127.0.0.1). */
+    .creators-overlay { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: #0b0f14; }
+    .creators-overlay[hidden] { display: none; }
+    .creators-topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.08); background: #0d0f12; flex: none; }
+    .creators-topbar strong { font-size: 14px; color: #f3f6f8; }
+    .creators-status { margin-left: auto; color: #9aa5b1; font-size: 12px; }
+    .creators-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; }
+  </style>
 </head>
 <body>
   <div class="install-screen" id="installScreen">
@@ -246,6 +257,15 @@
             </div>
           </section>
         </section>
+
+        <div id="creatorsView" class="creators-overlay" hidden>
+          <div class="creators-topbar">
+            <button class="ghost" type="button" id="creatorsBack">&#8249; Voltar</button>
+            <strong>Adicionar creators</strong>
+            <span id="creatorsStatus" class="creators-status">abrindo painel…</span>
+          </div>
+          <webview id="creatorsFrame" partition="persist:creators" src="about:blank" class="creators-frame"></webview>
+        </div>
 
         <aside class="session-pane" id="browserOverlay">
           <div class="browser-topbar">

@@ -595,6 +595,10 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Habilita a tag <webview> — usada SO pra embutir o painel de creators, que e
+      // um endereco LOCAL (127.0.0.1). A webview em si roda isolada; contextIsolation
+      // e sandbox continuam ligados. Nao expomos webview a conteudo externo.
+      webviewTag: true,
       additionalArguments: [`--api-url=${API_URL}`, `--app-version=${app.getVersion()}`]
     }
   });
@@ -659,7 +663,7 @@ app.whenReady().then(() => {
 
   // Abre o painel "Adicionar creators" (motor Afiliador) — reaproveita as contas,
   // perfis e logins do ElevateHub (sem relogar) e o Chrome que o app ja embute.
-  ipcMain.handle("open-creators-panel", async (_event, info) => {
+  ipcMain.handle("open-creators-panel", async (event, info) => {
     const sidecar = resolveCreatorsSidecar();
     if (!sidecar) return { ok: false, error: "no-sidecar" };
     // Ja aberto, ou JA ABRINDO (reserva sincrona anti duplo-clique: sem isto, os
@@ -682,10 +686,15 @@ app.whenReady().then(() => {
         token: String(info?.token || ""),
         chromePath: resolveChromePath() || "",
         dataDir,
+        embed: true,        // abre EMBUTIDO (webview no ElevateHub), nao janela propria
         accounts
       };
       const cfgPath = path.join(dataDir, "config.json");
       await atomicWrite(cfgPath, JSON.stringify(cfg));
+      // O sidecar escreve o endereco da UI aqui depois de subir o servidor local.
+      // Limpamos o antigo pra ler o NOVO (nao um url de uma abertura passada).
+      const urlFile = path.join(dataDir, "panel.url");
+      await fs.rm(urlFile, { force: true }).catch(() => {});
       const panel = spawn(sidecar, [], {
         detached: false,
         windowsHide: false,
@@ -697,6 +706,23 @@ app.whenReady().then(() => {
       // proximo clique subiria um 2o painel com o atual ainda vivo).
       panel.on("error", () => { if (creatorsPanel === panel) creatorsPanel = null; });
       panel.on("exit", () => { if (creatorsPanel === panel) creatorsPanel = null; });
+      // Espera o sidecar publicar o endereco (~ate 12s) e manda pro renderer, que o
+      // carrega numa webview embutida. Em paralelo (nao trava o retorno). Se nao vier
+      // a tempo, o proprio sidecar tem FALLBACK (abre a janela) -> o painel aparece
+      // de um jeito ou de outro.
+      (async () => {
+        for (let i = 0; i < 60; i++) {
+          let url = "";
+          try { url = (await fs.readFile(urlFile, "utf8")).trim(); } catch { /* ainda nao escreveu */ }
+          if (url) {
+            if (event.sender && !event.sender.isDestroyed()) {
+              event.sender.send("creators-panel-ready", { url });
+            }
+            return;
+          }
+          await sleep(200);
+        }
+      })().catch(() => {});
       return { ok: true };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };

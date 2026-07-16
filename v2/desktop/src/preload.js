@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld("elevate", {
     ipcRenderer.on("browser-profile-cookies", handler);
     return () => ipcRenderer.removeListener("browser-profile-cookies", handler);
   },
+  // Avisa o renderer quando o painel de creators publicou seu endereco local
+  // (127.0.0.1:porta) -> o renderer carrega numa <webview> embutida.
+  onCreatorsPanelReady: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("creators-panel-ready", handler);
+    return () => ipcRenderer.removeListener("creators-panel-ready", handler);
+  },
   installUpdateNow: () => ipcRenderer.invoke("install-update-now"),
   onUpdateAvailable: (callback) => {
     const handler = (_event, data) => callback(data);

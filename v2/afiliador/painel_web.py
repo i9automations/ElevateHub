@@ -45,6 +45,9 @@ def _load_elevate_config():
 ELEVATE = _load_elevate_config()
 CHROME_EXE = ELEVATE.get("chromePath") or None
 ELEVATE_ACCOUNTS = {a["name"]: a for a in (ELEVATE.get("accounts") or []) if a.get("name")}
+# EMBED=True: aberto DENTRO do ElevateHub (a UI vai numa webview embutida na janela
+# do app, nao numa janela Chrome propria). Sem isto, mantem o comportamento antigo.
+EMBED = bool(ELEVATE.get("embed"))
 
 # Dentro do ElevateHub o app fica empacotado (pasta do script = SO LEITURA).
 # Todo arquivo gravavel (uploads, status_*.json, config, perfil da UI, logs) vai
@@ -703,6 +706,18 @@ class H(BaseHTTPRequestHandler):
             self._send(404, "{}")
 
 
+def _abrir_janela_propria(url):
+    # Abre a UI do painel numa janela Chrome propria (modo NAO-embutido, ou fallback).
+    # --test-type esconde o banner amarelo "Chrome for Testing" (o Chrome embutido do
+    # ElevateHub e "for Testing"); sem ele aparecia a faixa "Baixe o Chrome".
+    return subprocess.Popen([
+        CHROME, f"--app={url}", f"--user-data-dir={UI_UDD}",
+        "--no-first-run", "--no-default-browser-check",
+        "--test-type",
+        "--window-size=1280,800",
+    ])
+
+
 def main():
     try:
         os.makedirs(PERFIS_DIR, exist_ok=True)
@@ -713,13 +728,31 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port}/"
     _PING[0] = time.time()
+    t0 = _PING[0]
+    # Entrega o endereco pro ElevateHub (que le este arquivo e carrega o url numa
+    # webview embutida). Escrita simples; o app faz polling deste arquivo.
+    # PASTA sempre existe (default no topo); no modo sidecar PASTA == dataDir, que e
+    # onde o ElevateHub le. Usar DATA_DIR aqui daria NameError se rodasse sem config.
+    try:
+        with open(os.path.join(PASTA, "panel.url"), "w", encoding="utf-8") as f:
+            f.write(url)
+    except Exception:
+        pass
     proc = None
-    if CHROME:
-        proc = subprocess.Popen([
-            CHROME, f"--app={url}", f"--user-data-dir={UI_UDD}",
-            "--no-first-run", "--no-default-browser-check",
-            "--window-size=1280,800",
-        ])
+    if EMBED:
+        # EMBUTIDO: nao abre janela propria — a webview do ElevateHub carrega o url
+        # e a UI comeca a pingar (qualquer request da UI atualiza _PING).
+        # FALLBACK de seguranca: se em ~9s NENHUM request da UI chegou (webview nao
+        # carregou / CSP barrou / etc.), abre a janela propria pra NUNCA deixar o
+        # usuario sem painel. Pior caso = comportamento antigo (janela separada).
+        for _ in range(90):
+            if _PING[0] > t0 + 0.3:     # chegou request real da UI = webview carregou
+                break
+            time.sleep(0.1)
+        if _PING[0] <= t0 + 0.3 and CHROME:
+            proc = _abrir_janela_propria(url)
+    elif CHROME:
+        proc = _abrir_janela_propria(url)
     else:
         import webbrowser
         webbrowser.open(url)

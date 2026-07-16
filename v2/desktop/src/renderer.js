@@ -1563,8 +1563,9 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => requireAuth(() => setView(button.dataset.view)));
 });
 
-// Botao "Adicionar creators": abre o painel (motor Afiliador) reaproveitando as
-// contas TikTok e os logins do ElevateHub (sem relogar).
+// Botao "Adicionar creators": abre o painel (motor Afiliador) EMBUTIDO no ElevateHub
+// (uma webview na propria janela), reaproveitando as contas TikTok e os logins do
+// app (sem relogar). Se a webview nao carregar, o sidecar tem fallback (janela).
 $("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
   if (!window.elevate?.openCreatorsPanel) {
     toast("Atualize o app para usar o painel de creators.", "warning");
@@ -1572,15 +1573,50 @@ $("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
   }
   const accounts = state.profiles.filter(isTikTokProfile).map((p) => ({ id: p.id, name: p.name }));
   if (!accounts.length) { toast("Nenhuma conta TikTok encontrada.", "warning"); return; }
+  const view = $("creatorsView");
+  const status = $("creatorsStatus");
+  if (status) status.textContent = "abrindo painel…";
+  if (view) view.removeAttribute("hidden");   // mostra o overlay embutido ja
   try {
     const r = await window.elevate.openCreatorsPanel({ accounts, token: state.token });
-    if (r?.ok) toast(r.already ? "Painel de creators já está aberto." : "Abrindo painel de creators...", "success");
-    else if (r?.error === "no-sidecar") toast("O componente de creators não está instalado nesta versão.", "warning");
-    else toast("Não consegui abrir o painel de creators.", "danger");
+    if (r?.error === "no-sidecar") {
+      if (view) view.setAttribute("hidden", "");
+      toast("O componente de creators não está instalado nesta versão.", "warning");
+    }
+    // Sucesso: o endereco chega via onCreatorsPanelReady e carrega a webview.
+    // "already": o painel ja estava aberto -> a webview ja tem o conteudo, so mostra.
   } catch (e) {
+    if (view) view.setAttribute("hidden", "");
     toast(friendlyError(e), "danger");
   }
 }));
+
+// O painel publicou seu endereco local -> carrega na webview embutida.
+window.elevate?.onCreatorsPanelReady?.(({ url }) => {
+  const frame = $("creatorsFrame");
+  const view = $("creatorsView");
+  const status = $("creatorsStatus");
+  if (!frame || !url) return;
+  if (view) view.removeAttribute("hidden");
+  if (status) status.textContent = "";
+  frame.src = url;
+});
+
+// "Voltar": esconde o painel embutido. NAO descarrega a webview -> o painel segue
+// vivo (leve) em segundo plano e reabrir e instantaneo; encerra sozinho no fim do app.
+$("creatorsBack")?.addEventListener("click", () => {
+  const view = $("creatorsView");
+  if (view) view.setAttribute("hidden", "");
+});
+
+// Se a webview NAO carregar (CSP/erro de rede), esconde o overlay: o sidecar, sem
+// receber ping, abre a janela propria (fallback) -> nunca fica um overlay vazio.
+$("creatorsFrame")?.addEventListener("did-fail-load", (e) => {
+  if (e && (e.validatedURL === "about:blank" || e.errorCode === -3)) return; // navegacao proposital
+  const view = $("creatorsView");
+  if (view) view.setAttribute("hidden", "");
+  toast("Abrindo o painel de creators em janela…", "info");
+});
 
 // Botao "Verificar sessoes" (admin): varre o servidor e diz quantas contas estao
 // logadas DE VERDADE (tem sessao principal) e quais precisam de re-login. So-leitura.
