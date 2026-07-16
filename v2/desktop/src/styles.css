@@ -219,8 +219,13 @@ body:not(.admin-mode) .admin-only {
 
 .primary {
   background: var(--primary);
-  color: #061516;
+  color: #04191a;
   padding: 0 16px;
+  /* "Opcao A - ciano calmo": mantem a cor da marca, mas tira a cara de IA ->
+     peso 600 (era 800 ultra-bold, herdado do grupo acima) + sombra discreta
+     (profundidade, NAO glow neon). */
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(4, 22, 24, .4);
 }
 
 .primary:hover { background: var(--primary-hover); }
