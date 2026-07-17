@@ -820,14 +820,26 @@ async function openLocalBrowser(profileId) {
     toast("Não consegui reservar a conta agora.", "danger");
     return;
   }
-  if (inUseBy.length) {
-    // Contas sao COMPARTILHADAS: nao bloqueia o uso simultaneo. Antes um modal
-    // "Abrir mesmo assim?" travava o time (clicavam Cancelar / achavam que era
-    // erro). Agora so avisa (sem modal) quem mais esta na conta e segue abrindo.
-    const myName = state.user?.name || "";
-    const others = inUseBy.filter((name) => name && name !== myName);
-    if (others.length) {
-      toast(`Esta conta também está aberta por ${others.join(", ")}.`, "info");
+  const myName = state.user?.name || "";
+  const others = inUseBy.filter((name) => name && name !== myName);
+  if (others.length) {
+    // ANTI-LOGOUT: abrir a MESMA conta em 2 PCs ao mesmo tempo = 2 IPs -> o TikTok
+    // entende como invasao e DERRUBA a sessao (o gatilho nº1 dos logouts, confirmado).
+    // Antes so avisava (toast) e abria: nao segurava ninguem. Agora pede confirmacao
+    // CLARA, com Cancelar como padrao. Nao e bloqueio duro: se a pessoa esqueceu a
+    // conta aberta (presenca antiga), da pra "Abrir mesmo assim" e assumir.
+    const nomes = others.join(", ");
+    const go = await confirmAction({
+      title: "Conta aberta em outro PC agora",
+      message: `${nomes} está com esta conta ABERTA neste momento. Abrir a mesma conta em dois PCs ao mesmo tempo é o que MAIS desloga a conta — o TikTok derruba a sessão. O ideal é pedir pra ${nomes} fechar antes. Abrir mesmo assim?`,
+      okLabel: "Abrir mesmo assim",
+      danger: true
+    });
+    if (!go) {
+      // Desistiu: solta a reserva que o POST /lock acabou de registrar, senao EU
+      // ficaria marcado como "em uso" sem ter aberto (bloquearia os outros a toa).
+      await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
+      return;
     }
   }
   try {
