@@ -286,12 +286,25 @@ class Slot:
                 # DISFARCE "Google Chrome" ANTES de navegar: senao o TikTok ve
                 # "Chrome for Testing" na 1a requisicao (/account/login) e rejeita
                 # a sessao -> a conta abria deslogada. Aplicado antes do goto.
-                ac.aplicar_disfarce_chrome(page)
+                ac.aplicar_disfarce_chrome(page, log=self._log)
                 try:
                     page.goto(ac.START_URL, wait_until="domcontentloaded",
                               timeout=60000)
                 except Exception:
                     pass
+                # DIAGNOSTICO: mostra no log se abriu LOGADO e se o disfarce pegou.
+                # (Se url final tem "login" = deslogado; "marcas" deve trazer "Google Chrome".)
+                try:
+                    url_final = page.url or ""
+                    marcas = page.evaluate(
+                        "() => ((navigator.userAgentData && navigator.userAgentData.brands) || [])"
+                        ".map(b => b.brand).join(', ')")
+                    logado = "login" not in url_final.lower()
+                    self._log(f"   [diag] {'LOGADO' if logado else 'DESLOGADO (tela de login)'}"
+                              f" | marcas: {marcas or '(vazio)'}")
+                    self._log(f"   [diag] url: {url_final[:70]}")
+                except Exception as e:
+                    self._log(f"   [diag] nao consegui checar: {e}")
                 self.navegador = True
                 morto = False
                 while not self.fechar_ev.is_set():

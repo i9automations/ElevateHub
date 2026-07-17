@@ -589,13 +589,15 @@ def _disfarce_chrome(pg):
                 "bitness": "64", "wow64": False,
             },
         })
+        return True
     except Exception:
-        pass
+        return False
 
 
-def aplicar_disfarce_chrome(page):
+def aplicar_disfarce_chrome(page, log=print):
     """Aplica o disfarce 'Google Chrome' na aba atual e em toda aba nova do fluxo."""
-    _disfarce_chrome(page)
+    ok = _disfarce_chrome(page)
+    log(f"   disfarce Google Chrome: {'aplicado' if ok else 'FALHOU (CDP)'}")
     try:
         page.context.on("page", _disfarce_chrome)
     except Exception:
