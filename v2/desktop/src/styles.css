@@ -323,6 +323,18 @@ body:not(.admin-mode) .admin-only {
   background: var(--surface);
 }
 
+/* Versao instalada, discreta no rodape da sidebar. margin-top:auto encosta no fim
+   (importa quando a server-card, que e admin-only, esta oculta pro operador). */
+.app-version {
+  margin-top: auto;
+  padding: 10px 4px 2px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: .3px;
+  color: var(--muted);
+  opacity: .55;
+}
+
 .server-card strong {
   display: block;
   margin-top: 4px;

@@ -61,6 +61,34 @@ function profileDataDir(profileId) {
   return path.join(app.getPath("userData"), "profiles", safe);
 }
 
+// Resolve um arquivo da pasta "tools" (empacotada em resources/tools, ou dev em ./tools).
+function resolveTool(fileName) {
+  const candidates = [];
+  if (app.isPackaged) candidates.push(path.join(process.resourcesPath, "tools", fileName));
+  candidates.push(path.join(__dirname, "..", "tools", fileName)); // dev: v2/desktop/tools
+  for (const c of candidates) {
+    try { if (fss.existsSync(c)) return c; } catch { /* segue */ }
+  }
+  return null;
+}
+
+// "Marca" a janela do Chrome recem-aberto com a logo do ElevateHub (azul) na barra de
+// tarefas, estilo Dolphin. O Chrome IGNORA o icone do exe, entao um ajudante nativo
+// (brand-window.exe) injeta o icone na janela via WM_SETICON e fica vivo segurando-o
+// ate o Chrome fechar (o handle do icone morreria se o ajudante saisse antes).
+// MELHOR-ESFORCO: tudo em try/catch e desanexado -> se falhar, o navegador abre normal.
+function brandChromeWindow(child) {
+  try {
+    if (process.platform !== "win32" || !child || !child.pid) return;
+    const brander = resolveTool("brand-window.exe");
+    const ico = resolveTool("chrome-elevatehub.ico");
+    if (!brander || !ico) return;
+    const b = spawn(brander, [String(child.pid), ico], { detached: true, windowsHide: true, stdio: "ignore" });
+    b.on("error", () => { /* ignora: e so o icone, nao pode atrapalhar */ });
+    b.unref();
+  } catch { /* nunca propaga: cosmetico */ }
+}
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function connectCdp(wsUrl) {
@@ -508,6 +536,8 @@ async function openBrowserProfile(info, sender) {
 
     const entry = { child, client: null, interval: null };
     openBrowsers.set(profileId, entry);
+    // Marca a janela com a logo azul do ElevateHub na barra de tarefas (estilo Dolphin).
+    brandChromeWindow(child);
 
     // 'exit' e 'error' podem disparar os DOIS pro mesmo Chrome. Um handler unico:
     // (1) so limpa se a entrada ainda for DESTE child (evita mexer no navegador ja
@@ -548,6 +578,7 @@ async function openBrowserProfile(info, sender) {
 
 // ===== Atualizacao automatica (delta, sem reinstalar) =====
 let autoUpdateReady = false;
+let autoUpdateReadyVersion = "";   // versao ja baixada e pendente (pra faixa persistente)
 
 function broadcast(channel, data) {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -563,7 +594,7 @@ function setupAutoUpdate() {
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("update-available", (info) => broadcast("update-available", { version: info?.version }));
   autoUpdater.on("download-progress", (p) => broadcast("update-progress", { pct: Math.round(p?.percent || 0) }));
-  autoUpdater.on("update-downloaded", (info) => { autoUpdateReady = true; broadcast("update-downloaded", { version: info?.version }); });
+  autoUpdater.on("update-downloaded", (info) => { autoUpdateReady = true; autoUpdateReadyVersion = info?.version || ""; broadcast("update-downloaded", { version: info?.version }); });
   autoUpdater.on("error", () => { /* silencioso: nunca atrapalha o uso */ });
 
   // Checa sem precisar reiniciar: na abertura, a cada 10 min, e quando o usuario
@@ -667,12 +698,22 @@ app.whenReady().then(() => {
   ipcMain.handle("open-creators-panel", async (event, info) => {
     const sidecar = resolveCreatorsSidecar();
     if (!sidecar) return { ok: false, error: "no-sidecar" };
+    // COLISAO DE PERFIL: se alguma conta marcada JA esta aberta no ElevateHub, o
+    // painel subiria um 2o Chrome sobre o MESMO user-data-dir. Dois Chrome no mesmo
+    // perfil brigam pelo lock -> um deles abre um perfil degradado/limpo (= conta
+    // "abre DESLOGADA") e pode ate corromper a sessao gravada. Bloqueia com aviso,
+    // igual o fluxo de ADS ja faz (openBrowsers.has). Usuario fecha e reabre.
+    const selForBusy = Array.isArray(info?.accounts) ? info.accounts : [];
+    const busy = selForBusy.filter((a) => openBrowsers.has(String(a.id)));
+    if (busy.length) {
+      return { ok: false, error: "busy", busy: busy.map((a) => String(a.name || a.id)) };
+    }
     const dataDir = path.join(app.getPath("userData"), "creators");
     const urlFile = path.join(dataDir, "panel.url");
     // Espera o sidecar publicar o endereco (panel.url) e manda pro renderer, que o
     // carrega na webview. Se o sidecar morrer antes de publicar, ou estourar o tempo,
     // avisa com erro -> o overlay NAO fica preso em "abrindo..." pra sempre.
-    const emitWhenReady = () => { (async () => {
+    const emitWhenReady = (panelRef) => { (async () => {
       for (let i = 0; i < 90; i++) {                 // ~18s
         let url = "";
         try { url = (await fs.readFile(urlFile, "utf8")).trim(); } catch { /* ainda nao escreveu */ }
@@ -683,6 +724,15 @@ app.whenReady().then(() => {
         if (creatorsPanel && creatorsPanel.exitCode !== null) break;   // sidecar morreu cedo
         await sleep(200);
       }
+      // Estourou o tempo e o sidecar NAO publicou o endereco -> esta travado, nao morto.
+      // Mata pra nao virar processo orfao consumindo recursos ate o before-quit, E pra
+      // que reabrir com a MESMA selecao gere um sidecar NOVO (senao cairia no ramo
+      // "already" sobre o processo travado e estouraria timeout de novo, pra sempre).
+      // So mata se ainda for o painel ATUAL (um reopen ja pode ter trocado a referencia).
+      if (panelRef && creatorsPanel === panelRef && panelRef.exitCode === null) {
+        try { killChrome(panelRef); } catch { /* ja morreu */ }
+        if (creatorsPanel === panelRef) { creatorsPanel = null; creatorsAccountsKey = ""; }
+      }
       if (event.sender && !event.sender.isDestroyed()) event.sender.send("creators-panel-ready", { error: "timeout" });
     })().catch(() => {}); };
     // Chave da selecao ATUAL (ids ordenados). Se for a MESMA do painel aberto,
@@ -690,10 +740,10 @@ app.whenReady().then(() => {
     // painel continuava mostrando as contas da abertura anterior — o bug do "3 Melt").
     const newKey = (Array.isArray(info?.accounts) ? info.accounts : [])
       .map((a) => String(a.id)).sort().join(",");
-    if (creatorsLaunching) { emitWhenReady(); return { ok: true, already: true }; }
+    if (creatorsLaunching) { emitWhenReady(creatorsPanel); return { ok: true, already: true }; }
     if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
       if (newKey === creatorsAccountsKey) {   // mesma selecao -> so mostra de novo
-        emitWhenReady();
+        emitWhenReady(creatorsPanel);
         return { ok: true, already: true };
       }
       // selecao diferente -> encerra o painel antigo pra reabrir com as novas contas
@@ -731,7 +781,7 @@ app.whenReady().then(() => {
       // velho nao pode apagar a referencia de um painel novo).
       panel.on("error", () => { if (creatorsPanel === panel) creatorsPanel = null; });
       panel.on("exit", () => { if (creatorsPanel === panel) creatorsPanel = null; });
-      emitWhenReady();
+      emitWhenReady(panel);
       return { ok: true };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };
@@ -774,6 +824,11 @@ app.whenReady().then(() => {
     setImmediate(() => autoUpdater.quitAndInstall());
     return true;
   });
+
+  // Estado do update sob demanda -> o renderer pergunta NO ARRANQUE e remostra a faixa
+  // se ja ha versao baixada e pendente. Torna o aviso PERSISTENTE (reaparece a cada
+  // abertura ate reiniciar de fato), em vez de depender do evento unico 'update-downloaded'.
+  ipcMain.handle("get-update-status", () => ({ ready: autoUpdateReady, version: autoUpdateReadyVersion }));
 
   createWindow();
   if (app.isPackaged) setupAutoUpdate();

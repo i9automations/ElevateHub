@@ -78,6 +78,9 @@ def _injetar_cookies_elevate(ctx, conta, log=print):
     acc = ELEVATE_ACCOUNTS.get(conta)
     base = (ELEVATE.get("apiBase") or "").rstrip("/")
     if not acc or not base:
+        # Sem conta mapeada ou sem apiBase -> nunca haveria sessao pra injetar.
+        # Antes isto era um 'return' mudo e a conta abria deslogada sem pista no log.
+        log(f"   (sem sessao do ElevateHub: {'conta nao mapeada' if not acc else 'apiBase vazio'}) -> abre DESLOGADO")
         return
     tok = ELEVATE.get("token") or ""
     # "Abre" (trava) a conta no servidor ANTES de baixar a sessao. O servidor so
@@ -115,6 +118,12 @@ def _injetar_cookies_elevate(ctx, conta, log=print):
                     ck["secure"] = True   # Chromium exige Secure p/ SameSite=None
             pw.append(ck)
         if not pw:
+            # Servidor devolveu ZERO cookies. Causas normais: perfil sem sessao
+            # gravada, OU falha de descriptografia no servidor (a sessao "some em
+            # silencio"). Este e o motivo nº1 de "abre deslogado" -> agora GRITA
+            # no log em vez de retornar mudo, pra o operador saber a causa.
+            log(f"   sessao VAZIA do servidor ({len(data.get('cookies') or [])} cookies brutos) -> abre DESLOGADO."
+                f" Verifique a sessao dessa conta no ElevateHub.")
             return
         # Injeta tudo de uma vez (rapido). Se UM cookie for invalido, o add_cookies
         # em lote falha INTEIRO e o painel abriria DESLOGADO em silencio -> cai pra
@@ -290,17 +299,39 @@ class Slot:
                 try:
                     page.goto(ac.START_URL, wait_until="domcontentloaded",
                               timeout=60000)
+                except Exception as e:
+                    # Antes era 'except: pass' MUDO: se a navegacao falhava (timeout,
+                    # redirect interrompido, aba restaurada) o painel seguia pro diag
+                    # sobre o estado que sobrou (as vezes about:blank/deslogado) sem
+                    # nenhuma pista. Agora a falha real de navegacao aparece no log.
+                    self._log(f"   [diag] FALHA ao navegar p/ {ac.START_URL[:50]}: {e}")
+                # Sessao valida + rota /account/login -> o TikTok redireciona sozinho
+                # pro dashboard, mas via JS (depois do domcontentloaded). Damos um tempo
+                # pro redirect acontecer ANTES de decidir logado/deslogado, senao o diag
+                # le a URL de login cedo demais e reporta um falso "DESLOGADO".
+                try:
+                    page.wait_for_url(lambda u: "/account/login" not in (u or ""),
+                                      timeout=8000)
                 except Exception:
-                    pass
-                # DIAGNOSTICO: mostra no log se abriu LOGADO e se o disfarce pegou.
-                # (Se url final tem "login" = deslogado; "marcas" deve trazer "Google Chrome".)
+                    pass  # continua no /account/login = provavelmente deslogado mesmo
+                # DIAGNOSTICO confiavel: NAO usa mais o substring "login" (a START_URL
+                # contem "login" e o diag sempre dizia DESLOGADO). Usa a rota exata
+                # "/account/login" na URL FINAL + confere se ainda existe cookie de
+                # sessao no contexto (a prova real de login).
                 try:
                     url_final = page.url or ""
                     marcas = page.evaluate(
                         "() => ((navigator.userAgentData && navigator.userAgentData.brands) || [])"
                         ".map(b => b.brand).join(', ')")
-                    logado = "login" not in url_final.lower()
+                    try:
+                        nomes = {c.get("name", "") for c in (ctx.cookies() or [])}
+                    except Exception:
+                        nomes = set()
+                    tem_sessao = any(n.startswith("sessionid") for n in nomes)
+                    na_tela_login = "/account/login" in url_final
+                    logado = (not na_tela_login) or tem_sessao
                     self._log(f"   [diag] {'LOGADO' if logado else 'DESLOGADO (tela de login)'}"
+                              f" | sessionid no contexto: {'sim' if tem_sessao else 'NAO'}"
                               f" | marcas: {marcas or '(vazio)'}")
                     self._log(f"   [diag] url: {url_final[:70]}")
                 except Exception as e:

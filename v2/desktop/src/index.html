@@ -24,6 +24,8 @@
     .cr-check.cr-off { border: none; background: none; cursor: default; }
     .cr-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: auto; border-radius: 999px; background: #25f4ee; color: #04191a; font-size: 11px; font-weight: 700; }
     .cr-count.hidden { display: none; }
+    /* Logo do Chrome (traço, uma cor) no botao "Abrir": nao encolhe no flex do botao. */
+    .chrome-ic { flex: none; }
   </style>
 </head>
 <body>
@@ -133,6 +135,8 @@
         <strong id="serverState">desconectado</strong>
         <small id="serverUrl">contas-v2.elevateecom.com.br</small>
       </div>
+
+      <div class="app-version" id="appVersionLabel" title="Versão instalada do ElevateHub"></div>
     </aside>
 
     <main class="workspace">

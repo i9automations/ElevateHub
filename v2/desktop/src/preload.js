@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("elevate", {
     return () => ipcRenderer.removeListener("creators-panel-ready", handler);
   },
   installUpdateNow: () => ipcRenderer.invoke("install-update-now"),
+  getUpdateStatus: () => ipcRenderer.invoke("get-update-status"),
   onUpdateAvailable: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("update-available", handler);

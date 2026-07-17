@@ -14,8 +14,9 @@ const state = {
   filter: "all",
   sort: "az",
   // contas marcadas (checkbox) que vao pro painel "Adicionar creators". E um Set de
-  // ids -> persiste entre pastas (voce marca contas de folders diferentes).
-  creatorsSelection: new Set(),
+  // ids -> persiste entre pastas (voce marca contas de folders diferentes) e entre
+  // reinicios do app (localStorage) -> um F5/restart nao perde as ~50 marcadas do dia.
+  creatorsSelection: loadCreatorsSelection(),
   editProfileId: null,
   frameLoading: false,
   wheelTimer: null,
@@ -101,6 +102,15 @@ const MKT_URL = {
   shopee: "https://seller.shopee.com.br/",
   amazon: "https://sellercentral.amazon.com.br/"
 };
+// Logo do Chrome em UMA cor (traço), no mesmo estilo das iconezinhas da barra lateral.
+// Usa currentColor -> pega a cor do botao "Abrir" (verde) e inverte sozinho no hover.
+// SVG inline -> nao baixa nada externo, respeita a CSP.
+const CHROME_ICON = '<svg class="chrome-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">'
+  + '<circle cx="12" cy="12" r="9.2"/>'
+  + '<circle cx="12" cy="12" r="3.4"/>'
+  + '<path d="M14.9 10.3 19.97 7.4"/>'
+  + '<path d="M12 15.4 12 21.2"/>'
+  + '<path d="M9.1 10.3 4.03 7.4"/></svg>';
 const squads = [
   { key: "fox", name: "Fox", label: "TikTok Seller", startUrl: MKT_URL.tiktok, hub: "Elevate", mkt: "tiktok" },
   { key: "crown", name: "Crown", label: "Mercado Livre", startUrl: MKT_URL.ml, hub: "Elevate", mkt: "ml" },
@@ -418,7 +428,7 @@ function renderProfiles() {
       ? `<button class="ghost compact" type="button" data-action="code" data-id="${pid}" title="Pegar código de verificação do e-mail">Código</button>`
       : "";
     const releaseButton = "";
-    const openBtn = `<button class="run" type="button" data-action="open" data-id="${pid}"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M1 1l7 4-7 4z" fill="currentColor"/></svg>Abrir</button>`;
+    const openBtn = `<button class="run" type="button" data-action="open" data-id="${pid}">${CHROME_ICON}Abrir</button>`;
     const av = profileAvatar(profile.name);
     // Checkbox de "marcar pra creators": so nas contas TikTok (o painel e TikTok).
     // Nas outras vai um espaco vazio do mesmo tamanho, pra nao desalinhar o avatar.
@@ -695,6 +705,9 @@ async function deleteProfile() {
     await api(`/api/profiles/${id}`, { method: "DELETE" });
     $("profileDialog").close();
     if (state.selectedId === id) state.selectedId = null;
+    // Tira da selecao de creators tambem -> senao o id "fantasma" ficava no Set,
+    // era salvo no localStorage e desalinhava o contador do que e enviado.
+    if (state.creatorsSelection.delete(id)) saveCreatorsSelection();
     await loadProfiles();
     toast("Perfil excluído.", "success");
   } catch (error) {
@@ -1530,6 +1543,11 @@ async function boot() {
   if (!restored) showLogin();
 }
 
+// Versao instalada visivel no rodape da sidebar -> da pra confirmar num relance se
+// o app ja atualizou (o updater troca a versao ao fechar/reabrir). Antes a versao
+// existia no codigo (appVersion) mas nao era exibida em lugar nenhum.
+(() => { const el = $("appVersionLabel"); if (el) el.textContent = "v" + appVersion; })();
+
 $("loginBtn").addEventListener("click", login);
 $("password").addEventListener("keydown", (event) => {
   if (event.key === "Enter") login();
@@ -1598,6 +1616,12 @@ $("creatorsBtn")?.addEventListener("click", () => requireAuth(async () => {
     if (r?.error === "no-sidecar") {
       if (view) view.setAttribute("hidden", "");
       toast("O componente de creators não está instalado nesta versão.", "warning");
+    } else if (r?.error === "busy") {
+      // Conta(s) marcada(s) ainda abertas no ElevateHub -> abrir o painel sobre o
+      // mesmo perfil deslogaria/corromperia a sessao. Peca pra fechar antes.
+      if (view) view.setAttribute("hidden", "");
+      const nomes = (r.busy || []).join(", ");
+      toast(`Feche primeiro: ${nomes}. Essa(s) conta(s) está(ão) aberta(s) no app — abrir os creators por cima deslogaria a sessão.`, "warning");
     }
     // Sucesso: o endereco chega via onCreatorsPanelReady e carrega a webview.
     // "already": o painel ja estava aberto -> a webview ja tem o conteudo, so mostra.
@@ -1708,19 +1732,35 @@ $("filterPop").querySelectorAll("[data-sort]").forEach((button) => {
   });
 });
 
+// Le a selecao salva (localStorage) -> sobrevive a reinicios/F5 do app.
+function loadCreatorsSelection() {
+  try { return new Set(JSON.parse(localStorage.getItem("ctv2.creatorsSel") || "[]")); }
+  catch { return new Set(); }
+}
+// Grava a selecao atual. Chamado em toda mudanca (marcar/desmarcar/limpar/excluir).
+function saveCreatorsSelection() {
+  try { localStorage.setItem("ctv2.creatorsSel", JSON.stringify([...state.creatorsSelection])); }
+  catch { /* storage cheio -> segue so em memoria */ }
+}
 // Alterna a marcacao da conta pro painel de creators (o quadradinho na lista).
 function toggleCreatorsSelection(id) {
   if (!id) return;
   if (state.creatorsSelection.has(id)) state.creatorsSelection.delete(id);
   else state.creatorsSelection.add(id);
+  saveCreatorsSelection();
   renderProfiles();          // reflete o check na linha
   updateCreatorsButton();    // atualiza o contador no botao da sidebar
 }
-// Mostra no botao "Adicionar creators" quantas contas estao marcadas.
+// Mostra no botao "Adicionar creators" quantas contas estao marcadas. Conta SO as
+// que realmente serao enviadas (existem em state.profiles e sao TikTok) — senao o
+// badge mostrava N (incluindo ids de contas ja excluidas) e o painel recebia N-1.
 function updateCreatorsButton() {
   const el = $("creatorsCount");
   if (!el) return;
-  const n = state.creatorsSelection.size;
+  const n = [...state.creatorsSelection].filter((id) => {
+    const p = state.profiles.find((x) => x.id === id);
+    return p && isTikTokProfile(p);
+  }).length;
   el.textContent = n ? String(n) : "";
   el.title = n ? "Clique aqui pra LIMPAR a seleção" : "";
   el.classList.toggle("hidden", !n);
@@ -1731,6 +1771,7 @@ $("creatorsCount")?.addEventListener("click", (e) => {
   e.stopPropagation();
   if (!state.creatorsSelection.size) return;
   state.creatorsSelection.clear();
+  saveCreatorsSelection();
   renderProfiles();
   updateCreatorsButton();
   toast("Seleção de creators limpa.", "info");
@@ -1842,6 +1883,16 @@ if (window.elevate?.onUpdateAvailable) {
 }
 if (window.elevate?.onUpdateDownloaded) {
   window.elevate.onUpdateDownloaded((info) => showUpdateReady(info));
+}
+// Alem de reagir ao evento (que dispara UMA vez, e podia passar despercebido ou ser
+// dispensado com "Agora nao"), pergunta ao main NO ARRANQUE se ja ha versao baixada e
+// pendente -> a faixa REAPARECE a cada abertura ate o app reiniciar de fato. Esse era
+// o buraco do "alguns PCs nao atualizam": baixava, mas o unico aviso sumia e ninguem
+// mais era lembrado de reiniciar.
+if (window.elevate?.getUpdateStatus) {
+  window.elevate.getUpdateStatus()
+    .then((s) => { if (s?.ready) showUpdateReady({ version: s.version }); })
+    .catch(() => {});
 }
 
 if (window.elevate?.onBrowserProfileClosed) {
