@@ -26,6 +26,7 @@ const adsInProgress = new Set(); // perfis sendo lidos pelo Relatorio de ADS ago
 const openingProfiles = new Set(); // perfis EM PROCESSO de abertura (trava a corrida de duplo-clique)
 let creatorsPanel = null; // processo do painel "Adicionar creators" (Afiliador), 1 instancia
 let creatorsLaunching = false; // reserva sincrona anti duplo-clique no spawn do painel
+let creatorsAccountsKey = ""; // ids (ordenados) das contas do painel ATUAL -> se a selecao muda, reabre
 
 // Acha o executavel do painel de creators (Afiliador) empacotado, ou o dev.
 function resolveCreatorsSidecar() {
@@ -684,13 +685,20 @@ app.whenReady().then(() => {
       }
       if (event.sender && !event.sender.isDestroyed()) event.sender.send("creators-panel-ready", { error: "timeout" });
     })().catch(() => {}); };
-    // Ja aberto / ja abrindo: NAO sobe outro painel; mas RE-manda o endereco (o painel
-    // ja esta vivo com o panel.url escrito) -> reabrir mostra o conteudo, nao um
-    // overlay vazio (o painel podia estar rodando no fallback de janela).
+    // Chave da selecao ATUAL (ids ordenados). Se for a MESMA do painel aberto,
+    // reaproveita; se MUDOU, fecha o antigo e reabre com as contas novas (senao o
+    // painel continuava mostrando as contas da abertura anterior — o bug do "3 Melt").
+    const newKey = (Array.isArray(info?.accounts) ? info.accounts : [])
+      .map((a) => String(a.id)).sort().join(",");
     if (creatorsLaunching) { emitWhenReady(); return { ok: true, already: true }; }
     if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
-      emitWhenReady();
-      return { ok: true, already: true };
+      if (newKey === creatorsAccountsKey) {   // mesma selecao -> so mostra de novo
+        emitWhenReady();
+        return { ok: true, already: true };
+      }
+      // selecao diferente -> encerra o painel antigo pra reabrir com as novas contas
+      try { killChrome(creatorsPanel); } catch { /* ja morreu */ }
+      creatorsPanel = null;
     }
     creatorsLaunching = true;
     try {
@@ -718,6 +726,7 @@ app.whenReady().then(() => {
         env: { ...process.env, ELEVATE_CREATORS_CONFIG: cfgPath }
       });
       creatorsPanel = panel;
+      creatorsAccountsKey = newKey;   // lembra a selecao deste painel
       // So zera se o processo que saiu ainda for o ATUAL (exit atrasado do painel
       // velho nao pode apagar a referencia de um painel novo).
       panel.on("error", () => { if (creatorsPanel === panel) creatorsPanel = null; });
