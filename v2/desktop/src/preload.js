@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("elevate", {
   },
   installUpdateNow: () => ipcRenderer.invoke("install-update-now"),
   getUpdateStatus: () => ipcRenderer.invoke("get-update-status"),
+  capturePage: (info) => ipcRenderer.invoke("capture-page", info),
   onUpdateAvailable: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("update-available", handler);

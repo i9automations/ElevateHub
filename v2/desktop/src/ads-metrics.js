@@ -131,4 +131,4 @@ function extractAdsMetrics(bodyText) {
   return m;
 }
 
-module.exports = { extractAdsMetrics, parseNum, semAcento };
+module.exports = { extractAdsMetrics, parseNum, semAcento, achaValor };

@@ -689,6 +689,41 @@ app.whenReady().then(() => {
     return openBrowserProfile(info, event.sender);
   });
 
+  // CAPTURA (diagnóstico p/ o relatório): lê o TEXTO + URL da página que está aberta
+  // no navegador LOCAL da conta e salva num .txt na Área de Trabalho. Serve pra eu
+  // calibrar os leitores das seções (Visão Geral, Afiliados, Amostras) com o layout
+  // REAL, sem adivinhar. Nao mexe na conta — so lê a página.
+  ipcMain.handle("capture-page", async (_event, info) => {
+    try {
+      const profileId = String(info?.profileId || "");
+      if (!profileId) return { ok: false, error: "sem conta" };
+      const dir = profileDataDir(profileId);
+      // porta do DevTools do Chrome desta conta (falha rápido se ela não estiver aberta)
+      let port = "";
+      try { port = (await fs.readFile(path.join(dir, "DevToolsActivePort"), "utf8")).split("\n")[0].trim(); }
+      catch { return { ok: false, error: "closed" }; }
+      if (!port) return { ok: false, error: "closed" };
+      const list = await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(8000) })).json();
+      const pages = (Array.isArray(list) ? list : []).filter((t) => t.type === "page" && /^https?:/i.test(t.url || ""));
+      const target = pages.find((t) => /tiktok\.com/i.test(t.url)) || pages[0];
+      if (!target || !target.webSocketDebuggerUrl) return { ok: false, error: "nenhuma página aberta" };
+      const client = await connectCdp(target.webSocketDebuggerUrl);
+      let data;
+      try {
+        const res = await client.send("Runtime.evaluate", {
+          expression: "JSON.stringify({url:location.href,title:document.title,text:(document.body&&document.body.innerText)||''})",
+          returnByValue: true
+        });
+        data = JSON.parse(res.result.value);
+      } finally { try { client.close(); } catch { /* ok */ } }
+      const stamp = new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+$/, "");
+      const safe = profileId.replace(/[^a-z0-9._-]/gi, "_");
+      const out = path.join(app.getPath("desktop"), `captura-${safe}-${stamp}.txt`);
+      await fs.writeFile(out, `URL: ${data.url}\nTITULO: ${data.title}\n\n===== TEXTO DA PAGINA =====\n${data.text || ""}`);
+      return { ok: true, path: out, url: data.url, chars: (data.text || "").length };
+    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  });
+
   ipcMain.handle("collect-ads-metrics", async (_event, info) => {
     return collectAdsMetrics(info);
   });

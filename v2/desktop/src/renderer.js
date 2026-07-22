@@ -427,6 +427,11 @@ function renderProfiles() {
     const codeButton = isTikTokProfile(profile)
       ? `<button class="ghost compact" type="button" data-action="code" data-id="${pid}" title="Pegar código de verificação do e-mail">Código</button>`
       : "";
+    // Botao "Capturar" (SO admin): salva o texto+link da pagina aberta da conta, pra
+    // calibrar o relatorio. Abra a conta e navegue ate a secao antes de clicar.
+    const captureButton = (isAdmin() && isTikTokProfile(profile))
+      ? `<button class="ghost compact" type="button" data-action="capture" data-id="${pid}" title="Abra a conta e navegue até a seção; isto salva o texto da página (pra montar o relatório)">Capturar</button>`
+      : "";
     const releaseButton = "";
     const openBtn = `<button class="run" type="button" data-action="open" data-id="${pid}">${CHROME_ICON}Abrir</button>`;
     const av = profileAvatar(profile.name);
@@ -448,7 +453,7 @@ function renderProfiles() {
         <div class="pr-status"><span class="st st-${status.cls}"><i></i>${status.text}</span></div>
         <div class="pr-resp">${escapeHtml(owner)}</div>
         <div class="pr-last">${formatDate(profile.lastOpenedAt)}</div>
-        <div class="pr-act">${editButton}${codeButton}${releaseButton}${openBtn}</div>
+        <div class="pr-act">${editButton}${codeButton}${captureButton}${releaseButton}${openBtn}</div>
       </div>`;
   }).join("");
 
@@ -1210,6 +1215,24 @@ async function testMailboxRow(rowEl) {
 }
 
 // ---- Pegar código de verificação de um cliente ----
+// Captura o texto+link da página aberta da conta (pra calibrar o relatório).
+async function captureProfilePage(id) {
+  if (!window.elevate?.capturePage) { toast("Atualize o app pra usar a captura.", "warning"); return; }
+  toast("Capturando a página aberta da conta…", "info");
+  try {
+    const r = await window.elevate.capturePage({ profileId: id });
+    if (r?.ok) {
+      toast(`Página salva na Área de Trabalho (${r.chars} caracteres). Me manda o arquivo.`, "success");
+    } else if (r?.error === "closed" || r?.error === "nenhuma página aberta") {
+      toast("Abra a conta primeiro (botão Abrir) e navegue até a seção, depois clique em Capturar.", "warning");
+    } else {
+      toast(`Não consegui capturar: ${r?.error || "erro"}.`, "danger");
+    }
+  } catch (e) {
+    toast(friendlyError(e), "danger");
+  }
+}
+
 async function fetchProfileCode(profile) {
   if (!profile) return;
   const dlg = $("codeDialog");
@@ -1807,6 +1830,7 @@ $("profileList").addEventListener("click", (event) => {
   if (button?.dataset.action === "open") openLocalBrowser(id);
   else if (button?.dataset.action === "edit") requireAuth(() => openProfileDialog(profile));
   else if (button?.dataset.action === "code") requireAuth(() => fetchProfileCode(profile));
+  else if (button?.dataset.action === "capture") requireAuth(() => captureProfilePage(id));
   else if (button?.dataset.action === "release") releaseLock(id);
   else renderProfiles();
 });
