@@ -480,6 +480,17 @@ async function openBrowserProfile(info, sender) {
   if (adsInProgress.has(profileId)) {
     return { ok: false, error: "ads-busy" };
   }
+  // COLISAO DE PERFIL (simetrica): se o painel de creators esta ATIVO e usando
+  // este mesmo perfil, abrir um 2o Chrome aqui brigaria pelo lock do user-data-dir
+  // -> perfil degradado/limpo (a conta "abre DESLOGADA") e possivel corrupcao da
+  // sessao gravada. O open-creators-panel ja bloqueia o sentido oposto (conta
+  // aberta no app -> nao deixa subir o painel); aqui fechamos o inverso.
+  if (creatorsPanel && creatorsPanel.exitCode === null && !creatorsPanel.killed) {
+    const emUso = String(creatorsAccountsKey || "").split(",").filter(Boolean);
+    if (emUso.includes(profileId)) {
+      return { ok: false, error: "creators-busy" };
+    }
+  }
   // CORRIDA DE DUPLO-CLIQUE: o guard "ja aberto" (openBrowsers) so era gravado
   // DEPOIS de varios awaits (mkdir/markChromeProfile/rm). Dois cliques rapidos (ou
   // dois eventos IPC quase simultaneos) passavam OS DOIS pela checagem antes de

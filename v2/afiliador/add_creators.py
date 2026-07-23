@@ -65,7 +65,13 @@ DROPDOWN_TIMEOUT = 3.5            # quanto esperar o resultado no dropdown
 CONFIRM_TIMEOUT = 1.5            # quanto esperar o contador confirmar a adicao
 BUSCA_GAP_MIN = 1.0              # segundos MINIMOS entre 2 buscas
 
-MAX_FALHAS_SEGUIDAS = 5           # freio de seguranca: para se isso acontecer
+MAX_FALHAS_SEGUIDAS = 5           # freio de seguranca: avisa/pede ENTER se isso acontecer
+MAX_FALHAS_ABORT = 15             # backstop: no painel (nao-interativo), ABORTA o lote
+                                  # apos tantas falhas SEGUIDAS (bloqueio/tela errada) —
+                                  # nao adianta martelar a lista e queimar a conta.
+MAX_ILEGIVEL_SEGUIDAS = 4         # se o contador '/50' ficar ILEGIVEL tantas vezes
+                                  # seguidas, nao da mais pra CONFIRMAR adicao —
+                                  # paramos em vez de marcar tudo como "ok" no escuro.
 DEBUG = True                      # mostra detalhes (campo, contador antes/depois)
 
 _OVERLAP_DUMP = False    # ja despejei o HTML de uma linha de sobreposicao? (1x)
@@ -77,7 +83,8 @@ _tl = threading.local()
 
 MARCA = {"ok": "OK   ", "already_in_campaign": "JA-NA-CAMPANHA",
          "not_found": "NAO-ACHOU", "error": "ERRO ",
-         "sobreposicao": "SOBREPOSICAO-PULADO"}
+         "sobreposicao": "SOBREPOSICAO-PULADO",
+         "nao_confirmado": "NAO-CONFIRMADO"}
 
 
 def definir_conta(nome):
@@ -394,7 +401,12 @@ def adicionar_um(page, creator_id):
     if r == "ok":
         return "ok"
     if r == "ilegivel":
-        return "ok"               # clicou e nao deu pra ler -> assume adicionado
+        # Cliquei, mas NAO consegui ler o contador '/50' pra confirmar. NAO marca
+        # "ok" no escuro (se o layout do contador mudar, isso mascararia o lote
+        # inteiro como sucesso sem ter adicionado ninguem). Fica 'nao_confirmado':
+        # nao entra em 'resolvidos', entao e re-tentado no proximo lote, e se
+        # acontecer varias vezes seguidas o rodar_lote PARA e avisa.
+        return "nao_confirmado"
     return "already_in_campaign"  # contador legivel e nao subiu
 
 
@@ -518,8 +530,12 @@ def ler_ja_adicionados(page, candidatos):
             texto = page.inner_text("body", timeout=3000)
         except Exception:
             break
-        tokens = {t.strip().lstrip("@").rstrip(",").rstrip("·")
-                  for t in re.split(r"\s+", texto)}
+        # SO conta tokens que vem com "@" na frente — e assim que a lista de
+        # ADICIONADOS mostra o handle (@fulano). Isso evita o falso-positivo de
+        # um id que apareca solto em outro lugar da pagina (sugestao/recentes),
+        # que marcaria o criador como "ja adicionado" e o pularia no escuro.
+        tokens = {t.rstrip(",").rstrip("·").lstrip("@")
+                  for t in re.split(r"\s+", texto) if t.startswith("@")}
         encontrados |= (candidatos & tokens)
         # rola qualquer area scrollavel ate o fim pra carregar mais linhas
         try:
@@ -713,6 +729,17 @@ def duplicar_proximo(page, log=print):
 
     _skip_pauses(nova)
     nova.bring_to_front()
+    # (A1) GARANTE o disfarce 'Google Chrome' NESTA aba nova ANTES de operar. O
+    # handler de contexto (page.context.on("page", ...)) pode aplicar tarde demais
+    # — a 1a requisicao da aba ja teria saido como 'Chromium', e o TikTok pode
+    # rejeitar/deslogar essa aba. Reaplicamos e RECARREGAMOS com o disfarce ja
+    # ativo. O formulario ainda esta vazio aqui, entao o reload nao perde nada.
+    if _disfarce_chrome(nova):
+        try:
+            nova.reload(wait_until="domcontentloaded", timeout=30000)
+            _skip_pauses(nova)
+        except Exception:
+            pass
     try:
         nova.wait_for_load_state("domcontentloaded", timeout=20000)
     except Exception:
@@ -812,9 +839,11 @@ def rodar_lote(page, todos, status, status_path, log=print,
       deve_parar()    -> bool; se True, aborta no proximo passo
       on_stat(dict)   -> atualiza contadores (usado pela janela)
       interativo      -> True usa input() no freio de seguranca; False so avisa"""
+    # 'nao_confirmado' NAO entra em 'resolvidos' de proposito: e uma adicao que
+    # nao deu pra confirmar pelo contador -> fica pendente pra re-tentar depois.
     resolvidos = {"ok", "already_in_campaign", "ja_na_tela", "sobreposicao"}
     vazio = {"ok": [], "already_in_campaign": [], "not_found": [], "error": [],
-             "sobreposicao": []}
+             "sobreposicao": [], "nao_confirmado": []}
 
     def parou():
         return bool(deve_parar and deve_parar())
@@ -853,8 +882,11 @@ def rodar_lote(page, todos, status, status_path, log=print,
     log(f"  -> pendentes pra adicionar: {len(pendentes)}")
 
     resultados = {"ok": [], "already_in_campaign": [], "not_found": [],
-                  "error": [], "sobreposicao": []}
-    falhas_seguidas = 0
+                  "error": [], "sobreposicao": [], "nao_confirmado": []}
+    falhas_seguidas = 0        # not_found/error seguidos -> aviso (ENTER no CLI)
+    falhas_abort = 0           # not_found/error seguidos -> backstop de abortar (A4)
+    ilegiveis_seguidas = 0     # adicoes sem contador legivel seguidas (A2)
+    abortado = False           # lote interrompido por bloqueio/contador quebrado
 
     def emit(na_tela, teto):
         if on_stat:
@@ -864,6 +896,7 @@ def rodar_lote(page, todos, status, status_path, log=print,
                      "nao": len(resultados["not_found"]),
                      "err": len(resultados["error"]),
                      "pulados": len(resultados["sobreposicao"]),
+                     "naoconf": len(resultados["nao_confirmado"]),
                      "na_tela": na_tela, "teto": teto,
                      "feitos": feitos, "total": len(pendentes)})
 
@@ -906,12 +939,36 @@ def rodar_lote(page, todos, status, status_path, log=print,
         log(f"[{idx}/{len(pendentes)}] {MARCA[st]} -> {creator_id}")
         emit(na_tela + (1 if st == "ok" else 0), teto)
 
+        # (A2) contador ilegivel seguidas vezes = nao da mais pra CONFIRMAR nada.
+        # Melhor PARAR e avisar do que marcar o lote inteiro como sucesso no escuro.
+        ilegiveis_seguidas = ilegiveis_seguidas + 1 if st == "nao_confirmado" else 0
+        if ilegiveis_seguidas >= MAX_ILEGIVEL_SEGUIDAS:
+            log(f"!!! {ilegiveis_seguidas} adicoes SEM confirmar seguidas — nao "
+                "consegui ler o contador '/50'. NAO da pra garantir que entraram.")
+            log("    Verifique a tela de 'Escolha criadores' (o contador X/50 "
+                "sumiu?). Nada foi marcado como concluido — rode de novo depois.")
+            if interativo:
+                input("Confira o navegador e aperte ENTER pra continuar... ")
+                ilegiveis_seguidas = 0
+            else:
+                abortado = True
+                break
+
+        # (A4) not_found/error seguidos: aviso a cada MAX_FALHAS_SEGUIDAS; e, no
+        # painel (nao-interativo), ABORTA de vez apos MAX_FALHAS_ABORT (bloqueio).
         falhas_seguidas = falhas_seguidas + 1 if st in ("not_found", "error") else 0
+        falhas_abort = falhas_abort + 1 if st in ("not_found", "error") else 0
         if falhas_seguidas >= MAX_FALHAS_SEGUIDAS:
             log(f"!!! {falhas_seguidas} falhas seguidas — pode ser bloqueio/tela errada.")
             if interativo:
                 input("Verifique o navegador e aperte ENTER pra continuar... ")
             falhas_seguidas = 0
+        if not interativo and falhas_abort >= MAX_FALHAS_ABORT:
+            log(f"!!! {falhas_abort} falhas SEGUIDAS — parece bloqueio ou tela "
+                "errada. Abortando este lote pra nao martelar a lista e queimar "
+                "a conta. O progresso ja esta salvo; rode de novo mais tarde.")
+            abortado = True
+            break
 
         # varredura periodica: pega os avisos de sobreposicao que aparecem
         # atrasados (era a causa de sobrar sobreposto na lista)
@@ -925,9 +982,10 @@ def rodar_lote(page, todos, status, status_path, log=print,
             log(f"   ...pausa de {pausa:.0f}s (anti-bloqueio)")
             time.sleep(pausa)
 
-    # 2a passada: re-tenta os "nao achados" (geralmente misses por timing)
+    # 2a passada: re-tenta os "nao achados" (geralmente misses por timing).
+    # Se abortamos por bloqueio, NAO re-tenta (senao remartela a lista travada).
     nao_achados = list(resultados["not_found"])
-    if nao_achados and not parou():
+    if nao_achados and not parou() and not abortado:
         log(f"--- 2a passada: re-tentando {len(nao_achados)} nao-achados ---")
         resultados["not_found"] = []
         for i, cid in enumerate(nao_achados, start=1):
@@ -966,10 +1024,13 @@ def rodar_lote(page, todos, status, status_path, log=print,
             "que sobraram ---")
 
     log("=" * 50)
+    if abortado:
+        log(">>> LOTE ABORTADO (bloqueio ou contador ilegivel). Progresso salvo.")
     log("RESUMO: "
         f"adicionados={len(resultados['ok'])}  "
         f"ja-na-campanha={len(resultados['already_in_campaign'])}  "
         f"sobreposicao-pulados={len(resultados['sobreposicao'])}  "
+        f"nao-confirmados={len(resultados['nao_confirmado'])}  "
         f"nao-acharam={len(resultados['not_found'])}  "
         f"erros={len(resultados['error'])}")
     return resultados
