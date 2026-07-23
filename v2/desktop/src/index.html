@@ -120,6 +120,7 @@
         <span class="sidebar-label">Ferramentas</span>
         <button class="nav-item" type="button" data-view="mailboxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Caixas de e-mail</button>
         <button class="nav-item" type="button" data-view="ads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>Relatório de ADS</button>
+        <button class="nav-item admin-only" type="button" data-view="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><rect x="7.5" y="10" width="2.6" height="7"/><rect x="12.5" y="6" width="2.6" height="11"/></svg>Relatórios Semanais</button>
         <button class="nav-item" type="button" id="creatorsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Adicionar creators<span id="creatorsCount" class="cr-count hidden"></span></button>
       </nav>
 
@@ -405,6 +406,20 @@
                 <button type="button" class="ghost compact" id="addMailboxBtn">+ Adicionar caixa</button>
                 <button type="button" class="run" id="saveMailboxesBtn">Salvar caixas</button>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view admin-only" id="reportsView">
+          <div class="settings-grid">
+            <div class="view-panel mailbox-panel">
+              <h3>Relatórios Semanais — TikTok Shop</h3>
+              <p class="mailbox-hint">Gera a <strong>mensagem pronta</strong> de cada cliente com os dados dos <strong>últimos 7 dias</strong> (fonte: ELEVATOK). Revise e copie por cliente — nada é enviado automaticamente.</p>
+              <div class="ads-tools-row">
+                <button type="button" class="run" id="genReportsBtn">Gerar relatórios da semana</button>
+                <span id="reportsProgress" class="ads-progress"></span>
+              </div>
+              <div id="reportsResults" class="reports-results"></div>
             </div>
           </div>
         </section>

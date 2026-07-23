@@ -335,6 +335,19 @@ body:not(.admin-mode) .admin-only {
   opacity: .55;
 }
 
+/* ===== Relatórios Semanais (cards por cliente) ===== */
+.reports-results { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.report-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface); }
+.report-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.report-head strong { font-size: 14px; }
+.report-sub { font-size: 12px; color: var(--muted); }
+.report-msg {
+  width: 100%; min-height: 200px; resize: vertical; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: 8px; background: #0d1117; color: #e6edf3;
+  padding: 10px 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap;
+}
+.report-card .ghost { margin-top: 8px; }
+
 .server-card strong {
   display: block;
   margin-top: 4px;

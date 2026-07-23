@@ -1423,6 +1423,7 @@ async function setView(view) {
     profiles: [squad.name, `${squad.label} - ${profilesForSelectedSquad().length} perfis`],
     mailboxes: ["Caixas de e-mail", "Códigos de verificação por e-mail"],
     ads: ["Relatório de ADS", "Métricas de anúncios do TikTok"],
+    reports: ["Relatórios Semanais", "Mensagem pronta por cliente — últimos 7 dias"],
     audit: ["Auditoria", "Histórico recente de acessos"],
     team: ["Equipe", "Usuários do aplicativo"],
     settings: ["Configuração", "Servidor e operação"]
@@ -1843,6 +1844,49 @@ $("addMailboxBtn")?.addEventListener("click", () => {
 });
 $("saveMailboxesBtn")?.addEventListener("click", saveMailboxesUI);
 $("genAdsReportBtn")?.addEventListener("click", generateAdsReport);
+
+// ===== Relatórios Semanais (ferramenta do hub) =====
+function reportBRL(cents) {
+  return "R$ " + ((Number(cents) || 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function renderReportCard(c, i) {
+  const m = c.metrics || {};
+  const sub = `GMV ${reportBRL(m.gmv_cents)} · ${Number(m.pedidos || 0).toLocaleString("pt-BR")} pedidos · ${c.inicio} a ${c.fim}`;
+  return `<div class="report-card">
+    <div class="report-head"><strong>${escapeHtml(c.nome)}</strong><span class="report-sub">${escapeHtml(sub)}</span></div>
+    <textarea class="report-msg" id="rmsg${i}" readonly>${escapeHtml(c.mensagem || "")}</textarea>
+    <button type="button" class="ghost compact" data-copy="rmsg${i}">Copiar mensagem</button>
+  </div>`;
+}
+$("genReportsBtn")?.addEventListener("click", () => requireAuth(async () => {
+  const btn = $("genReportsBtn"), prog = $("reportsProgress"), box = $("reportsResults");
+  btn.disabled = true; prog.textContent = "gerando… (pode levar alguns segundos)"; box.innerHTML = "";
+  try {
+    const data = await api("/api/reports/weekly");
+    if (!data?.ok) {
+      prog.textContent = "";
+      box.innerHTML = `<p class="mailbox-hint">${data?.error === "not-configured"
+        ? "O servidor ainda não está com o acesso ao ELEVATOK configurado (variáveis V2_ELEVATOK_URL / V2_ELEVATOK_KEY)."
+        : "Não consegui gerar os relatórios agora."}</p>`;
+      return;
+    }
+    prog.textContent = `${data.total} cliente(s) · gerado ${new Date(data.geradoEm).toLocaleString("pt-BR")}`;
+    box.innerHTML = (data.clientes || []).map((c, i) => renderReportCard(c, i)).join("")
+      || `<p class="mailbox-hint">Nenhum cliente com dados na última semana.</p>`;
+  } catch (e) {
+    prog.textContent = "";
+    box.innerHTML = `<p class="mailbox-hint">${escapeHtml(friendlyError(e))}</p>`;
+  } finally { btn.disabled = false; }
+}));
+// Copiar a mensagem de um card
+$("reportsResults")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-copy]");
+  if (!b) return;
+  const ta = $(b.dataset.copy);
+  if (!ta) return;
+  const done = () => toast("Mensagem copiada!", "success");
+  navigator.clipboard?.writeText(ta.value).then(done).catch(() => { ta.select(); document.execCommand("copy"); done(); });
+});
 $("openLastAdsBtn")?.addEventListener("click", async () => {
   try {
     const r = await window.elevate?.openLastReport?.();

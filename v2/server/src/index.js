@@ -28,6 +28,7 @@ function cookiesFile(profileId) {
 // Trava anti-regressao/anti-LOGOUT dos cookies: logica isolada e TESTADA em
 // cookie-guard.js (test/cookie-guard.test.js).
 const { cookieWriteDecision, hasPrimaryAuth } = require("./cookie-guard");
+const { buildWeeklyReports } = require("./tiktok-reports");
 // Le a sessao guardada (decifra) p/ comparar com a que chega. Distingue 3 casos:
 //  - exists=false: nao ha arquivo (sessao nunca salva) -> PUT segue normal.
 //  - exists=true, readable=true: leu ok -> compara pela trava (cookie-guard).
@@ -456,6 +457,14 @@ async function handle(req, res) {
 
     if (req.method === "GET" && parts.join("/") === "api/me") {
       return send(res, 200, { user });
+    }
+
+    // Relatório Semanal (ferramenta do hub): gera a mensagem pronta por cliente com
+    // os dados dos últimos 7 dias, lendo o Supabase do ELEVATOK (só leitura). Admin.
+    if (req.method === "GET" && parts.join("/") === "api/reports/weekly") {
+      if (!requireAdmin(user, res)) return;
+      const data = await buildWeeklyReports();
+      return send(res, data.ok ? 200 : 503, data);
     }
 
     if (req.method === "GET" && parts.join("/") === "api/users") {
