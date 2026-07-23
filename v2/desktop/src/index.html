@@ -414,9 +414,16 @@
           <div class="settings-grid">
             <div class="view-panel mailbox-panel">
               <h3>Relatórios Semanais — TikTok Shop</h3>
-              <p class="mailbox-hint">Gera a <strong>mensagem pronta</strong> de cada cliente com os dados dos <strong>últimos 7 dias</strong> (fonte: ELEVATOK). Revise e copie por cliente — nada é enviado automaticamente.</p>
+              <p class="mailbox-hint">Escolha as contas (ou gere todas) e o app monta a <strong>mensagem pronta</strong> de cada uma com os dados dos <strong>últimos 7 dias</strong> (fonte: ELEVATOK). Revise e copie — nada é enviado automaticamente.</p>
+              <input id="reportsSearch" class="report-search" type="text" placeholder="Buscar cliente…" autocomplete="off">
+              <div class="report-sellers-head">
+                <label class="report-selall"><input type="checkbox" id="reportsSelAll"> Marcar todos</label>
+                <span id="reportsSelCount" class="report-sub"></span>
+              </div>
+              <div id="reportsSellers" class="report-sellers"></div>
               <div class="ads-tools-row">
-                <button type="button" class="run" id="genReportsBtn">Gerar relatórios da semana</button>
+                <button type="button" class="run" id="genReportsSelBtn">Gerar selecionados</button>
+                <button type="button" class="ghost" id="genReportsAllBtn">Gerar todos</button>
                 <span id="reportsProgress" class="ads-progress"></span>
               </div>
               <div id="reportsResults" class="reports-results"></div>

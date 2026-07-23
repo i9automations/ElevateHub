@@ -1435,6 +1435,7 @@ async function setView(view) {
   if (view === "team") await loadUsers();
   if (view === "mailboxes") await loadMailboxes();
   if (view === "settings") renderSettings();
+  if (view === "reports") loadReportSellers().catch(() => {});
 }
 
 async function refreshCurrentView() {
@@ -1858,30 +1859,81 @@ function renderReportCard(c, i) {
     <button type="button" class="ghost compact" data-copy="rmsg${i}">Copiar mensagem</button>
   </div>`;
 }
-$("genReportsBtn")?.addEventListener("click", () => requireAuth(async () => {
-  const btn = $("genReportsBtn"), prog = $("reportsProgress"), box = $("reportsResults");
-  btn.disabled = true; prog.textContent = "gerando… (pode levar alguns segundos)"; box.innerHTML = "";
+// Lista as contas (com dados na semana) e monta os checkboxes do seletor.
+async function loadReportSellers() {
+  const box = $("reportsSellers");
+  if (!box) return;
+  box.innerHTML = `<div class="report-seller" style="color:var(--muted)">carregando contas…</div>`;
   try {
-    const data = await api("/api/reports/weekly");
+    const data = await api("/api/reports/sellers");
+    if (!data?.ok) {
+      state.reportSellers = [];
+      box.innerHTML = `<div class="report-seller" style="color:var(--muted)">${data?.error === "not-configured"
+        ? "Servidor sem acesso ao ELEVATOK configurado." : "Não consegui listar as contas."}</div>`;
+    } else {
+      state.reportSellers = data.sellers || [];
+      renderReportSellers();
+    }
+  } catch (e) {
+    state.reportSellers = [];
+    box.innerHTML = `<div class="report-seller" style="color:var(--muted)">${escapeHtml(friendlyError(e))}</div>`;
+  }
+  updateReportSelCount();
+}
+function renderReportSellers() {
+  const box = $("reportsSellers");
+  if (!box) return;
+  const q = ($("reportsSearch")?.value || "").trim().toLowerCase();
+  box.innerHTML = (state.reportSellers || []).map((s) => {
+    const hide = q && !s.nome.toLowerCase().includes(q) ? " hidden" : "";
+    return `<label class="report-seller${hide}"><input type="checkbox" class="rsel" value="${escapeHtml(s.id)}"> ${escapeHtml(s.nome)}</label>`;
+  }).join("") || `<div class="report-seller" style="color:var(--muted)">Nenhuma conta com dados nesta semana.</div>`;
+  updateReportSelCount();
+}
+function reportSelectedIds() {
+  return [...document.querySelectorAll("#reportsSellers .rsel:checked")].map((c) => c.value);
+}
+function updateReportSelCount() {
+  const el = $("reportsSelCount");
+  const total = (state.reportSellers || []).length;
+  if (el) el.textContent = total ? `${reportSelectedIds().length} de ${total} selecionada(s)` : "";
+}
+// Gera os relatorios: sellerIds vazio = todos.
+async function generateReports(sellerIds) {
+  const prog = $("reportsProgress"), box = $("reportsResults");
+  const btns = [$("genReportsSelBtn"), $("genReportsAllBtn")];
+  btns.forEach((b) => { if (b) b.disabled = true; });
+  prog.textContent = "gerando… (pode levar alguns segundos)"; box.innerHTML = "";
+  try {
+    const qs = (sellerIds && sellerIds.length) ? "?sellers=" + sellerIds.map(encodeURIComponent).join(",") : "";
+    const data = await api("/api/reports/weekly" + qs);
     if (!data?.ok) {
       prog.textContent = "";
       box.innerHTML = `<p class="mailbox-hint">${data?.error === "not-configured"
-        ? "O servidor ainda não está com o acesso ao ELEVATOK configurado (variáveis V2_ELEVATOK_URL / V2_ELEVATOK_KEY)."
-        : "Não consegui gerar os relatórios agora."}</p>`;
+        ? "O servidor ainda não está com o acesso ao ELEVATOK configurado." : "Não consegui gerar os relatórios agora."}</p>`;
       return;
     }
     prog.textContent = `${data.total} cliente(s) · gerado ${new Date(data.geradoEm).toLocaleString("pt-BR")}`;
     box.innerHTML = (data.clientes || []).map((c, i) => renderReportCard(c, i)).join("")
-      || `<p class="mailbox-hint">Nenhum cliente com dados na última semana.</p>`;
-    // cada caixa cresce pra caber a mensagem toda -> sem scroll interno (a aba que rola)
-    box.querySelectorAll(".report-msg").forEach((ta) => {
-      ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 6) + "px";
-    });
+      || `<p class="mailbox-hint">Nenhum cliente com dados.</p>`;
+    box.querySelectorAll(".report-msg").forEach((ta) => { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 6) + "px"; });
   } catch (e) {
     prog.textContent = "";
     box.innerHTML = `<p class="mailbox-hint">${escapeHtml(friendlyError(e))}</p>`;
-  } finally { btn.disabled = false; }
+  } finally { btns.forEach((b) => { if (b) b.disabled = false; }); }
+}
+$("reportsSearch")?.addEventListener("input", renderReportSellers);
+$("reportsSellers")?.addEventListener("change", updateReportSelCount);
+$("reportsSelAll")?.addEventListener("change", (e) => {
+  document.querySelectorAll("#reportsSellers .report-seller:not(.hidden) .rsel").forEach((c) => { c.checked = e.target.checked; });
+  updateReportSelCount();
+});
+$("genReportsSelBtn")?.addEventListener("click", () => requireAuth(() => {
+  const ids = reportSelectedIds();
+  if (!ids.length) { toast("Marque pelo menos uma conta — ou use 'Gerar todos'.", "warning"); return; }
+  generateReports(ids);
 }));
+$("genReportsAllBtn")?.addEventListener("click", () => requireAuth(() => generateReports([])));
 // Copiar a mensagem de um card
 $("reportsResults")?.addEventListener("click", (e) => {
   const b = e.target.closest("[data-copy]");

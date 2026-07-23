@@ -350,6 +350,18 @@ body:not(.admin-mode) .admin-only {
 /* a aba inteira rola; o painel nao corta o conteudo (senao os cards ficam presos) */
 #reportsView { overflow-y: auto; }
 #reportsView .view-panel { overflow: visible; }
+/* seletor de contas */
+.report-search { width: 100%; box-sizing: border-box; margin: 12px 0 8px; padding: 9px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: #0d1117; color: #e6edf3; font-size: 13px; }
+.report-sellers-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.report-selall { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.report-selall input { width: auto; margin: 0; }
+.report-sellers { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); padding: 4px; display: flex; flex-direction: column; }
+.report-seller { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.report-seller:hover { background: rgba(255,255,255,.04); }
+.report-seller input { width: auto; margin: 0; flex: none; }
+.report-seller.hidden { display: none; }
 
 .server-card strong {
   display: block;

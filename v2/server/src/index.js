@@ -28,7 +28,7 @@ function cookiesFile(profileId) {
 // Trava anti-regressao/anti-LOGOUT dos cookies: logica isolada e TESTADA em
 // cookie-guard.js (test/cookie-guard.test.js).
 const { cookieWriteDecision, hasPrimaryAuth } = require("./cookie-guard");
-const { buildWeeklyReports } = require("./tiktok-reports");
+const { buildWeeklyReports, listSellers } = require("./tiktok-reports");
 // Le a sessao guardada (decifra) p/ comparar com a que chega. Distingue 3 casos:
 //  - exists=false: nao ha arquivo (sessao nunca salva) -> PUT segue normal.
 //  - exists=true, readable=true: leu ok -> compara pela trava (cookie-guard).
@@ -462,8 +462,17 @@ async function handle(req, res) {
     // Relatório Semanal (ferramenta do hub): gera a mensagem pronta por cliente com
     // os dados dos últimos 7 dias, lendo o Supabase do ELEVATOK (só leitura).
     // Liberado pra QUALQUER operador logado (a equipe é quem envia os relatórios).
+    // Lista as contas com dados na semana (pro seletor do app).
+    if (req.method === "GET" && parts.join("/") === "api/reports/sellers") {
+      const data = await listSellers();
+      return send(res, data.ok ? 200 : 503, data);
+    }
+
+    // Gera os relatorios. ?sellers=id1,id2 -> so essas contas; sem o param -> todas.
     if (req.method === "GET" && parts.join("/") === "api/reports/weekly") {
-      const data = await buildWeeklyReports();
+      const sellersParam = new URL(req.url, "http://localhost").searchParams.get("sellers") || "";
+      const sellerIds = sellersParam.split(",").map((s) => s.trim()).filter(Boolean);
+      const data = await buildWeeklyReports({ sellerIds });
       return send(res, data.ok ? 200 : 503, data);
     }
 

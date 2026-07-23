@@ -106,10 +106,34 @@ function montarMensagem({ nome, ini, fim, cur, prev, custo, receita, roi,
 
 // Gera os relatórios semanais de TODOS os clientes com dados na última janela de 7 dias.
 // Retorna { ok, geradoEm, clientes: [{ sellerId, nome, inicio, fim, metrics, mensagem }] }.
-async function buildWeeklyReports() {
+// Lista as contas (sellers) que TÊM dados na última semana -> alimenta o seletor no app.
+async function listSellers() {
+  if (!isConfigured()) return { ok: false, error: "not-configured" };
+  const [sellersRaw, dashRaw] = await Promise.all([
+    sbGet("sellers?select=id,display_name,internal_label"),
+    sbGet("mv_dashboard_period_cache?period_key=eq.7d&select=seller_id,end_date,refreshed_at,payload")
+  ]);
+  const nomes = {};
+  for (const s of sellersRaw) nomes[s.id] = s.display_name || s.internal_label || "Cliente";
+  const latest = {};
+  for (const r of dashRaw) {
+    const k = r.seller_id, cmp = [r.end_date, r.refreshed_at || ""].join("|");
+    if (!latest[k] || cmp > [latest[k].end_date, latest[k].refreshed_at || ""].join("|")) latest[k] = r;
+  }
+  const sellers = Object.values(latest)
+    .filter((r) => (r.payload && r.payload.current && r.payload.current.gmv_cents))
+    .map((r) => ({ id: r.seller_id, nome: nomes[r.seller_id] || "Cliente" }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  return { ok: true, total: sellers.length, sellers };
+}
+
+// opts.sellerIds (array opcional): se vier, gera SO essas contas; senao, todas.
+async function buildWeeklyReports(opts = {}) {
   if (!isConfigured()) {
     return { ok: false, error: "not-configured", detail: "Defina V2_ELEVATOK_URL e V2_ELEVATOK_KEY no servidor." };
   }
+  const filtro = Array.isArray(opts.sellerIds) && opts.sellerIds.length
+    ? new Set(opts.sellerIds.map(String)) : null;
   const [sellersRaw, dashRaw, analRaw] = await Promise.all([
     sbGet("sellers?select=id,display_name,internal_label"),
     sbGet("mv_dashboard_period_cache?period_key=eq.7d&select=seller_id,start_date,end_date,previous_start_date,previous_end_date,refreshed_at,payload"),
@@ -132,6 +156,7 @@ async function buildWeeklyReports() {
 
   const clientes = [];
   for (const r of Object.values(maisRecente)) {
+    if (filtro && !filtro.has(String(r.seller_id))) continue;  // seletor de contas
     const cur = (r.payload && r.payload.current) || {};
     if (!cur.gmv_cents) continue; // sem GMV = sem movimento -> pula
     const prev = (r.payload && r.payload.previous) || {};
@@ -202,4 +227,4 @@ async function buildWeeklyReports() {
   return { ok: true, geradoEm: new Date().toISOString(), total: clientes.length, clientes };
 }
 
-module.exports = { buildWeeklyReports, isConfigured };
+module.exports = { buildWeeklyReports, listSellers, isConfigured };
