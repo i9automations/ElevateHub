@@ -1891,6 +1891,22 @@ $("reportsResults")?.addEventListener("click", (e) => {
   const done = () => toast("Mensagem copiada!", "success");
   navigator.clipboard?.writeText(ta.value).then(done).catch(() => { ta.select(); document.execCommand("copy"); done(); });
 });
+
+// ===== Auto-refresh da lista de contas (tempo real) =====
+// Conta nova criada em outro PC / mudanca de status aparece sozinha, sem precisar
+// fechar e reabrir. Roda SO quando faz sentido: logado, na aba de contas, e sem
+// dialogo aberto (pra nao atrapalhar quem esta editando). Rede instavel nao incomoda.
+let profilesRefreshing = false;
+async function autoRefreshProfiles() {
+  if (profilesRefreshing) return;
+  if (!state.token || state.view !== "profiles") return;
+  if ($("profileDialog")?.open || $("codeDialog")?.open || $("confirmDialog")?.open) return;
+  profilesRefreshing = true;
+  try { await loadProfiles(); } catch { /* silencioso */ }
+  finally { profilesRefreshing = false; }
+}
+setInterval(autoRefreshProfiles, 15000);                 // a cada 15s
+window.addEventListener("focus", () => { autoRefreshProfiles(); }); // e ao voltar pro app
 $("openLastAdsBtn")?.addEventListener("click", async () => {
   try {
     const r = await window.elevate?.openLastReport?.();
