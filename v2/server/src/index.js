@@ -460,9 +460,9 @@ async function handle(req, res) {
     }
 
     // Relatório Semanal (ferramenta do hub): gera a mensagem pronta por cliente com
-    // os dados dos últimos 7 dias, lendo o Supabase do ELEVATOK (só leitura). Admin.
+    // os dados dos últimos 7 dias, lendo o Supabase do ELEVATOK (só leitura).
+    // Liberado pra QUALQUER operador logado (a equipe é quem envia os relatórios).
     if (req.method === "GET" && parts.join("/") === "api/reports/weekly") {
-      if (!requireAdmin(user, res)) return;
       const data = await buildWeeklyReports();
       return send(res, data.ok ? 200 : 503, data);
     }
