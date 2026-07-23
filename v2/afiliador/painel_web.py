@@ -13,6 +13,7 @@ import time
 import threading
 import subprocess
 import urllib.request
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from playwright.sync_api import sync_playwright
@@ -140,6 +141,16 @@ def _injetar_cookies_elevate(ctx, conta, log=print):
                 except Exception:
                     pass
         log(f"   sessao do ElevateHub carregada ({bons}/{len(pw)} cookies).")
+    except urllib.error.HTTPError as e:
+        # Mensagem clara por codigo, em vez do erro cru — o operador sabe o que fazer.
+        if e.code == 403:
+            log("   (403 ao carregar a sessao: essa conta esta ABERTA em outro PC "
+                "ou bloqueada pelo anti-logout) -> abre DESLOGADO. Feche-a no outro PC.")
+        elif e.code in (401, 419):
+            log("   (sua sessao do ElevateHub expirou -> abre DESLOGADO). "
+                "Feche e reabra o ElevateHub pra refazer o login.")
+        else:
+            log(f"   (nao consegui carregar a sessao do ElevateHub: HTTP {e.code}) -> abre DESLOGADO")
     except Exception as e:
         log(f"   (nao consegui carregar a sessao do ElevateHub: {e})")
 
@@ -344,9 +355,9 @@ class Slot:
                     self.duplicar_ev.clear()
                     if self.estado not in ("terminado", "parado"):
                         self.estado = "pronto"
-                    else:
-                        self.estado = self.estado  # mantem
-                    self.estado = "pronto"
+                    # senao: PRESERVA "terminado"/"parado" pra a UI mostrar o fim do
+                    # lote. (Antes tinha um "self.estado = 'pronto'" aqui embaixo que
+                    # sobrescrevia sempre -> o badge nunca mostrava pausado/terminado.)
                     while not (self.comecar_ev.is_set()
                                or self.duplicar_ev.is_set()
                                or self.fechar_ev.is_set()):
@@ -379,34 +390,52 @@ class Slot:
                     if not self.excel_path:
                         self._log(">>> Escolha a planilha antes de Comecar.")
                         continue
-                    excel = self.excel_path
-                    base = os.path.splitext(
-                        os.path.basename(self.planilha or excel))[0]
-                    cslug = re.sub(r"[^A-Za-z0-9_-]", "",
-                                   self.conta.replace(" ", "")) or "principal"
-                    status_path = os.path.join(
-                        PASTA, f"status_{cslug}_{base}.json")
-                    antigo = os.path.join(PASTA, f"status_{base}.json")
-                    if not os.path.exists(status_path) and os.path.exists(antigo):
-                        status = ac.carregar_status(antigo)
-                        self._log("(progresso anterior herdado)")
-                    else:
-                        status = ac.carregar_status(status_path)
-                    todos = ac.ler_ids(excel)
-                    self._log(f"{len(todos)} IDs ({os.path.basename(excel)}).")
-                    self.estado = "adicionando"
-                    page = ac.seguir_para_aba_certa(page)
-                    ac.rodar_lote(page, todos, status, status_path,
-                                  log=self._log,
-                                  deve_parar=lambda: self.parar_ev.is_set(),
-                                  on_stat=self._stat, interativo=False)
-                    if self.parar_ev.is_set():
-                        self.estado = "parado"
-                        self._log("Lote pausado. (navegador aberto)")
-                    else:
-                        self.estado = "terminado"
-                        self.aviso = True
-                        self._log("Lote terminado. Revise e ENVIE na mao.")
+                    # A leitura da planilha e o lote ficam num try LOCAL: se a planilha
+                    # estiver no formato errado (sem a coluna "Creator id"), corrompida,
+                    # ou der qualquer erro no meio, a gente AVISA e volta pro "pronto"
+                    # COM O NAVEGADOR ABERTO. Antes, um erro aqui subia ate o except de
+                    # fora -> fechava o Chrome logado da conta (o operador achava que
+                    # tinha "deslogado" do nada).
+                    try:
+                        excel = self.excel_path
+                        base = os.path.splitext(
+                            os.path.basename(self.planilha or excel))[0]
+                        cslug = re.sub(r"[^A-Za-z0-9_-]", "",
+                                       self.conta.replace(" ", "")) or "principal"
+                        status_path = os.path.join(
+                            PASTA, f"status_{cslug}_{base}.json")
+                        antigo = os.path.join(PASTA, f"status_{base}.json")
+                        if not os.path.exists(status_path) and os.path.exists(antigo):
+                            status = ac.carregar_status(antigo)
+                            self._log("(progresso anterior herdado)")
+                        else:
+                            status = ac.carregar_status(status_path)
+                        todos = ac.ler_ids(excel)
+                        self._log(f"{len(todos)} IDs ({os.path.basename(excel)}).")
+                        self.estado = "adicionando"
+                        page = ac.seguir_para_aba_certa(page)
+                        ac.rodar_lote(page, todos, status, status_path,
+                                      log=self._log,
+                                      deve_parar=lambda: self.parar_ev.is_set(),
+                                      on_stat=self._stat, interativo=False)
+                        if self.parar_ev.is_set():
+                            self.estado = "parado"
+                            self._log("Lote pausado. (navegador aberto)")
+                        else:
+                            self.estado = "terminado"
+                            self.aviso = True
+                            self._log("Lote terminado. Revise e ENVIE na mao.")
+                    except Exception as e:
+                        # NAO deixa o erro subir (senao o 'with sync_playwright' la de
+                        # fora fecha o navegador). Avisa e segue com o Chrome ABERTO.
+                        self.estado = "pronto"
+                        low = str(e).lower()
+                        if "creator id" in low or "coluna" in low:
+                            self._log(">>> Planilha sem a coluna 'Creator id' (ou "
+                                      "formato errado). Escolha a planilha certa e "
+                                      "clique '3 Comecar'. (navegador segue aberto)")
+                        else:
+                            self._log("ERRO no lote (navegador segue aberto): " + str(e))
                 if morto:
                     self._log(">>> Navegador fechado. Clique 'Abrir' de novo.")
                 try:
@@ -421,8 +450,10 @@ class Slot:
             # erro cru do Playwright.
             if any(t in low for t in ("singleton", "profile", "user data",
                                       "user-data", "lock", "in use", "cannot create")):
-                self._log(">>> Esta conta parece ABERTA no ElevateHub. Feche-a lá "
-                          "(botão Abrir) e clique '1 Abrir' aqui de novo.")
+                self._log(">>> Esta conta ja parece ABERTA — no ElevateHub (botao "
+                          "Abrir) OU em outra coluna deste painel. Feche a outra e "
+                          "clique '1 Abrir' aqui de novo. (nao pode abrir a mesma "
+                          "conta em 2 lugares)")
             else:
                 self._log("ERRO: " + msg)
         finally:

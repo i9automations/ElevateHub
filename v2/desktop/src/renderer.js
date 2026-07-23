@@ -873,7 +873,7 @@ async function openLocalBrowser(profileId) {
       const reason = result?.error === "no-chrome"
         ? "Navegador do app não encontrado."
         : result?.error === "creators-busy"
-        ? "Essa conta está sendo usada no painel de creators. Feche o painel de creators antes de abri-la aqui (abrir por cima deslogaria a sessão)."
+        ? "Essa conta está reservada pelo painel de creators (aberto). Feche o painel de creators antes de abri-la aqui — a mesma conta aberta em dois lugares deslogaria a sessão."
         : "Não consegui abrir o navegador.";
       toast(reason, "danger");
       await api(`/api/profiles/${profileId}/release`, { method: "POST" }).catch(() => {});
