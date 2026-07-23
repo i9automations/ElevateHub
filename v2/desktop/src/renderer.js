@@ -179,7 +179,7 @@ function roleLabel(role) {
 }
 
 function canAccessView(view) {
-  return view === "profiles" || view === "mailboxes" || view === "ads" || isAdmin();
+  return view === "profiles" || view === "mailboxes" || view === "ads" || view === "reports" || isAdmin();
 }
 
 function compareVersions(left, right) {
