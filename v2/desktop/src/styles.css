@@ -342,11 +342,14 @@ body:not(.admin-mode) .admin-only {
 .report-head strong { font-size: 14px; }
 .report-sub { font-size: 12px; color: var(--muted); }
 .report-msg {
-  width: 100%; min-height: 200px; resize: vertical; box-sizing: border-box;
+  width: 100%; resize: none; overflow: hidden; box-sizing: border-box;
   border: 1px solid var(--line); border-radius: 8px; background: #0d1117; color: #e6edf3;
   padding: 10px 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap;
 }
 .report-card .ghost { margin-top: 8px; }
+/* a aba inteira rola; o painel nao corta o conteudo (senao os cards ficam presos) */
+#reportsView { overflow-y: auto; }
+#reportsView .view-panel { overflow: visible; }
 
 .server-card strong {
   display: block;

@@ -1873,6 +1873,10 @@ $("genReportsBtn")?.addEventListener("click", () => requireAuth(async () => {
     prog.textContent = `${data.total} cliente(s) · gerado ${new Date(data.geradoEm).toLocaleString("pt-BR")}`;
     box.innerHTML = (data.clientes || []).map((c, i) => renderReportCard(c, i)).join("")
       || `<p class="mailbox-hint">Nenhum cliente com dados na última semana.</p>`;
+    // cada caixa cresce pra caber a mensagem toda -> sem scroll interno (a aba que rola)
+    box.querySelectorAll(".report-msg").forEach((ta) => {
+      ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 6) + "px";
+    });
   } catch (e) {
     prog.textContent = "";
     box.innerHTML = `<p class="mailbox-hint">${escapeHtml(friendlyError(e))}</p>`;
