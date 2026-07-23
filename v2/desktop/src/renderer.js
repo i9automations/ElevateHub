@@ -1847,17 +1847,41 @@ $("saveMailboxesBtn")?.addEventListener("click", saveMailboxesUI);
 $("genAdsReportBtn")?.addEventListener("click", generateAdsReport);
 
 // ===== Relatórios Semanais (ferramenta do hub) =====
+let reportMsgs = {};   // i -> mensagem crua (pra copiar do jeitinho do WhatsApp)
 function reportBRL(cents) {
   return "R$ " + ((Number(cents) || 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function reportNum(n, casas = 2) {
+  return (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+}
+// Preview da mensagem: escapa, aplica *negrito* do WhatsApp e mantem as quebras.
+function fmtReportMsg(msg) {
+  return escapeHtml(msg || "").replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>");
+}
+function reportStat(label, value) {
+  return `<div class="rstat"><span class="rstat-l">${label}</span><span class="rstat-v">${value}</span></div>`;
+}
 function renderReportCard(c, i) {
+  reportMsgs[i] = c.mensagem || "";
   const m = c.metrics || {};
-  const sub = `GMV ${reportBRL(m.gmv_cents)} · ${Number(m.pedidos || 0).toLocaleString("pt-BR")} pedidos · ${c.inicio} a ${c.fim}`;
-  return `<div class="report-card">
-    <div class="report-head"><strong>${escapeHtml(c.nome)}</strong><span class="report-sub">${escapeHtml(sub)}</span></div>
-    <textarea class="report-msg" id="rmsg${i}" readonly>${escapeHtml(c.mensagem || "")}</textarea>
-    <button type="button" class="ghost compact" data-copy="rmsg${i}">Copiar mensagem</button>
-  </div>`;
+  const av = profileAvatar(c.nome);
+  const per = `${(c.inicio || "").slice(8, 10)}/${(c.inicio || "").slice(5, 7)} a ${(c.fim || "").slice(8, 10)}/${(c.fim || "").slice(5, 7)}`;
+  const stats = [reportStat("GMV", reportBRL(m.gmv_cents)), reportStat("Pedidos", Number(m.pedidos || 0).toLocaleString("pt-BR"))];
+  if (m.ads_custo_cents > 0) stats.push(reportStat("ROI", reportNum(m.roi)));
+  if (m.conversao != null) stats.push(reportStat("Conversão", reportNum(m.conversao) + "%"));
+  if (m.videos != null) stats.push(reportStat("Vídeos", Number(m.videos).toLocaleString("pt-BR")));
+  return `<article class="report-card">
+      <header class="report-head">
+        <span class="report-av" style="background:${av.col}22;color:${av.col}">${escapeHtml(av.ini)}</span>
+        <div class="report-head-txt">
+          <strong>${escapeHtml(c.nome)}</strong>
+          <span class="report-sub">${per}</span>
+        </div>
+        <button type="button" class="report-copy" data-copy="${i}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copiar</button>
+      </header>
+      <div class="report-stats">${stats.join("")}</div>
+      <div class="report-preview">${fmtReportMsg(c.mensagem)}</div>
+    </article>`;
 }
 // Lista as contas (com dados na semana) e monta os checkboxes do seletor.
 async function loadReportSellers() {
@@ -1886,8 +1910,13 @@ function renderReportSellers() {
   const q = ($("reportsSearch")?.value || "").trim().toLowerCase();
   box.innerHTML = (state.reportSellers || []).map((s) => {
     const hide = q && !s.nome.toLowerCase().includes(q) ? " hidden" : "";
-    return `<label class="report-seller${hide}"><input type="checkbox" class="rsel" value="${escapeHtml(s.id)}"> ${escapeHtml(s.nome)}</label>`;
-  }).join("") || `<div class="report-seller" style="color:var(--muted)">Nenhuma conta com dados nesta semana.</div>`;
+    const av = profileAvatar(s.nome);
+    return `<label class="report-seller${hide}">
+      <input type="checkbox" class="rsel" value="${escapeHtml(s.id)}">
+      <span class="report-seller-av" style="background:${av.col}22;color:${av.col}">${escapeHtml(av.ini)}</span>
+      <span class="report-seller-nm">${escapeHtml(s.nome)}</span>
+    </label>`;
+  }).join("") || `<div class="report-empty">Nenhuma conta com dados nesta semana.</div>`;
   updateReportSelCount();
 }
 function reportSelectedIds() {
@@ -1914,9 +1943,9 @@ async function generateReports(sellerIds) {
       return;
     }
     prog.textContent = `${data.total} cliente(s) · gerado ${new Date(data.geradoEm).toLocaleString("pt-BR")}`;
+    reportMsgs = {};
     box.innerHTML = (data.clientes || []).map((c, i) => renderReportCard(c, i)).join("")
       || `<p class="mailbox-hint">Nenhum cliente com dados.</p>`;
-    box.querySelectorAll(".report-msg").forEach((ta) => { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 6) + "px"; });
   } catch (e) {
     prog.textContent = "";
     box.innerHTML = `<p class="mailbox-hint">${escapeHtml(friendlyError(e))}</p>`;
@@ -1934,14 +1963,23 @@ $("genReportsSelBtn")?.addEventListener("click", () => requireAuth(() => {
   generateReports(ids);
 }));
 $("genReportsAllBtn")?.addEventListener("click", () => requireAuth(() => generateReports([])));
-// Copiar a mensagem de um card
+// Copiar a mensagem crua (com os * do WhatsApp) + feedback "Copiado ✓" no botao.
 $("reportsResults")?.addEventListener("click", (e) => {
   const b = e.target.closest("[data-copy]");
   if (!b) return;
-  const ta = $(b.dataset.copy);
-  if (!ta) return;
-  const done = () => toast("Mensagem copiada!", "success");
-  navigator.clipboard?.writeText(ta.value).then(done).catch(() => { ta.select(); document.execCommand("copy"); done(); });
+  const raw = reportMsgs[b.dataset.copy];
+  if (raw == null) return;
+  const orig = b.innerHTML;
+  const done = () => {
+    b.classList.add("done"); b.innerHTML = "Copiado ✓";
+    setTimeout(() => { b.classList.remove("done"); b.innerHTML = orig; }, 1500);
+  };
+  const fallback = () => {
+    const t = document.createElement("textarea"); t.value = raw; document.body.appendChild(t); t.select();
+    try { document.execCommand("copy"); } catch { /* ok */ } t.remove(); done();
+  };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(raw).then(done).catch(fallback);
+  else fallback();
 });
 
 // ===== Auto-refresh da lista de contas (tempo real) =====

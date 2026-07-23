@@ -335,33 +335,77 @@ body:not(.admin-mode) .admin-only {
   opacity: .55;
 }
 
-/* ===== Relatórios Semanais (cards por cliente) ===== */
-.reports-results { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
-.report-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface); }
-.report-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-.report-head strong { font-size: 14px; }
-.report-sub { font-size: 12px; color: var(--muted); }
-.report-msg {
-  width: 100%; resize: none; overflow: hidden; box-sizing: border-box;
-  border: 1px solid var(--line); border-radius: 8px; background: #0d1117; color: #e6edf3;
-  padding: 10px 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap;
-}
-.report-card .ghost { margin-top: 8px; }
-/* a aba inteira rola; o painel nao corta o conteudo (senao os cards ficam presos) */
+/* ===== Relatórios Semanais ===== */
 #reportsView { overflow-y: auto; }
 #reportsView .view-panel { overflow: visible; }
-/* seletor de contas */
-.report-search { width: 100%; box-sizing: border-box; margin: 12px 0 8px; padding: 9px 12px;
-  border: 1px solid var(--line); border-radius: 8px; background: #0d1117; color: #e6edf3; font-size: 13px; }
-.report-sellers-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.report-selall { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
-.report-selall input { width: auto; margin: 0; }
-.report-sellers { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px;
-  background: var(--surface); padding: 4px; display: flex; flex-direction: column; }
-.report-seller { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-.report-seller:hover { background: rgba(255,255,255,.04); }
-.report-seller input { width: auto; margin: 0; flex: none; }
+
+/* --- Seletor de contas --- */
+.report-search {
+  width: 100%; box-sizing: border-box; margin: 14px 0 10px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text);
+  font-size: 13px; transition: border-color .15s, box-shadow .15s;
+}
+.report-search::placeholder { color: var(--muted); }
+.report-search:focus { outline: none; border-color: #25f4ee; box-shadow: 0 0 0 3px rgba(37,244,238,.12); }
+
+.report-sellers-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 8px; }
+.report-selall { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.report-selall input { width: auto; margin: 0; accent-color: #25f4ee; }
+.report-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.report-sellers {
+  max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.report-seller {
+  display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; font-size: 13px; transition: background .12s;
+}
+.report-seller:hover { background: var(--surface-3); }
+.report-seller:has(.rsel:checked) { background: rgba(37,244,238,.09); }
+.report-seller input.rsel { width: auto; margin: 0; flex: none; accent-color: #25f4ee; }
+.report-seller-av {
+  width: 26px; height: 26px; flex: none; border-radius: 7px; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; letter-spacing: .3px;
+}
+.report-seller-nm { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .report-seller.hidden { display: none; }
+.report-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* --- Cards de relatório --- */
+.reports-results { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.report-card {
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+  overflow: hidden; transition: border-color .15s;
+}
+.report-card:hover { border-color: #3a4552; }
+.report-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; }
+.report-av {
+  width: 38px; height: 38px; flex: none; border-radius: 10px; display: grid; place-items: center;
+  font-size: 14px; font-weight: 800; letter-spacing: .5px;
+}
+.report-head-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.report-head-txt strong { font-size: 15px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-copy {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 7px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted);
+  font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .14s;
+}
+.report-copy:hover { border-color: #25f4ee; color: #25f4ee; background: rgba(37,244,238,.06); }
+.report-copy.done { border-color: var(--success); color: var(--success); background: rgba(51,214,159,.12); }
+
+.report-stats { display: flex; flex-wrap: wrap; padding: 2px 16px 14px; border-bottom: 1px solid var(--line-soft); }
+.rstat { display: flex; flex-direction: column; gap: 3px; padding: 0 16px; position: relative; }
+.rstat:first-child { padding-left: 0; }
+.rstat + .rstat::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: var(--line-soft); }
+.rstat-l { font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.rstat-v { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+
+.report-preview {
+  padding: 16px; font-size: 13.5px; line-height: 1.7; color: #d7dee6;
+  white-space: pre-wrap; word-break: break-word; max-width: 660px;
+}
+.report-preview strong { color: var(--text); font-weight: 700; }
 
 .server-card strong {
   display: block;
