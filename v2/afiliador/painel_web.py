@@ -299,6 +299,11 @@ class Slot:
             with sync_playwright() as p:
                 ctx = ac.abrir_contexto(p, self.profile_dir(), log=self._log,
                                         executable_path=CHROME_EXE)
+                # O Chrome da conta JA existe aqui -> marca "navegador aberto" AGORA
+                # (nao so depois do diag). Assim o guarda anti-desligamento do main()
+                # protege esta janela desde o 1o instante, mesmo se o ElevateHub for
+                # pro fundo durante a injecao/navegacao (ping estrangulado).
+                self.navegador = True
                 # Injeta a sessao do ElevateHub -> abre ja logado (sem relogar).
                 _injetar_cookies_elevate(ctx, self.conta, log=self._log)
                 page = ctx.pages[0] if ctx.pages else ctx.new_page()
@@ -851,7 +856,18 @@ def main():
         # processo-pai do Chrome (ele e solto de imediato) -> senao encerraria no
         # meio de um lote se a maquina desse uma engasgada.
         if time.time() - _PING[0] > 30:
-            break
+            # !!! CRITICO: silencio de ping NAO PODE derrubar navegadores de conta
+            # abertos. Quando o operador ABRE as contas, as janelas do Chrome tomam
+            # o foco e o ElevateHub vai pro fundo -> o Chromium ESTRANGULA os timers
+            # do webview em segundo plano -> o setInterval do ping para de disparar
+            # -> passava 30s e o painel fechava TODAS as contas "do nada".
+            # Regra nova: so encerra o sidecar quando o painel esta OCIOSO (nenhum
+            # navegador de conta aberto). Com conta aberta, segue vivo indefinidamente;
+            # quem encerra de verdade e o fechamento do ElevateHub (before-quit mata o
+            # sidecar) ou o operador fechando os navegadores (ai o painel fica ocioso).
+            algum_aberto = any(getattr(s, "navegador", False) for s in SLOTS)
+            if not algum_aberto:
+                break
         time.sleep(1.0)
     for s in SLOTS:
         s.fechar_ev.set()
